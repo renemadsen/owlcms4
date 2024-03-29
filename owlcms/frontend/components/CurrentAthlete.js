@@ -23,18 +23,20 @@ class CurrentAthlete extends LitElement {
         </div>
 
         <div class="attemptBar" style="${this.attemptBarStyles()}">
-          <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
-          <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
-          <div class="clubName ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
-          <div class="attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
-          <div class="weight" style="${this.weightStyles()}">
-            <span >${this.weight}<span style="font-size: 75%" >&nbsp;${this.t?.KgSymbol}</span></span>
-          </div>
-          <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
-            <timer-element id="timer"></timer-element>
-          </div>
-          <div class="timer breakTime" style="${this.breakTimerStyles()}">
-            <timer-element id="breakTimer"></timer-element>
+          <div class="bg">
+            <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
+            <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
+            <div class="clubName ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
+            <div class="attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
+            <div class="weight" style="${this.weightStyles()}">
+              <span >${this.weight}<span style="font-size: 75%" >&nbsp;${this.t?.KgSymbol}</span></span>
+            </div>
+            <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
+              <timer-element id="timer"></timer-element>
+            </div>
+            <div class="timer breakTime" style="${this.breakTimerStyles()}">
+              <timer-element id="breakTimer"></timer-element>
+            </div>
           </div>
           <div class="decisionBox" style="${this.decisionStyles()}">
             <decision-element id="decisions" style="padding:1ex"></decision-element>
