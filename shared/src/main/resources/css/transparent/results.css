@@ -1,5 +1,8 @@
 /* default for page */
 .wrapper {
+    font-family: "montserrat", sans-serif;
+    /*font-weight: 600;*/
+    font-style: normal;
     /* results table font size */
     --tableFontSize: 1.25rem;
     --recordValueCellHeight: calc(var(--tableFontSize)*1.5);
@@ -7,7 +10,7 @@
     --defaultLeaderFillerHeight: 1.75em;
     --bottomSpacerHeight: 0em;
 
-    font-family: Arial, Helvetica, sans-serif;
+    /*font-family: Arial, Helvetica, sans-serif;*/
     color: var(--pageTextColor);
     background-color: var(--pageBackgroundColor);
 
@@ -35,9 +38,13 @@
 .waiting {
     font-size: 1rem;
     font-weight: 600;
-    font-family: 'Roboto Slab', serif;
-    background-color: var(--videoHeaderBackgroundColor);
-    color: var(--videoHeaderTextColor);
+    /*font-family: 'Roboto Slab', serif;*/
+    /*background-color: var(--videoHeaderBackgroundColor);
+    color: var(--videoHeaderTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     padding: 1rem;
     display: flex;
     flex-grow: 1;
@@ -52,9 +59,13 @@
 .video {
     font-size: 2rem;
     font-weight: 600;
-    font-family: 'Roboto Slab', serif;
+    /*font-family: 'Roboto Slab', serif;
     background-color: var(--videoHeaderBackgroundColor);
-    color: var(--videoHeaderTextColor);
+    color: var(--videoHeaderTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     margin-bottom: 1.2rem;
     padding: 0.25em;
     padding-left: 0.5em;
@@ -75,7 +86,7 @@
 }
 
 .video .eventlogo {
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     flex-grow: 0;
@@ -89,7 +100,7 @@
 }
 
 .video .federationlogo {
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     flex-grow: 0;
@@ -112,8 +123,8 @@
 /* table general parameters
   by default, show total and total rank, show lift ranks, do not show sinclair */
 table.results {
-    border-collapse: collapse;
-    font-size: var(--tableFontSize);
+    /*border-collapse: collapse;*/
+    /*font-size: var(--tableFontSize);*/
     --totalWidth: var(--liftResultWidth);
     --totalVisibility: visible;
     --rankWidth: var(--liftResultWidth);
@@ -125,6 +136,7 @@ table.results {
     --sinclairVisibility: hidden;
     --sinclairRankWidth: 0;
     --sinclairRankVisibility: hidden;
+    font-size: 20px;
 }
 
 table.results.ranks {
@@ -174,15 +186,16 @@ table.results.sinclair.nosinclairRank {
 
 /* default cell colors, backgrounds and borders */
 :host table.results tr td, 
-:host table.results tr th {
+/*:host table.results tr th*/
+{
     align-items: center;
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
-    border-width: 1px;
+    /*border-width: 1px;
     border-style: solid;
-    border-color: var(--TableBorders);
+    border-color: var(--TableBorders);*/
     justify-content: center;
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 
 :host .dark table.results tr td, 
@@ -199,28 +212,49 @@ table.results.sinclair.nosinclairRank {
 
 /* name */
 :host table.results tr td.name {
-    background-color: var(--NameBackgroundColor);
-    color: var(--NameTextColor);
+    /*background-color: var(--NameBackgroundColor);
+    color: var(--NameTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     justify-content: left;
+    margin-right: 5px;
 }
 
 /* category */
 :host table.results tr td.category {
-    background-color: var(--CategoryBackgroundColor);
-    color: var(--CategoryTextColor);
+    /*background-color: var(--CategoryBackgroundColor);
+    color: var(--CategoryTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     visibility: var(--categoryVisibility);
+    justify-content: center;
+    margin-right: 5px;
 }
 
 /* birth */
 :host table.results tr td.yob {
-    background-color: var(--BirthBackgroundColor);
-    color: var(--BirthTextColor);
+    /*background-color: var(--BirthBackgroundColor);
+    color: var(--BirthTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    margin-right: 5px;
+    justify-content: center;
 }
 
 /* team */
 :host table.results tr td.club {
-    background-color: var(--TeamBackgroundColor);
-    color: var(--TeamTextColor);
+    /*background-color: var(--TeamBackgroundColor);
+    color: var(--TeamTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
 }
 
 table.results tr td.club div.clubName {
@@ -237,42 +271,108 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* good cells */
 :host table.results tr td.good {
-    background-color: var(--GoodBackgroundColor);
-    color: var(--GoodTextColor);
+    /*background-color: var(--GoodBackgroundColor);
+    color: var(--GoodTextColor);*/
+    background-color: #ffffff;
+    border-radius: 5px 0px 0px 5px;
+    border: 0;
+    color: #002A63;
+    justify-content: center;
+    margin-right: 5px;
 }
 :host .dark table.results tr td.good {
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 
 /* bad cells */
 :host table.results tr td.fail {
-    background-color: var(--FailBackgroundColor);
-    color: var(--FailTextColor);
+    background-color: #EF111A;
+    color: #ffffff;
+    justify-content: center;
+    margin-right: 5px;
+    border-radius: 5px 5px 5px 5px;
 }
 :host .dark table.results tr td.fail {
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 
 /* snatch and c&j ranks */
 :host table.results tr td.rank {
-    background-color: var(--RankBackgroundColor);
+    /*background-color: var(--RankBackgroundColor);
+    color: var(--RankTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    visibility: var(--rankVisibility);
+    display: flex;
+    justify-content: center;
+}
+/* name */
+:host table.results tr th.name {
+    background-color: #002A63;
+    border-radius: 5px 0px 0px 5px;
+    border: 0;
+    color: #ffffff;
+    justify-content: left;
+}
+
+:host table.results tr.head th.category {
+    background-color: #002A63;
+    /*justify-content: left;*/
+}
+
+:host table.results tr th.club {
+    background-color: #002A63;
+}
+
+:host table.results tr th.vspacer {
+    background-color: #002A63;
+}
+
+:host table.results tr th {
+    background-color: #002A63;
+}
+
+/* snatch and c&j ranks */
+:host table.results tr th.rank {
+    /*background-color: var(--RankBackgroundColor);*/
     color: var(--RankTextColor);
     visibility: var(--rankVisibility);
     display: flex;
 }
 
 /* snatch and c&j best */
-:host table.results tr td.best,
+:host table.results tr td.best {
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--TotalBackgroundColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    /*color: var(--TotalTextColor);*/
+    visibility: var(--bestVisibility);
+    justify-content: center;
+    margin-right: 5px;
+}
+/* snatch and c&j best */
 :host table.results tr th.best {
-    background-color: var(--TotalBackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--TotalBackgroundColor);*/
     color: var(--TotalTextColor);
     visibility: var(--bestVisibility);
 }
 
 /* total rank */
-:host table.results tr td.totalRank,
+:host table.results tr td.totalRank {
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+}
 :host table.results tr th.totalRank {
-    background-color: var(--TotalRankBackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--TotalRankBackgroundColor);*/
     color: var(--TotalRankTextColor);
     visibility: var(--totalRankVisibility);
 }
@@ -281,30 +381,36 @@ table.results tr td.club div.clubName div.ellipsis {
 :host table.results tr td.groupCol,
 :host table.results tr th.groupCol
  {
-    background-color: var(--StartBackgroundColor);
+    background-color: rgba(0, 0, 0, 0);
+    /*background-color: var(--StartBackgroundColor);*/
     color: var(--StartTextColor);
     visibility: var(--startVisibility);
 }
 
 /* year of birth */
-:host table.results tr td.yob,
-:host table.results tr th.yob {
-    background-color: var(--BackgroundColor);
+/*:host table.results tr td.yob,*/
+:host table.results tr.head th.yob {
+    background-color: #002A63;
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--BackgroundColor);*/
     color: var(--TextColor);
     visibility: var(--birthVisibility);
+    justify-content: left;
 }
 
 /* custom fields */
 :host table.results tr td.custom1,
 :host table.results tr th.custom1 {
-    background-color: var(--BackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--BackgroundColor);*/
     color: var(--TextColor);
     visibility: var(--custom1Visibility);
 }
 
 :host table.results tr td.custom2,
 :host table.results tr th.custom2 {
-    background-color: var(--BackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--BackgroundColor);*/
     color: var(--TextColor);
     visibility: var(--custom2Visibility);
 }
@@ -312,7 +418,8 @@ table.results tr td.club div.clubName div.ellipsis {
 /* sinclair */
 :host table.results tr td.sinclair,
 :host table.results tr th.sinclair {
-    background-color: var(--BackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--BackgroundColor);*/
     color: var(--TextColor);
     visibility: var(--sinclairVisibility);
 }
@@ -324,7 +431,8 @@ table.results tr td.club div.clubName div.ellipsis {
 /* sinclair rank */
 :host table.results tr td.sinclairRank,
 :host table.results tr th.sinclairRank {
-    background-color: var(--RankBackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--RankBackgroundColor);*/
     color: var(--RankTextColor);
     visibility: var(--sinclairRankVisibility);
 }
@@ -334,17 +442,24 @@ table.results tr td.club div.clubName div.ellipsis {
 }
 
 /* total */
-:host table.results tr td.total,
+:host table.results tr td.total {
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    margin-right: 5px;
+    justify-content: center;
+}
 :host table.results tr th.total {
-    background-color: var(--TotalBackgroundColor);
-    color: var(--TotalTextColor);
+    /*background-color: var(--TotalBackgroundColor);
+    color: var(--TotalTextColor);*/
     visibility: var(--totalVisibility);
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 
 /* spacer line above first leader/medalist */
 :host table.results tr td.headerSpacer {
-    background-color: var(--SpacerBackgroundColor);
+    /*background-color: var(--SpacerBackgroundColor);*/
     /* padding: 0.4vmin 0.4vmin 0.4vmin 0.4vmin; */
     margin-bottom: 0.01vh;
     border-right: 0;
@@ -354,8 +469,8 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* spacer line between categories */
 :host table.results tr td.spacer {
-    background-color: var(--SpacerBackgroundColor);
-    padding: 0.2vmin 0.2vmin 0.2vmin 0.2vmin;
+    /*background-color: var(--SpacerBackgroundColor);*/
+    /*padding: 0.2vmin 0.2vmin 0.2vmin 0.2vmin;*/
     border-right: 0;
     border: none;
     max-height: 2px;
@@ -363,7 +478,7 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* filler space above leaders */
 :host table.results tr td.filler {
-    background-color: var(--blockBackgroundColor);
+    /*background-color: var(--blockBackgroundColor);*/
     grid-column: 1 / -1;
     align-content: stretch;
     border: none;
@@ -374,16 +489,28 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* requested weight column */
 :host table.results tr td.request {
-    background-color: var(--RequestBackgroundColor);
-    color: var(--RequestTextColor);
+    /*background-color: var(--RequestBackgroundColor);
+    color: var(--RequestTextColor);*/
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     font-style: italic;
+    justify-content: center;
+    margin-right: 5px;
 }
 
 /* current athlete colors and blinks */
 :host table.results tr td.current {
-    color: var(--CurrentTextColor);
-    background-color: var(--CurrentBackgroundColor);
-    font-weight: bold;
+    /*background-color: #002A63;
+    border-radius: 5px 0px 0px 5px;
+    border: 0;
+    color: #ffffff;*/
+    /*color: var(--CurrentTextColor);
+    background-color: var(--CurrentBackgroundColor);*/
+    /*font-weight: bold;*/
+    background-color: #ffe11a;
+    color: #002A63;
 }
 
 /* blinking text is done with a div animation */
@@ -398,16 +525,22 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* next athlete colors */
 :host table.results tr td.next {
-    color: var(--NextTextColor);
-    background-color: var(--NextBackgroundColor);
-    font-weight: bold;
+    background-color: var(--NextTextColor);
+    color: #002A63;
+    /*background-color: var(--NextBackgroundColor);*/
+    /*font-weight: bold;*/
 }
 
 /* empty cells */
 :host table.results tr td.empty {
-    color: var(--EmptyTextColor);
-    background-color: var(--EmptyBackgroundColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    /*color: var(--EmptyTextColor);
+    background-color: var(--EmptyBackgroundColor);*/
     font-style: italic;
+    margin-right: 5px;
 }
 
 /* grid layout */
@@ -415,7 +548,7 @@ table {
     /* do NOT use all available vertical space */
     flex: 0;
     display: grid;
-    border-collapse: collapse;
+    /*border-collapse: collapse;*/
     grid-template-rows:
         repeat(var(--top), min-content) repeat(1,var(--leaderFillerHeight)) repeat(var(--bottom), var(--leaderLineHeight));
     grid-template-columns:
@@ -479,14 +612,22 @@ td {
 :host .dark table.results tr.head th.vspacer,
 :host .dark table.results tr.head td.vspacer {
     width: var(--spacerWidth);
-    background-color: var(--blockBackgroundColor);
+    /*background-color: var(--blockBackgroundColor);*/
     border: none;
 }
 :host .dark table.results tr th.vspacer,
 :host .dark table.results tr td.vspacer {
     width: var(--spacerWidth);
-    background-color: var(--blockBackgroundColor);
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background-color: var(--blockBackgroundColor);*/
     border: none;
+}
+
+:host table.results thead {
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
 }
 
 :host table.results tr.head td,
@@ -496,18 +637,31 @@ td {
     font-weight: normal;
     /* font-size: var(--tableFontSize); */
     position: relative;
-    padding-top: 2px;
-    padding-bottom: 2px;
-    border: 1px solid;
-    background: var(--TitleBackgroundColor);
+    padding: 8px;
+    /*padding-top: 2px;
+    padding-bottom: 2px;*/
+    /*border: 1px solid;*/
+    /*background-color: rgba(0, 0, 0, 0);*/
+    /*background: var(--TitleBackgroundColor);
     color: var(--TitleTextColor);
-    border-color: var(--TableBorders);
+    border-color: var(--TableBorders);*/
 }
+
+:host table.results tbody tr td {
+    padding: 8px;
+}
+
+th:nth-child(2) {border-radius: 5px 0px 0px 5px;}
+th:nth-child(18) {border-radius: 0px 5px 5px 0px;}
 
 :host table.results tr.head td.leaderTitle {
     grid-column: 1 / -1;
     justify-content: left;
-    font-weight: bold;
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    /*font-weight: bold;*/
 }
 
 
@@ -549,7 +703,7 @@ td {
 
 .attemptBar .startNumber span {
     font-size: 70%;
-    font-weight: bold;
+    /*font-weight: bold;*/
     border-width: 0.2ex;
     border-style: solid;
     border-color: var(--startNumberBoxColor);
@@ -568,7 +722,7 @@ td {
 }
 
 .athleteInfo .fullName {
-    font-weight: bold;
+    /*font-weight: bold;*/
     flex: 0 0 35%;
     text-align: left;
     flex-grow: 0.5;
@@ -594,7 +748,7 @@ td {
 .athleteInfo .timer {
     flex: 0 0 15%;
     text-align: right;
-    font-weight: bold;
+    /*font-weight: bold;*/
     width: 10vw;
     display: flex;
     justify-content: flex-end;
@@ -839,7 +993,7 @@ div.ellipsis {
     line-height: var(--recordValueCellHeight);
     background-color: var(--RecordNameBackground);
     color: var(--RecordNameText);
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 
 :host .light .recordTitle {
@@ -880,7 +1034,7 @@ div.ellipsis {
     outline-color: var(--RecordHighlightBackground);
     color: var(--RecordHighlightText);
     z-index: var(--zIndexRecordNotifications);
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 :host .light .recordNotification.new {
     background-color: var(--RecordHighlightBackground);
@@ -894,7 +1048,7 @@ div.ellipsis {
     outline-color: var(--AttemptHighlightBackground);
     color: var(--AttemptHighlightText);
     z-index: var(--zIndexRecordNotifications);
-    font-weight: bold;
+    /*font-weight: bold;*/
 }
 :host .light .recordNotification.attempt {
     background-color: var(--AttemptHighlightBackground);

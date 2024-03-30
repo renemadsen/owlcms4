@@ -140,12 +140,12 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 }
 
 .breakTime {
-    color: var(--breakTimerColor)
+    color: #ffe11a;
     grid-column: 6/7;
 }
 
 .athleteTimer {
-    color: var(--athleteTimerColor);
+    color: #ffe11a;
 }
 
 table.results {
@@ -395,10 +395,10 @@ table.results td.liftName div {
 }
 
 :host .dark .request {
-    background-color: #002A63;
+    background-color: #ffe11a;
     border-radius: 5px 5px 5px 5px;
     border: 0;
-    color: #ffffff;
+    color: #002A63;
     font-style: italic;
     width: var(--narrow-width);
     text-align: center;
@@ -420,10 +420,10 @@ table.results td.liftName div {
 
 :host .dark td.current {
 /* intentionally light, we want the yellow background */
-    background-color: #002A63;
+    background-color: #ffe11a;
     border-radius: 5px 5px 5px 5px;
     border: 0;
-    color: #ffffff;
+    color: #002A63;
     font-weight: bold;
     width: var(--narrow-width);
     text-align: center;
@@ -478,10 +478,10 @@ table.results td.liftName div {
 }
 
 :host .dark table.results td.empty {
-    background-color: #00ff00;
+    background-color: #002A63;
     border-radius: 5px 5px 5px 5px;
     color: #002A63;
-    border: 0;  
+    border: 0;
     font-style: italic;
     width: var(--narrow-width);
     margin-right: 5px;;
