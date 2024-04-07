@@ -83,6 +83,8 @@ tolerations: []
 affinity: {}
 
 postgresql:
-  postgresqlDatabase: mydatabase
-  postgresqlUsername: myuser
-  postgresqlPassword: mypassword
+  postgresqlDatabase: owlcms4
+  postgresqlUsername: postgres
+  auth:
+    username: postgres
+    database: owlcms4

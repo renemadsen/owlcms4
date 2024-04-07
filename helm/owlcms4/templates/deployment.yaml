@@ -28,9 +28,9 @@ spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
-      - name: wait-for-postgresql
-        image: curlimages/curl:7.70.0
-        command: ['sh', '-c', 'until curl http://{{ .Release.Name }}-postgresql:5432; do echo waiting for postgresql; sleep 2; done;']
+      #- name: wait-for-postgresql
+      #  image: curlimages/curl:7.70.0
+      #  command: ['sh', '-c', 'until curl http://{{ .Release.Name }}-postgresql:5432; do echo waiting for postgresql; sleep 2; done;']
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -47,7 +47,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: "{{ .Release.Name }}-postgresql"
-                  key: postgresql-password
+                  key: postgres-password
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
