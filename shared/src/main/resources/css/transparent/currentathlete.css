@@ -1,5 +1,8 @@
 * {
     box-sizing: border-box;
+    font-weight: 600;
+    font-style: normal;
+    /*font-size: 16px !important;*/
 }
 
 .wrapper {
@@ -12,7 +15,8 @@ table.results {
 }
 
 table.results tr td.spacer {
-    flex-grow: 1;
+    /*flex-grow: 1;*/
+    display: none;
 }
 
 table.results tr td {
@@ -49,34 +53,37 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 }
 
 .wrapper {
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: "montserrat", sans-serif;
     color: var(--videoTextColor);
-    background-color: var(--videoHeaderBackgroundColor);
+    background-color: #00ff00;
     padding: 2vmin 2vmin 2vmin 2vmin;
     overflow: hidden;
 }
 
-.attemptBar {
+.attemptBar .bg {
     display: grid;
-    font-weight: bold;
+    /*font-weight: bold;*/
     font-size: var(--attemptBarFontSize);
     justify-content: space-between;
     grid-template-columns: 4ch 1fr 0.5fr 10ch 10ch 15ch;
     grid-template-rows: auto auto;
     align-items: center;
     justify-items: center;
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    padding: 15px;
 }
 
-.attemptBar .startNumber {
+.attemptBar .bg .startNumber {
     align-self: center;
 }
 
-.attemptBar .startNumber span {
+.attemptBar .bg .startNumber span {
     font-size: 70%;
     font-weight: bold;
     border-width: 0.2ex;
     border-style: solid;
-    border-color: var(--startNumberBoxColor);
+    border-color: #ffffff;
     display: flex;
     width: 1.5em;
     justify-content: center;
@@ -85,13 +92,13 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
     grid-row: 1/1;
 }
 
-.attemptBar .fullName {
-    font-size: 110%;
+.attemptBar .bg .fullName {
+    /*font-size: 110%;*/
     justify-self: left;
     grid-column: 2/3;
 }
 
-.attemptBar .club {
+.attemptBar .bg .club {
     width: var(--club-width);
     white-space: nowrap;
     overflow: hidden;
@@ -99,22 +106,22 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
     grid-area: 3/4;
 }
 
-.attemptBar .attempt {
+.attemptBar .bg .attempt {
     grid-column: 4/5;
 }
 
-.attemptBar .weight {
-    color: var(--athleteAttemptWeightColor);
+.attemptBar .bg .weight {
+    color: #ffffff;
     grid-column: 5/6
 }
 
-.attemptBar .timer {
+.attemptBar .bg .timer {
     font-weight: bold;
     grid-column: 6/7;
     grid-row: 1/2;
 }
 
-.attemptBar .decisionBox {
+.attemptBar .bg .decisionBox {
     width: 100%;
     height: 100%;
     background-color: var(--videoHeaderBackgroundColor);
@@ -133,23 +140,24 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 }
 
 .breakTime {
-    color: var(--breakTimerColor)
+    color: #ffe11a;
     grid-column: 6/7;
 }
 
 .athleteTimer {
-    color: var(--athleteTimerColor);
+    color: #ffe11a;
 }
 
 table.results {
-    border: none;
-    background-color: var(--BackgroundColor);
+    /*background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;*/
     margin-top: 0.3em;
 }
 
 
 :host .dark table.results tr {
-    background-color: var(--BackgroundColor);
+    /*background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;*/
     color: var(--TextColor);
     display: flex;
     flex-direction: row;
@@ -241,9 +249,12 @@ table.results td {
 :host .dark table.results td.showRank, :host .dark table.results td.totalRank {
     border: none;
     font-size: var(--tableFontSize);
-    background-color: var(--BackgroundColor);
-    color: var(--pageTextColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
     font-weight: normal;
+    margin-right: 5px;;
 }
 
 :host .dark table.results td.showRank div, :host .dark table.results td.totalRank div {
@@ -251,18 +262,24 @@ table.results td {
     font-size: var(--fontSizeRows-height);
     margin-right: 0.5em;
     line-height: var(--divLineHeight);
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
+    background-color: #002A63;
+    color: #ffffff;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .dark table.results td.category {
     white-space: nowrap;
-    border: none;
-    background-color: var(--BackgroundColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
     color: var(--TextColor);
     font-size: calc(var(--fontSizeRows-height)*1.0);
     padding-left: 1ch;
     padding-right: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.category {
@@ -288,9 +305,15 @@ table.results td {
 
 :host .dark table.results td.liftName {
     white-space: nowrap;
-    background-color: var(--BackgroundColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
     color: var(--TextColor);
     text-align: center;
+    padding-left: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.liftName {
@@ -309,12 +332,17 @@ table.results td.liftName div {
 }
 
 :host .dark table.results td.good {
-    background-color: var(--GoodBackgroundColor);
-    color: var(--GoodTextColor);
+    background-color: #ffffff;
+    border-radius: 5px 5px 5px 5px;
+    color: #002A63;
+    border: 0;
     font-weight: bold;
     width: var(--narrow-width);
     text-align: center;
-    line-height: var(--divLineHeight)
+    line-height: var(--divLineHeight);
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.good {
@@ -327,12 +355,19 @@ table.results td.liftName div {
 }
 
 :host .dark table.results td.fail {
-    background-color: var(--FailBackgroundColor);
+    background-color: #EF111A;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
     color: var(--FailTextColor);
     font-weight: bold;
     width: var(--narrow-width);
     text-align: center;
     line-height: var(--divLineHeight);
+    padding-left: 1ch;
+    padding-right: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.fail {
@@ -345,7 +380,7 @@ table.results td.liftName div {
 }
 
 :host .dark .spacer {
-    background-color: var(--EmptyBackgroundColor);
+    /*background-color: var(--EmptyBackgroundColor);*/
     flex-grow: 1;
     border: 0;
 }
@@ -360,11 +395,19 @@ table.results td.liftName div {
 }
 
 :host .dark .request {
-    background-color: var(--EmptyBackgroundColor);
+    background-color: #ffe11a;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #002A63;
     font-style: italic;
     width: var(--narrow-width);
     text-align: center;
     line-height: var(--divLineHeight);
+    padding-left: 1ch;
+    padding-right: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light .request {
@@ -377,12 +420,19 @@ table.results td.liftName div {
 
 :host .dark td.current {
 /* intentionally light, we want the yellow background */
-    color: var(--CurrentTextColor);
-    background-color: var(--CurrentBackgroundColor);
+    background-color: #ffe11a;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #002A63;
     font-weight: bold;
     width: var(--narrow-width);
     text-align: center;
     line-height: var(--divLineHeight);
+    padding-left: 1ch;
+    padding-right: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light td.current {
@@ -428,9 +478,15 @@ table.results td.liftName div {
 }
 
 :host .dark table.results td.empty {
-    background-color: var(--EmptyBackgroundColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    color: #002A63;
+    border: 0;
     font-style: italic;
     width: var(--narrow-width);
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.empty {
@@ -440,14 +496,22 @@ table.results td.liftName div {
 }
 
 :host .dark table.results td.total {
-    background-color: var(--TotalBackgroundColor);
-    color: var(--TotalTextColor);
+    background-color: #002A63;
+    border-radius: 5px 5px 5px 5px;
+    border: 0;
+    color: #ffffff;
+    border: 0;
     width: var(--narrow-width);
     text-align: center;
     font-style: normal;
     font-weight: bold;
     text-align: center;
     line-height: var(--divLineHeight);
+    padding-left: 1ch;
+    padding-right: 1ch;
+    margin-right: 5px;;
+    padding-top: 5px;
+    padding-bottom: 5px;
 }
 
 :host .light table.results td.total {
