@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import app.owlcms.displays.video.StylesDirSelection;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.Component;
@@ -129,6 +130,11 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
 		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
 
+		List<String> videoParams = params1.get(VIDEO);
+		boolean videoMode = videoParams == null || videoParams.isEmpty() || videoParams.get(0).toLowerCase().equals("true");
+		setVideo(videoMode);
+		updateParam(params1, VIDEO, isVideo() ? "true" : "false");
+
 		List<String> darkParams = params1.get(DARK);
 		// dark is the default. dark=false or dark=no or ... will turn off dark mode.
 		boolean darkMode = darkParams == null || darkParams.isEmpty() || darkParams.get(0).toLowerCase().equals("true");
@@ -238,6 +244,8 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		        getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null);
 		updateURLLocation(UI.getCurrent(), getLocation(), "ad",
 		        getAgeDivision() != null ? getAgeDivision().name() : null);
+		updateURLLocation(UI.getCurrent(), getLocation(), VIDEO,
+				isVideo() ? Boolean.TRUE.toString() : null);
 	}
 
 }
