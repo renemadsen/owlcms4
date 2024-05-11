@@ -1,16 +1,32 @@
-#### Version 47.1.1
+#### Version 47.1.3
 
 > [!IMPORTANT]
 > 
 > - You should test all releases with your own data, several days before a competition.
 
+##### 47.1.3
+
+- Fix: Global ranks (Sinclair, SMF, Q-Points, etc.) were incorrect when shown on scoreboards
+- Fix/Enhancement: AgeGroup files
+  - Robustness enhancement for dealing with misplaced/wrong cell contents
+  - AgeGroup files now accept the simplified version 48 format
+    - Only keep the tab that defines age group (delete the tab that defined the Robi world records, it is no longer needed)
+    - Remove the gender letter from the columns H and above (only keep the numbers, for example F64 becomes 64 and M67 becomes 67)
+
+
+##### 47.1.2
+
+- Fix: Loading a Start Book Data Entry (SBDE) could fail unpredictably (`null` was written to the loading summary). The loads would work after a clean start but not after other SBDE or JSON loads.
+- Fix: Removed the automatic detection of the Excel registration file formats. The matching user interface buttons for the format must be used for extracting and reloading.
+- Updated several translations
+
 ##### 47.1.1
 
-- Fix: the countdown for the time before snatch is now starting correctly at the end of the athlete introduction.
+- Fix:  the countdown for the time before the snatch is now starting correctly at the end of the athlete introduction.
 
 ##### 47.1
 
-- Announcer-controlled display of jury decisions : To better apply the IWF rule that the reason for jury reversals must be announced, by default the jury decision buttons now triggers a two-step process:
+- Announcer-controlled display of jury decisions: To better apply the IWF rule that the reason for jury reversals must be announced, by default the jury decision buttons now trigger a two-step process:
 
   1. show a prompt to the announcer.  The announcer  announces the decision and the reason
   2. the announcer presses a button that updates the system and the scoreboards. 
