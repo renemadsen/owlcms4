@@ -2,21 +2,21 @@ package app.owlcms.displays.top;
 
 import app.owlcms.apputils.queryparameters.TopParameters;
 import app.owlcms.data.agegroup.AgeGroup;
-import app.owlcms.data.category.AgeDivision;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.category.Category;
 import app.owlcms.displays.scoreboard.Results;
 
 @SuppressWarnings("serial")
 public class AbstractTop extends Results implements TopParameters {
 
-	private AgeDivision ageDivision;
+	private Championship ageDivision;
 	private AgeGroup ageGroup;
 	private String ageGroupPrefix;
 	private Category category;
 
 	@Override
-	final public AgeDivision getAgeDivision() {
-		return ageDivision;
+	final public Championship getChampionship() {
+		return this.ageDivision;
 	}
 
 	@Override
@@ -26,7 +26,7 @@ public class AbstractTop extends Results implements TopParameters {
 
 	@Override
 	final public String getAgeGroupPrefix() {
-		return ageGroupPrefix;
+		return this.ageGroupPrefix;
 	}
 
 	@Override
@@ -35,7 +35,7 @@ public class AbstractTop extends Results implements TopParameters {
 	}
 
 	@Override
-	final public void setAgeDivision(AgeDivision ageDivision) {
+	final public void setChampionship(Championship ageDivision) {
 		this.ageDivision = ageDivision;
 	}
 

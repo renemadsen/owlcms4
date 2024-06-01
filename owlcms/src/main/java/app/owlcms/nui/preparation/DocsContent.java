@@ -7,8 +7,6 @@
 
 package app.owlcms.nui.preparation;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -34,13 +32,12 @@ import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 
 import app.owlcms.components.JXLSDownloader;
-import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
-import app.owlcms.data.category.AgeDivision;
-import app.owlcms.data.category.CategoryRepository;
+import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
@@ -48,11 +45,11 @@ import app.owlcms.data.platform.Platform;
 import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.nui.crudui.OwlcmsCrudGrid;
+import app.owlcms.nui.results.IFilterCascade;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSCardsDocs;
 import app.owlcms.spreadsheet.JXLSStartingListDocs;
 import app.owlcms.spreadsheet.JXLSWeighInSheet;
-import app.owlcms.utils.NaturalOrderComparator;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -64,7 +61,7 @@ import ch.qos.logback.classic.Logger;
  */
 @SuppressWarnings("serial")
 @Route(value = "preparation/docs", layout = OwlcmsLayout.class)
-public class DocsContent extends RegistrationContent implements HasDynamicTitle {
+public class DocsContent extends RegistrationContent implements HasDynamicTitle, IFilterCascade {
 
 	public static final String PRECOMP_DOCS_TITLE = "Preparation.PrecompDocsTitle";
 	final private static Logger jexlLogger = (Logger) LoggerFactory.getLogger("org.apache.commons.jexl2.JexlEngine");
@@ -73,11 +70,15 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 		logger.setLevel(Level.INFO);
 		jexlLogger.setLevel(Level.ERROR);
 	}
-	private ComboBox<AgeDivision> ageDivisionFilter;
-	private ComboBox<String> ageGroupFilter;
-	private ComboBox<Platform> platformFilter;
-	private String groupName;
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
+	private ComboBox<String> ageGroupFilter;
+	private ComboBox<Category> categoryFilter;
+	private List<String> championshipAgeGroupPrefixes;
+	private ComboBox<Championship> championshipFilter;
+	private List<Championship> championshipItems;
+	private ComboBox<Gender> genderFilter;
+	private String groupName;
+	private ComboBox<Platform> platformFilter;
 
 	/**
 	 * Instantiates a new announcer content. Does nothing. Content is created in
@@ -97,7 +98,7 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 	 */
 	@Override
 	public FlexLayout createMenuArea() {
-		topBar = new FlexLayout();
+		this.topBar = new FlexLayout();
 
 		Button bwButton = createBWButton();
 		Button categoriesListButton = createCategoriesListButton();
@@ -126,12 +127,12 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 		buttons.getStyle().set("margin-left", "5em");
 		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-		topBar.getStyle().set("flex", "100 1");
-		topBar.add(topBarMenu, buttons);
-		topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
-		topBar.setAlignItems(FlexComponent.Alignment.CENTER);
+		this.topBar.getStyle().set("flex", "100 1");
+		this.topBar.add(this.topBarMenu, buttons);
+		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
+		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 
-		return topBar;
+		return this.topBar;
 	}
 
 	/**
@@ -142,7 +143,47 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 
 	@Override
 	public List<Athlete> findAll() {
-		return athletesFindAll();
+		return athletesFindAll(false);
+	}
+
+	@Override
+	public ComboBox<String> getAgeGroupFilter() {
+		return this.ageGroupFilter;
+	}
+
+	@Override
+	public ComboBox<Category> getCategoryFilter() {
+		return this.categoryFilter;
+	}
+
+	@Override
+	public List<String> getChampionshipAgeGroupPrefixes() {
+		return this.championshipAgeGroupPrefixes;
+	}
+
+	@Override
+	public ComboBox<Championship> getChampionshipFilter() {
+		return this.championshipFilter;
+	}
+
+	@Override
+	public List<Championship> getChampionshipItems() {
+		return this.championshipItems;
+	}
+
+	@Override
+	public OwlcmsCrudGrid<Athlete> getCrudGrid() {
+		return this.crudGrid;
+	}
+
+	@Override
+	public ComboBox<Gender> getGenderFilter() {
+		return this.genderFilter;
+	}
+
+	@Override
+	public Logger getLogger() {
+		return logger;
 	}
 
 	@Override
@@ -172,73 +213,115 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location,
 	 *      java.util.Map)
 	 */
+//	@Override
+//	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
+//		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
+//
+//		List<String> ageDivisionParams = params1.get("ad");
+//		try {
+//			String ageDivisionName = (ageDivisionParams != null
+//			        && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
+//			Championship valueOf = Championship.of(ageDivisionName);
+//			if (valueOf != null) {
+//				setChampionship(valueOf);
+//				this.getChampionshipFilter().setValue(valueOf);
+//			}
+//		} catch (Exception e) {
+//			setChampionship(null);
+//			this.getChampionshipFilter().setValue(null);
+//		}
+//		// remove if now null
+//		String value = getChampionship() != null ? getChampionship().getName() : null;
+//		updateParam(params1, "ad", value);
+//
+//		List<String> ageGroupParams = params1.get("ag");
+//		// no age group is the default
+//		String ageGroupPrefix = (ageGroupParams != null && !ageGroupParams.isEmpty() ? ageGroupParams.get(0) : null);
+//		setAgeGroupPrefix(ageGroupPrefix);
+//		this.getAgeGroupFilter().setValue(ageGroupPrefix);
+//		String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
+//		updateParam(params1, "ag", value2);
+//
+//		List<String> groupParams = params1.get("group");
+//		// no age group is the default
+//		String groupString = (groupParams != null && !groupParams.isEmpty() ? groupParams.get(0) : null);
+//		Group groupValue = groupString != null ? GroupRepository.findByName(groupString) : null;
+//		setGroup(groupValue);
+//		getGroupFilter().setValue(groupValue);
+//		updateParam(params1, "group", groupString);
+//
+//		List<String> genderParams = params1.get("gender");
+//		// no age group is the default
+//		String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
+//		Gender genderValue = genderString != null ? Gender.valueOf(genderString) : null;
+//		setGender(genderValue);
+//		this.getGenderFilter().setValue(genderValue);
+//		updateParam(params1, "gender", genderString);
+//
+//		List<String> catParams = params1.get("cat");
+//		String catParam = (catParams != null && !catParams.isEmpty() ? catParams.get(0) : null);
+//		catParam = catParam != null ? URLDecoder.decode(catParam, StandardCharsets.UTF_8) : null;
+//		this.setCategory(CategoryRepository.findByCode(catParam));
+//		String catValue = getCategoryValue() != null ? getCategoryValue().toString() : null;
+//		updateParam(params1, "cat", catValue);
+//
+//		List<String> platformParams = params1.get("platform");
+//		String platformParam = (platformParams != null && !platformParams.isEmpty() ? platformParams.get(0) : null);
+//		platformParam = platformParam != null ? URLDecoder.decode(platformParam, StandardCharsets.UTF_8) : null;
+//		this.setPlatform(platformParam != null ? PlatformRepository.findByName(platformParam) : null);
+//		// logger.debug("reading param platform {}", platformParam);
+//		this.getPlatformFilter().setValue(this.getPlatform());
+//		updateParam(params1, "platform", platformParam != null ? platformParam : null);
+//
+//		// logger.debug("params {}", params1);
+//		setUrlParameterMap(params1);
+//		return params1;
+//	}
+
 	@Override
-	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
-		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
-
-		List<String> ageDivisionParams = params1.get("ad");
-		try {
-			String ageDivisionName = (ageDivisionParams != null
-			        && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
-			AgeDivision valueOf = AgeDivision.valueOf(ageDivisionName);
-			setAgeDivision(valueOf);
-			ageDivisionFilter.setValue(valueOf);
-		} catch (Exception e) {
-			setAgeDivision(null);
-			ageDivisionFilter.setValue(null);
-		}
-		// remove if now null
-		String value = getAgeDivision() != null ? getAgeDivision().name() : null;
-		updateParam(params1, "ad", value);
-
-		List<String> ageGroupParams = params1.get("ag");
-		// no age group is the default
-		String ageGroupPrefix = (ageGroupParams != null && !ageGroupParams.isEmpty() ? ageGroupParams.get(0) : null);
-		setAgeGroupPrefix(ageGroupPrefix);
-		ageGroupFilter.setValue(ageGroupPrefix);
-		String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
-		updateParam(params1, "ag", value2);
-
-		List<String> groupParams = params1.get("group");
-		// no age group is the default
-		String groupString = (groupParams != null && !groupParams.isEmpty() ? groupParams.get(0) : null);
-		Group groupValue = groupString != null ? GroupRepository.findByName(groupString) : null;
-		setGroup(groupValue);
-		getGroupFilter().setValue(groupValue);
-		updateParam(params1, "group", groupString);
-
-		List<String> genderParams = params1.get("gender");
-		// no age group is the default
-		String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
-		Gender genderValue = genderString != null ? Gender.valueOf(genderString) : null;
-		setGender(genderValue);
-		genderFilter.setValue(genderValue);
-		updateParam(params1, "gender", genderString);
-
-		List<String> catParams = params1.get("cat");
-		String catParam = (catParams != null && !catParams.isEmpty() ? catParams.get(0) : null);
-		catParam = catParam != null ? URLDecoder.decode(catParam, StandardCharsets.UTF_8) : null;
-		this.setCategory(CategoryRepository.findByCode(catParam));
-		String catValue = getCategoryValue() != null ? getCategoryValue().toString() : null;
-		updateParam(params1, "cat", catValue);
-
-		List<String> platformParams = params1.get("platform");
-		String platformParam = (platformParams != null && !platformParams.isEmpty() ? platformParams.get(0) : null);
-		platformParam = platformParam != null ? URLDecoder.decode(platformParam, StandardCharsets.UTF_8) : null;
-		this.setPlatform(platformParam != null ? PlatformRepository.findByName(platformParam) : null);
-		// logger.debug("reading param platform {}", platformParam);
-		platformFilter.setValue(this.getPlatform());
-		updateParam(params1, "platform", platformParam != null ? platformParam : null);
-
-		// logger.debug("params {}", params1);
-		setUrlParameterMap(params1);
-		return params1;
+	public Category getCategoryValue() {
+		return super.getCategoryValue();
 	}
 
 	@Override
 	public void refresh() {
-		crudGrid.sort(null);
-		crudGrid.refreshGrid();
+		this.crudGrid.sort(null);
+		this.crudGrid.refreshGrid();
+	}
+
+	@Override
+	public void setAgeGroupFilter(ComboBox<String> ageGroupFilter) {
+		this.ageGroupFilter = ageGroupFilter;
+	}
+
+	@Override
+	public void setCategoryFilter(ComboBox<Category> categoryFilter) {
+		this.categoryFilter = categoryFilter;
+	}
+
+	@Override
+	public void setCategoryValue(Category category) {
+		super.setCategory(category);
+	}
+
+	@Override
+	public void setChampionshipAgeGroupPrefixes(List<String> championshipAgeGroupPrefixes) {
+		this.championshipAgeGroupPrefixes = championshipAgeGroupPrefixes;
+	}
+
+	@Override
+	public void setChampionshipFilter(ComboBox<Championship> championshipSelect) {
+		this.championshipFilter = championshipSelect;
+	}
+
+	@Override
+	public void setChampionshipItems(List<Championship> championshipItems) {
+		this.championshipItems = championshipItems;
+	}
+
+	@Override
+	public void setGenderFilter(ComboBox<Gender> genderFilter) {
+		this.genderFilter = genderFilter;
 	}
 
 	/**
@@ -276,10 +359,10 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 		// we use the ? query parameters instead.
 		QueryParameters queryParameters = location.getQueryParameters();
 		Map<String, List<String>> parametersMap = queryParameters.getParameters();
-		HashMap<String, List<String>> params = readParams(location, parametersMap);
+		Map<String, List<String>> params = readParams(location, parametersMap);
 		List<String> groups = params.get("group");
-		groupName = (groups != null && !groups.isEmpty() ? groups.get(0) : null);
-		getGroupFilter().setValue(GroupRepository.findByName(groupName));
+		this.groupName = (groups != null && !groups.isEmpty() ? groups.get(0) : null);
+		getGroupFilter().setValue(GroupRepository.findByName(this.groupName));
 
 		event.getUI().getPage().getHistory().replaceState(null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
@@ -309,7 +392,7 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 			        cardsXlsWriter.setGroup(
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
-			        List<Athlete> athletesFindAll = athletesFindAll();
+			        List<Athlete> athletesFindAll = athletesFindAll(true);
 			        cardsXlsWriter.setSortedAthletes(athletesFindAll);
 			        return cardsXlsWriter;
 		        },
@@ -320,6 +403,29 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 		        Translator.translate("Download"));
 		cardsButtonFactory.setProcessingMessage(Translator.translate("LongProcessing"));
 		return cardsButtonFactory.createDownloadButton();
+	}
+
+	protected Button createCheckInButton() {
+		String resourceDirectoryLocation = "/templates/checkin";
+		String title = Translator.translate("Preparation.Check-in");
+		JXLSDownloader startingListFactory = new JXLSDownloader(
+		        () -> {
+			        JXLSStartingListDocs startingXlsWriter = new JXLSStartingListDocs();
+			        // group may have been edited since the page was loaded
+			        startingXlsWriter.setGroup(
+			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
+			        // get current version of athletes.
+			        startingXlsWriter.setPostProcessor(null);
+			        List<Athlete> athletesFindAll = athletesFindAll(true);
+			        startingXlsWriter.setSortedAthletes(athletesFindAll);
+			        return startingXlsWriter;
+		        },
+		        resourceDirectoryLocation,
+		        Competition::getCheckInTemplateFileName,
+		        Competition::setCheckInTemplateFileName,
+		        title,
+		        Translator.translate("Download"));
+		return startingListFactory.createDownloadButton();
 	}
 
 	protected Button createOfficalsButton() {
@@ -355,36 +461,13 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
 			        startingXlsWriter.setPostProcessor(null);
-			        // findAll();
-			        // List<Athlete> sortedAthletes = startingXlsWriter.getSortedAthletes();
-			        startingXlsWriter.setSortedAthletes(AthleteSorter.registrationOrderCopy(athletesFindAll()));
+			        List<Athlete> athletesFindAll = athletesFindAll(true);
+			        startingXlsWriter.setSortedAthletes(athletesFindAll);
 			        return startingXlsWriter;
 		        },
 		        resourceDirectoryLocation,
 		        Competition::getComputedStartListTemplateFileName,
 		        Competition::setStartListTemplateFileName,
-		        title,
-		        Translator.translate("Download"));
-		return startingListFactory.createDownloadButton();
-	}
-
-	protected Button createCheckInButton() {
-		String resourceDirectoryLocation = "/templates/checkin";
-		String title = Translator.translate("Preparation.Check-in");
-		JXLSDownloader startingListFactory = new JXLSDownloader(
-		        () -> {
-			        JXLSStartingListDocs startingXlsWriter = new JXLSStartingListDocs();
-			        // group may have been edited since the page was loaded
-			        startingXlsWriter.setGroup(
-			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
-			        // get current version of athletes.
-			        startingXlsWriter.setPostProcessor(null);
-			        startingXlsWriter.setSortedAthletes(AthleteSorter.registrationOrderCopy(athletesFindAll()));
-			        return startingXlsWriter;
-		        },
-		        resourceDirectoryLocation,
-		        Competition::getCheckInTemplateFileName,
-		        Competition::setCheckInTemplateFileName,
 		        title,
 		        Translator.translate("Download"));
 		return startingListFactory.createDownloadButton();
@@ -440,108 +523,55 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 	 */
 	@Override
 	protected void defineFilters(OwlcmsCrudGrid<Athlete> crudGrid) {
+		this.defineFilterCascade(crudGrid);
+		this.defineRegistrationFilters(crudGrid, false);
+		this.defineSelectionListeners();
 
-		teamFilter.setPlaceholder(Translator.translate("Team"));
-		teamFilter.setItems(AthleteRepository.findAllTeams());
-		teamFilter.getStyle().set("--vaadin-combo-box-overlay-width", "25em");
-		teamFilter.setClearButtonVisible(true);
-		teamFilter.addValueChangeListener(e -> {
+		this.getTeamFilter().setPlaceholder(Translator.translate("Team"));
+		this.getTeamFilter().setItems(AthleteRepository.findAllTeams());
+		this.getTeamFilter().getStyle().set("--vaadin-combo-box-overlay-width", "25em");
+		this.getTeamFilter().setClearButtonVisible(true);
+		this.getTeamFilter().addValueChangeListener(e -> {
 			setTeam(e.getValue());
 			crudGrid.refreshGrid();
 		});
-		crudGrid.getCrudLayout().addFilterComponent(teamFilter);
+		crudGrid.getCrudLayout().addFilterComponent(this.getTeamFilter());
 
-		getGroupFilter().setPlaceholder(Translator.translate("Group"));
-		List<Group> groups = GroupRepository.findAll();
-		groups.sort(new NaturalOrderComparator<Group>());
-		getGroupFilter().setItems(groups);
-		getGroupFilter().setItemLabelGenerator(Group::getName);
-		// hide because the top bar has it
-		getGroupFilter().getStyle().set("display", "none");
-		getGroupFilter().addValueChangeListener(e -> {
-			Group value = e.getValue();
-			Group currentGroup = value != null ? (value.getName().contentEquals("*") ? null : value) : null;
-			setGroup(currentGroup);
-			crudGrid.refreshGrid();
-			// updateURLLocation(getLocationUI(), getLocation(), getCurrentGroup());
-		});
-		crudGrid.getCrudLayout().addFilterComponent(getGroupFilter());
-
-		genderFilter.setPlaceholder(Translator.translate("Gender"));
-		genderFilter.setItems(Gender.M, Gender.F);
-		genderFilter.setItemLabelGenerator((i) -> {
-			return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
-		});
-		genderFilter.setClearButtonVisible(true);
-		genderFilter.addValueChangeListener(e -> {
-			setGender(e.getValue());
-			crudGrid.refreshGrid();
-		});
-		genderFilter.setWidth("10em");
-		crudGrid.getCrudLayout().addFilterComponent(genderFilter);
-
-		if (ageDivisionFilter == null) {
-			ageDivisionFilter = new ComboBox<>();
+		if (this.getPlatformFilter() == null) {
+			this.setPlatformFilter(new ComboBox<>());
 		}
-		ageDivisionFilter.setPlaceholder(getTranslation("AgeDivision"));
-		List<AgeDivision> adItems = AgeGroupRepository.allAgeDivisionsForAllAgeGroups();
-		ageDivisionFilter.setItems(adItems);
-		ageDivisionFilter.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.name()));
-		ageDivisionFilter.setClearButtonVisible(true);
-		ageDivisionFilter.setWidth("8em");
-		ageDivisionFilter.getStyle().set("margin-left", "1em");
-		ageDivisionFilter.addValueChangeListener(e -> {
-			setAgeDivision(e.getValue());
-			crudGrid.refreshGrid();
-		});
-		crudGrid.getCrudLayout().addFilterComponent(ageDivisionFilter);
-
-		if (ageGroupFilter == null) {
-			ageGroupFilter = new ComboBox<>();
-		}
-		ageGroupFilter.setPlaceholder(getTranslation("AgeGroup"));
-		List<String> agItems = AgeGroupRepository.findActiveAndUsed(getAgeDivision());
-		ageGroupFilter.setItems(agItems);
-		// ageGroupFilter.setItemLabelGenerator((ad) -> Translator.translate("Division."
-		// + ad.name()));
-		ageGroupFilter.setClearButtonVisible(true);
-		ageGroupFilter.setWidth("8em");
-		ageGroupFilter.getStyle().set("margin-left", "1em");
-		ageGroupFilter.addValueChangeListener(e -> {
-			setAgeGroupPrefix(e.getValue());
-			crudGrid.refreshGrid();
-		});
-		crudGrid.getCrudLayout().addFilterComponent(ageGroupFilter);
-		ageGroupFilter.setValue(getAgeGroupPrefix());
-
-		if (platformFilter == null) {
-			platformFilter = new ComboBox<>();
-		}
-		platformFilter.setPlaceholder(getTranslation("Platform"));
+		this.getPlatformFilter().setPlaceholder(getTranslation("Platform"));
 		List<Platform> agItems1 = PlatformRepository.findAll();
-		platformFilter.setItems(agItems1);
+		this.getPlatformFilter().setItems(agItems1);
 		// platformFilter.setItemLabelGenerator((ad) -> Translator.translate("Division."
 		// + ad.name()));
-		platformFilter.setClearButtonVisible(true);
-		platformFilter.setWidth("8em");
-		platformFilter.getStyle().set("margin-left", "1em");
-		platformFilter.addValueChangeListener(e -> {
+		this.getPlatformFilter().setClearButtonVisible(true);
+		this.getPlatformFilter().setWidth("8em");
+		this.getPlatformFilter().getStyle().set("margin-left", "1em");
+		this.getPlatformFilter().addValueChangeListener(e -> {
 			setPlatform(e.getValue());
 			crudGrid.refreshGrid();
 		});
-		crudGrid.getCrudLayout().addFilterComponent(platformFilter);
+		crudGrid.getCrudLayout().addFilterComponent(this.getPlatformFilter());
 		// logger.debug("setting platform filter {}", getPlatform());
-		platformFilter.setValue(getPlatform());
+		this.getPlatformFilter().setValue(getPlatform());
 
 		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
 		clearFilters.addClickListener(event -> {
-			lastNameFilter.clear();
-			ageGroupFilter.clear();
-			ageDivisionFilter.clear();
-			platformFilter.clear();
-			genderFilter.clear();
+			clearFilters();
 		});
 		crudGrid.getCrudLayout().addFilterComponent(clearFilters);
+	}
+
+	@Override
+	public void clearFilters() {
+		this.getAgeGroupFilter().clear();
+		this.getChampionshipFilter().clear();
+		this.getCategoryFilter().clear();
+		this.getGenderFilter().clear();
+		this.getPlatformFilter().clear();
+		this.getLastNameFilter().clear();
+		this.getWeighedInFilter().clear();
 	}
 
 	/**
@@ -551,6 +581,14 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle 
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
+	}
+
+	public ComboBox<Platform> getPlatformFilter() {
+		return platformFilter;
+	}
+
+	public void setPlatformFilter(ComboBox<Platform> platformFilter) {
+		this.platformFilter = platformFilter;
 	}
 
 }

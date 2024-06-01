@@ -42,13 +42,13 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.athleteSort.WinningOrderComparator;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.config.Config;
@@ -185,7 +185,7 @@ public class Competition {
 	private boolean mastersGenderEquality = false;
 	@Transient
 	@JsonIgnore
-	private HashMap<Group, TreeMap<Category, TreeSet<Athlete>>> medalsByGroup;
+	private HashMap<Group, TreeMap<String, TreeSet<Athlete>>> medalsByGroup;
 	private String medalsTemplateFileName;
 
 	/* this is really "keep best n results", backward compatibility with database exports */
@@ -284,8 +284,9 @@ public class Competition {
 	 * @param g a group
 	 * @return for each category represented in group g where all athletes have lifted, the medals
 	 */
-	public TreeMap<Category, TreeSet<Athlete>> computeMedals(Group g) {
-		List<Athlete> rankedAthletes = AthleteRepository.findAthletesForGlobalRanking(g);
+	public TreeMap<String, TreeSet<Athlete>> computeMedals(Group g) {
+		List<Athlete> rankedAthletes = AthleteRepository.findAthletesForGlobalRanking(g, false);
+		//logger.debug("*** all athletes for all categories in group {} {}",g,rankedAthletes.stream().map(a->a.getLastName()).toList());
 		return computeMedals(g, rankedAthletes);
 	}
 
@@ -295,9 +296,10 @@ public class Competition {
 	 *                       compete
 	 * @return for each category, medal-winnning athletes in snatch, clean & jerk and total.
 	 */
-	public TreeMap<Category, TreeSet<Athlete>> computeMedals(Group g, List<Athlete> rankedAthletes
+	public TreeMap<String, TreeSet<Athlete>> computeMedals(Group g, List<Athlete> rankedAthletes
 	// , boolean onlyFinished
 	) {
+ //FIXME: should be able to compute medals for all sessions by iterating
 		if (g == null) {
 			return new TreeMap<>();
 		}
@@ -306,19 +308,20 @@ public class Competition {
 			this.medalsByGroup = new HashMap<>();
 		}
 		if (rankedAthletes == null || rankedAthletes.size() == 0) {
-			TreeMap<Category, TreeSet<Athlete>> treeMap = new TreeMap<>();
+			TreeMap<String, TreeSet<Athlete>> treeMap = new TreeMap<>();
 			this.medalsByGroup.put(g, treeMap);
 			return treeMap;
 		}
 
-		TreeMap<Category, TreeSet<Athlete>> medals = computeMedalsByCategory(rankedAthletes);
+		TreeMap<String, TreeSet<Athlete>> medals = computeMedalsByCategory(rankedAthletes);
 		this.medalsByGroup.put(g, medals);
 		return medals;
 	}
 
-	public TreeMap<Category, TreeSet<Athlete>> computeMedalsByCategory(List<Athlete> rankedAthletes
+	public TreeMap<String, TreeSet<Athlete>> computeMedalsByCategory(List<Athlete> rankedAthletes
 	// , boolean onlyFinished
 	) {
+		logger.debug("computeMedalsByCategory {}", rankedAthletes);
 		// extract all categories
 		Set<Category> medalCategories = rankedAthletes.stream()
 		        .map(a -> a.getEligibleCategories())
@@ -327,7 +330,7 @@ public class Competition {
 
 		// onlyFinishedCategories(rankedAthletes, onlyFinished, medalCategories);
 
-		TreeMap<Category, TreeSet<Athlete>> medals = new TreeMap<>();
+		TreeMap<String, TreeSet<Athlete>> medals = new TreeMap<>();
 
 		// iterate over the remaining categories
 		for (Category category : medalCategories) {
@@ -358,6 +361,9 @@ public class Competition {
 			List<Athlete> totalLeaders = AthleteSorter.resultsOrderCopy(currentCategoryAthletes, Ranking.TOTAL)
 			        .stream().filter(a -> a.getTotal() > 0 && a.isEligibleForIndividualRanking())
 			        .collect(Collectors.toList());
+			List<Athlete> notFinished = AthleteSorter.resultsOrderCopy(currentCategoryAthletes, Ranking.TOTAL)
+			        .stream().filter(a -> a.isEligibleForIndividualRanking() && a.getActuallyAttemptedLifts() < 6)
+			        .collect(Collectors.toList());
 
 			// Athletes excluded from Total due to bombing out can still win medals, so we
 			// add them
@@ -366,22 +372,25 @@ public class Competition {
 			// if (isSnatchCJTotalMedals()) {
 			medalists.addAll(cjLeaders);
 			medalists.addAll(snatchLeaders);
+			medalists.addAll(notFinished);
 			// }
-			medals.put(category, medalists);
+			medals.put(category.getCode(), medalists);
 
-			// logger.debug("medalists for {}", category);
-			// for (Athlete medalist : medalists) {
-			// logger.debug("{}\t{} {} {} S {}", medalist.getShortName(), medalist.getSnatchRank(),
-			// medalist.getCleanJerkRank(), medalist.getTotalRank(), medalist.getSinclairRank());
-			// }
+			if (StartupUtils.isTraceSetting()) {
+				logger./**/warn("medalists for {}", category);
+				for (Athlete medalist : medalists) {
+					logger./**/warn("{}\tS{} C{} T{} Sinc {}", medalist.getShortName(), medalist.getSnatchRank(),
+					        medalist.getCleanJerkRank(), medalist.getTotalRank(), medalist.getSinclairRank());
+				}
+			}
 		}
 		return medals;
 	}
 
 	public TreeSet<Athlete> computeMedalsForCategory(Category category) {
 		// brute force - reuse what works
-		List<Athlete> rankedAthletes = AthleteRepository.findAthletesForGlobalRanking(null);
-		TreeSet<Athlete> treeSet = computeMedalsByCategory(rankedAthletes).get(category);
+		List<Athlete> rankedAthletes = AthleteRepository.findAthletesForGlobalRanking(null, false);
+		TreeSet<Athlete> treeSet = computeMedalsByCategory(rankedAthletes).get(category.getCode());
 		// logger.debug("computeMedalsForCategory {}",treeSet);
 		return treeSet;
 	}
@@ -392,7 +401,7 @@ public class Competition {
 		return this.reportingBeans;
 	}
 
-	synchronized public HashMap<String, Object> computeReportingInfo(String ageGroupPrefix, AgeDivision ad) {
+	synchronized public HashMap<String, Object> computeReportingInfo(String ageGroupPrefix, Championship ad) {
 		List<Athlete> athletes = AgeGroupRepository.allWeighedInPAthletesForAgeGroupAgeDivision(ageGroupPrefix, ad);
 		doComputeReportingInfo(true, athletes, ageGroupPrefix, ad);
 		return this.reportingBeans;
@@ -616,12 +625,6 @@ public class Competition {
 	public boolean getDisplayByAgeGroup() {
 		return this.isDisplayByAgeGroup();
 	}
-	
-	@Transient
-	@JsonIgnore
-	public boolean isByAgeGroup() {
-		return this.isDisplayByAgeGroup() || this.isMasters();
-	}
 
 	/**
 	 * Gets the federation.
@@ -778,14 +781,15 @@ public class Competition {
 		return this.maxTeamSize;
 	}
 
-	public TreeMap<Category, TreeSet<Athlete>> getMedals(Group g, boolean onlyFinished) {
-		TreeMap<Category, TreeSet<Athlete>> medals;
+	public TreeMap<String, TreeSet<Athlete>> getMedals(Group g, boolean onlyFinished) {
+		TreeMap<String, TreeSet<Athlete>> medals;
 		if (this.medalsByGroup == null || (medals = this.medalsByGroup.get(g)) == null) {
 			medals = computeMedals(g);
 		}
-		final TreeMap<Category, TreeSet<Athlete>> m = new TreeMap<>(medals);
+		final TreeMap<String, TreeSet<Athlete>> m = new TreeMap<>(medals);
+		logger./**/warn("medals keyset {}",medals.keySet());
 		if (onlyFinished) {
-			List<Category> toRemove = medals.keySet().stream()
+			List<String> toRemove = medals.keySet().stream()
 			        .filter(k -> {
 				        TreeSet<Athlete> athletes = m.get(k);
 				        if (athletes.isEmpty()) {
@@ -796,12 +800,12 @@ public class Competition {
 				        // removed"
 				        boolean anyMatch = athletes.stream()
 				                .anyMatch(a -> a.getSnatch3AsInteger() == null || a.getCleanJerk3AsInteger() == null);
-				        // logger.debug("category {} has finished {}", k, !anyMatch);
+				        logger.info("category {} has finished {}", k, !anyMatch);
 				        return anyMatch;
 			        })
 			        .collect(Collectors.toList());
-			// logger.debug("notFinished {}",toRemove);
-			for (Category notFinished : toRemove) {
+			logger.info("notFinished {}",toRemove);
+			for (String notFinished : toRemove) {
 				m.remove(notFinished);
 			}
 		}
@@ -916,6 +920,12 @@ public class Competition {
 
 	public boolean isAutomaticCJBreak() {
 		return this.automaticCJBreak;
+	}
+
+	@Transient
+	@JsonIgnore
+	public boolean isByAgeGroup() {
+		return this.isDisplayByAgeGroup() || this.isMasters();
 	}
 
 	public boolean isCustomScore() {
@@ -1400,7 +1410,7 @@ public class Competition {
 	}
 
 	private void doComputeReportingInfo(boolean full, List<Athlete> athletes, String ageGroupPrefix,
-	        AgeDivision ad) {
+	        Championship ad) {
 		// reporting does many database queries. fork a low-priority thread.
 		runInThread(() -> {
 			if (athletes.isEmpty()) {
@@ -1678,57 +1688,57 @@ public class Competition {
 	 * @param athletes
 	 * @param ageGroupPrefix
 	 */
-	private void teamRankingsForAgeDivision(AgeDivision ad) {
+	private void teamRankingsForAgeDivision(Championship ad) {
 		if (ad == null) {
 			return;
 		}
-		List<String> agePrefixes = AgeGroupRepository.findActiveAndUsed(ad);
+		List<String> agePrefixes = AgeGroupRepository.findActiveAndUsedAgeGroupNames(ad);
 
 		for (String curAGPrefix : agePrefixes) {
 			List<Athlete> athletes = AgeGroupRepository.allPAthletesForAgeGroup(curAGPrefix);
-			doTeamRankings(athletes, ad.name(), false);
+			doTeamRankings(athletes, ad.getName(), false);
 		}
 
 		List<Athlete> sortedAthletes;
 		List<Athlete> sortedMen;
 		List<Athlete> sortedWomen;
 
-		sortedMen = getOrCreateBean("mTeam" + ad.name());
-		sortedWomen = getOrCreateBean("wTeam" + ad.name());
-		sortedAthletes = getOrCreateBean("mwTeam" + ad.name());
+		sortedMen = getOrCreateBean("mTeam" + ad.getName());
+		sortedWomen = getOrCreateBean("wTeam" + ad.getName());
+		sortedAthletes = getOrCreateBean("mwTeam" + ad.getName());
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.TOTAL);
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.TOTAL);
 		AthleteSorter.teamPointsOrder(sortedAthletes, Ranking.TOTAL);
 
 		reportTeams(sortedAthletes, sortedMen, sortedWomen);
 
-		sortedMen = getOrCreateBean("mCombined" + ad.name());
-		sortedWomen = getOrCreateBean("wCombined" + ad.name());
-		sortedAthletes = getOrCreateBean("mwCombined" + ad.name());
+		sortedMen = getOrCreateBean("mCombined" + ad.getName());
+		sortedWomen = getOrCreateBean("wCombined" + ad.getName());
+		sortedAthletes = getOrCreateBean("mwCombined" + ad.getName());
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.SNATCH_CJ_TOTAL);
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.SNATCH_CJ_TOTAL);
 		AthleteSorter.teamPointsOrder(sortedAthletes, Ranking.SNATCH_CJ_TOTAL);
 
 		reportCombined(sortedAthletes, sortedMen, sortedWomen);
 
-		sortedMen = getOrCreateBean("mCustom" + ad.name());
-		sortedWomen = getOrCreateBean("wCustom" + ad.name());
-		sortedAthletes = getOrCreateBean("mwCustom" + ad.name());
+		sortedMen = getOrCreateBean("mCustom" + ad.getName());
+		sortedWomen = getOrCreateBean("wCustom" + ad.getName());
+		sortedAthletes = getOrCreateBean("mwCustom" + ad.getName());
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.CUSTOM);
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.CUSTOM);
 		AthleteSorter.teamPointsOrder(sortedAthletes, Ranking.CUSTOM);
 
 		reportCustom(sortedAthletes, sortedMen, sortedWomen);
 
-		sortedMen = getOrCreateBean("mTeamSinclair" + ad.name());
-		sortedWomen = getOrCreateBean("wTeamSinclair" + ad.name());
+		sortedMen = getOrCreateBean("mTeamSinclair" + ad.getName());
+		sortedWomen = getOrCreateBean("wTeamSinclair" + ad.getName());
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.BW_SINCLAIR);
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.BW_SINCLAIR);
 
 		reportSinclair(sortedMen, sortedWomen);
 
-		sortedMen = getOrCreateBean("mTeamSMF" + ad.name());
-		sortedWomen = getOrCreateBean("wTeamSMF" + ad.name());
+		sortedMen = getOrCreateBean("mTeamSMF" + ad.getName());
+		sortedWomen = getOrCreateBean("wTeamSMF" + ad.getName());
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.SMM);
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.SMM);
 

@@ -30,7 +30,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @WebServlet("/timer")
-public class TimerReceiverServlet extends HttpServlet {
+public class TimerReceiverServlet extends HttpServlet implements Traceable {
 
     private static String defaultFopName;
     static EventBus eventBus = new AsyncEventBus(TimerReceiverServlet.class.getSimpleName(),
@@ -40,7 +40,7 @@ public class TimerReceiverServlet extends HttpServlet {
         return eventBus;
     }
 
-    Logger logger = (Logger) LoggerFactory.getLogger(TimerReceiverServlet.class);
+     private Logger logger = (Logger) LoggerFactory.getLogger(TimerReceiverServlet.class);
 
     private String secret = StartupUtils.getStringParam("updateKey");
 
@@ -51,7 +51,8 @@ public class TimerReceiverServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        // get makes no sense on this URL. Standard says there shouldn't be a 405 on a get,
+        // get makes no sense on this URL. Standard says there shouldn't be a 405 on a
+        // get,
         // but "disallowed" is what makes most sense as a return code.
         resp.sendError(405);
     }
@@ -67,69 +68,124 @@ public class TimerReceiverServlet extends HttpServlet {
             resp.setCharacterEncoding("UTF-8");
             if (StartupUtils.isTraceSetting()) {
                 Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
-                logger./**/warn("---- timer update received from {}", ProxyUtils.getClientIp(req));
-                for (Entry<String, String[]> pair : pairs) {
-                    logger./**/warn("    {} = {}", pair.getKey(), pair.getValue()[0]);
-                }
+                getLogger()./**/warn("---- timer update received from {}", ProxyUtils.getClientIp(req));
+                tracePairs(pairs);
             }
 
             String updateKey = req.getParameter("updateKey");
-            if (updateKey == null || !updateKey.equals(secret)) {
-                logger.error("denying access from {} expected {} got {} ", req.getRemoteHost(), secret, updateKey);
+            if (updateKey == null || !updateKey.equals(this.secret)) {
+                getLogger().error("denying access from {} expected {} got {} ", req.getRemoteHost(),
+                        this.secret,
+                        updateKey);
                 resp.sendError(401, "Denied, wrong credentials");
                 return;
             }
 
-            TimerEvent timerEvent = null;
-            BreakTimerEvent breakTimerEvent = null;
-
-            String eventTypeString = req.getParameter("eventType");
-            String fopName = req.getParameter("fopName");
-
-            String secondsString = req.getParameter("milliseconds");
-            int seconds = secondsString != null ? Integer.valueOf(secondsString) : 0;
-            String indefiniteString = req.getParameter("indefiniteBreak");
-            boolean indefinite = indefiniteString != null ? Boolean.valueOf(indefiniteString) : false;
-            String silentString = req.getParameter("silent");
-            boolean silent = silentString != null ? Boolean.valueOf(silentString) : false;
-
-            if (eventTypeString.equals("SetTime")) {
-                timerEvent = new TimerEvent.SetTime(seconds);
-            } else if (eventTypeString.equals("StopTime")) {
-                timerEvent = new TimerEvent.StopTime(seconds);
-            } else if (eventTypeString.equals("StartTime")) {
-                timerEvent = new TimerEvent.StartTime(seconds, silent);
-            } else if (eventTypeString.equals("BreakPaused")) {
-                breakTimerEvent = new BreakTimerEvent.BreakPaused(seconds);
-            } else if (eventTypeString.equals("BreakStarted")) {
-                breakTimerEvent = new BreakTimerEvent.BreakStart(seconds, indefinite);
-            } else if (eventTypeString.equals("BreakDone")) {
-                breakTimerEvent = new BreakTimerEvent.BreakDone(null);
-            } else if (eventTypeString.equals("BreakSetTime")) {
-                breakTimerEvent = new BreakTimerEvent.BreakSetTime(seconds, indefinite);
-            } else {
-                String message = MessageFormat.format("unknown event type {0}", eventTypeString);
-                logger.error(message);
-                resp.sendError(400, message);
-            }
-
-            if (timerEvent != null) {
-                timerEvent.setFopName(fopName);
-                eventBus.post(timerEvent);
-            }
-            if (breakTimerEvent != null) {
-                breakTimerEvent.setFopName(fopName);
-                String mode = req.getParameter("mode");
-                breakTimerEvent.setMode(mode);
-                eventBus.post(breakTimerEvent);
-            }
+            String fopName = TimerReceiverServlet.processTimerReq(req, resp, getLogger());
 
             if (defaultFopName == null) {
                 defaultFopName = fopName;
             }
         } catch (NumberFormatException | IOException e) {
-            logger.error(LoggerUtils.stackTrace(e));
+            getLogger().error(LoggerUtils.stackTrace(e));
         }
+    }
+
+    public static String processTimerReq(HttpServletRequest req, HttpServletResponse resp, Logger logger) throws IOException {
+        TimerEvent timerEvent = null;
+        BreakTimerEvent breakTimerEvent = null;
+
+        String athleteTimerEventTypeString = req.getParameter("athleteTimerEventType");
+        String breakTimerEventTypeString = req.getParameter("breakTimerEventType");
+        String fopName = req.getParameter("fopName");
+
+        int athleteMillis = computeAthleteTargetDuration(req);
+        int breakMillis = computeBreakTargetDuration(req);
+
+        String indefiniteString = req.getParameter("timerIndefiniteBreak");
+        boolean indefinite = indefiniteString != null ? Boolean.valueOf(indefiniteString) : false;
+        String silentString = req.getParameter("silent");
+        boolean silent = silentString != null ? Boolean.valueOf(silentString) : false;
+
+        if (athleteTimerEventTypeString != null) {
+            if (athleteTimerEventTypeString.equals("SetTime")) {
+                timerEvent = new TimerEvent.SetTime(athleteMillis);
+            } else if (athleteTimerEventTypeString.equals("StopTime")) {
+                timerEvent = new TimerEvent.StopTime(athleteMillis);
+            } else if (athleteTimerEventTypeString.equals("StartTime")) {
+                timerEvent = new TimerEvent.StartTime(athleteMillis, silent);
+            } else {
+                String message = MessageFormat.format("**** unknown athlete timer event type {0}", athleteTimerEventTypeString);
+                logger.error(message);
+                if (resp != null) {
+                    resp.sendError(400, message);
+                }
+            }
+        }
+        if (breakTimerEventTypeString != null) {
+            if (breakTimerEventTypeString.equals("BreakPaused")) {
+                breakTimerEvent = new BreakTimerEvent.BreakPaused(breakMillis);
+            } else if (breakTimerEventTypeString.equals("BreakStarted")) {
+                breakTimerEvent = new BreakTimerEvent.BreakStart(breakMillis, indefinite);
+            } else if (breakTimerEventTypeString.equals("BreakDone")) {
+                breakTimerEvent = new BreakTimerEvent.BreakDone(null);
+            } else if (breakTimerEventTypeString.equals("BreakSetTime")) {
+                breakTimerEvent = new BreakTimerEvent.BreakSetTime(breakMillis, indefinite);
+            } else {
+                String message = MessageFormat.format("**** unknown break timer event type {0}", breakTimerEventTypeString);
+                logger.error(message);
+                if (resp != null) {
+                    resp.sendError(400, message);
+                }
+            }
+        }
+        if (timerEvent != null) {
+            timerEvent.setFopName(fopName);
+            eventBus.post(timerEvent);
+        }
+        if (breakTimerEvent != null) {
+            breakTimerEvent.setFopName(fopName);
+            String mode = req.getParameter("mode");
+            breakTimerEvent.setMode(mode);
+            eventBus.post(breakTimerEvent);
+        }
+        return fopName;
+    }
+
+    private static int computeAthleteTargetDuration(HttpServletRequest req) {
+        String startTimeMillisString = req.getParameter("athleteStartTimeMillis");
+        String secondsString = req.getParameter("athleteMillisRemaining");
+        if (startTimeMillisString == null) {
+            // relative time
+            int deltaMillis = secondsString != null ? Integer.valueOf(secondsString) : 0;
+            return deltaMillis;
+        } else {
+            long startTimeMillis = secondsString != null ? Long.valueOf(startTimeMillisString)
+                    : System.currentTimeMillis();
+            int deltaMillis = secondsString != null ? Integer.valueOf(secondsString) : 0;
+            long targetMillis = startTimeMillis + deltaMillis;
+            int milliSeconds = (int) (targetMillis - System.currentTimeMillis());
+            return milliSeconds;
+        }
+    }
+
+    private static int computeBreakTargetDuration(HttpServletRequest req) {
+        String startTimeMillisString = req.getParameter("breakStartTimeMillis");
+        String secondsString = req.getParameter("breakMillisRemaining");
+        long startTimeMillis = secondsString != null ? Long.valueOf(startTimeMillisString) : System.currentTimeMillis();
+        int deltaMillis = secondsString != null ? Integer.valueOf(secondsString) : 0;
+        long targetMillis = startTimeMillis + deltaMillis;
+        int milliSeconds = (int) (targetMillis - System.currentTimeMillis());
+        return milliSeconds;
+    }
+
+    @Override
+    public Logger getLogger() {
+        return logger;
+    }
+
+    void setLogger(Logger logger) {
+        this.logger = logger;
     }
 
 }

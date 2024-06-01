@@ -90,7 +90,9 @@ public class RAthlete {
 			}
 
 			Category c;
-			if ((c = RCompetition.getActiveCategories().get(catName)) != null) {
+			String catCode = Category.codeFromName(catName);
+			//logger.debug("keySet {}",RCompetition.getActiveCategories().keySet());
+			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
 				// exact match for a category. This is the athlete's registration category.
 				processEligibilityAndTeams(parts, c, teamMember);
 			} else {
@@ -313,8 +315,8 @@ public class RAthlete {
 		// logger.debug("{} athleteAge {} min {} max {}", athleteAge, minAge, maxAge);
 		if (((athleteQTotal != null && athleteQTotal >= c2.getQualifyingTotal())
 		        || ((athleteQTotal == null || athleteQTotal == 0) && c2.getQualifyingTotal() == 0))
-		        && athleteAge >= minAge
-		        && athleteAge <= maxAge) {
+		        && (athleteAge == null
+		                || (athleteAge >= minAge && athleteAge <= maxAge))) {
 			eligibleCategories.add(c2);
 			added = true;
 			if (teamMember) {
@@ -376,7 +378,11 @@ public class RAthlete {
 		Set<Category> eligibleCategories = new LinkedHashSet<>();
 		Set<Category> teams = new LinkedHashSet<>();
 		Integer athleteQTotal = this.getAthlete().getQualifyingTotal();
-		Integer athleteAge = this.getAthlete().getAge();
+		Integer athleteAge = null;
+		try {
+			athleteAge = this.getAthlete().getAge();
+		} catch (Exception e) {
+		}
 
 		boolean addedToMainCat = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge,
 		        mainCategoryTeamMember, c);

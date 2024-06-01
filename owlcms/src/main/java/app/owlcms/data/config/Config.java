@@ -117,10 +117,12 @@ public class Config {
 	@Column(name = "localcontent", nullable = true)
 	private Blob localOverride;
 	private String publicResultsURL;
+	private String updatekey;
+	private String videoDataURL;
+	private String videoDataKey;
 	private String salt;
 	private String timeZoneId;
 	private Boolean traceMemory;
-	private String updatekey;
 	@Transient
 	@JsonIgnore
 	private boolean skipReading;
@@ -130,16 +132,12 @@ public class Config {
 	@Transient
 	@JsonIgnore
 	private Boolean useCompetitionDate;
-	
 	@Column(columnDefinition = "boolean default true")
 	private Boolean mqttInternal = true;
-	
 	@Column(columnDefinition = "varchar(255) default 'css/nogrid'")
 	private String stylesDirectory;
-	
-	@Column(name="videoStylesDirectory", columnDefinition = "varchar(255) default 'css/nogrid'")
+	@Column(name = "videoStylesDirectory", columnDefinition = "varchar(255) default 'css/nogrid'")
 	private String videoStylesDirectory;
-	
 	@Transient
 	@JsonIgnore
 	private IConfig mqttConfig;
@@ -393,6 +391,8 @@ public class Config {
 		return uAccessList;
 	}
 
+	@Transient
+	@JsonIgnore
 	public boolean getParamMqttInternal() {
 		Boolean enableInternal = StartupUtils.getBooleanParamOrElseNull("enableEmbeddedMqtt");
 		if (enableInternal != null) {
@@ -503,6 +503,8 @@ public class Config {
 	/**
 	 * @return the public results url stored in the database, except if overridden by system property or envariable.
 	 */
+	@Transient
+	@JsonIgnore
 	public String getParamPublicResultsURL() {
 		String uURL = StartupUtils.getStringParam("remote");
 		if (uURL != null) {
@@ -510,7 +512,7 @@ public class Config {
 			uURL = uURL.replaceFirst("/update$", "");
 			return uURL;
 		} else {
-			uURL = this.publicResultsURL;
+			uURL = this.getPublicResultsURL();
 			if (uURL == null || uURL.isBlank()) {
 				return null;
 			} else {
@@ -554,7 +556,7 @@ public class Config {
 				boolean predefinedStyleName = isPredefinedStyle(param);
 				if (!Files.exists(ldp) && !predefinedStyleName) {
 					Main.getStartupLogger().error("{} does not exist, using default css/nogrid as default",
-							ldp.toAbsolutePath());
+					        ldp.toAbsolutePath());
 					logger./**/error("{} does not exist, using default css/nogrid as default", ldp.toAbsolutePath());
 					param = "css/nogrid";
 				}
@@ -563,38 +565,6 @@ public class Config {
 		if (!param.startsWith("css/")) {
 			param = "css/" + param;
 		}
-		return param;
-	}
-	
-	@Transient
-	@JsonIgnore
-	public String getParamVideoStylesDir() {
-		String param = StartupUtils.getStringParam("videoStylesDir");
-		if (param == null || param.isBlank()) {
-			// get from database
-			param = Config.getCurrent().getVideoStylesDirectory();
-			if (param == null || param.isBlank()) {
-				param = "css/nogrid";
-			}
-		}
-		Path ldpd = ResourceWalker.getLocalDirPath();
-			// accept and normalize old naming convention.
-			if (param.startsWith("css/")) {
-				param = param.substring("css/".length());
-			}
-			if (ldpd != null) {
-				Path ldp = ldpd.resolve("css/" + param);
-				boolean predefinedStyleName = isPredefinedStyle(param);
-				if (!Files.exists(ldp) && !predefinedStyleName) {
-					param = "css/nogrid";
-					String message = "{} does not exist, using default css/nogrid as default video styles";
-					Main.getStartupLogger().error(message, ldp.toAbsolutePath());
-					logger./**/error(message, ldp.toAbsolutePath());
-				}
-			}
-			if (!param.startsWith("css/")) {
-				param = "css/" + param;
-			}
 		return param;
 	}
 
@@ -629,6 +599,95 @@ public class Config {
 		return publicResultsURLParam != null ? publicResultsURLParam + "/update" : null;
 	}
 
+	@Transient
+	@JsonIgnore
+	public String getParamVideoDataDecisionUrl() {
+		String paramVideoDataURL = getParamVideoDataURL();
+		return paramVideoDataURL != null ? paramVideoDataURL + "/decision" : null;
+	}
+
+	/**
+	 * @return the updateKey stored in the database, except if overridden by system property or envariable.
+	 */
+	@Transient
+	@JsonIgnore
+	public String getParamVideoDataKey() {
+		String uKey = StartupUtils.getStringParam("videoDataKey");
+		if (uKey == null) {
+			// use pin from database
+			uKey = Config.getCurrent().getVideoDataKey();
+			if (uKey == null || uKey.isBlank()) {
+				uKey = null;
+			}
+		}
+		return uKey;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getParamVideoDataTimerUrl() {
+		String paramVideoDataURL = getParamVideoDataURL();
+		return paramVideoDataURL != null ? paramVideoDataURL + "/timer" : null;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getParamVideoDataUpdateUrl() {
+		String paramVideoDataURL = getParamVideoDataURL();
+		return paramVideoDataURL != null ? paramVideoDataURL + "/update" : null;
+	}
+
+	/**
+	 * @return the public results url stored in the database, except if overridden by system property or envariable.
+	 */
+	public String getParamVideoDataURL() {
+		String uURL = StartupUtils.getStringParam("videodata");
+		if (uURL != null) {
+			return uURL;
+		} else {
+			uURL = this.getVideoDataURL();
+			if (uURL == null || uURL.isBlank()) {
+				return null;
+			} else {
+				// user may have copied URL with trailing /
+				uURL = uURL.replaceFirst("/$", "");
+				return uURL;
+			}
+		}
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getParamVideoStylesDir() {
+		String param = StartupUtils.getStringParam("videoStylesDir");
+		if (param == null || param.isBlank()) {
+			// get from database
+			param = Config.getCurrent().getVideoStylesDirectory();
+			if (param == null || param.isBlank()) {
+				param = "css/nogrid";
+			}
+		}
+		Path ldpd = ResourceWalker.getLocalDirPath();
+		// accept and normalize old naming convention.
+		if (param.startsWith("css/")) {
+			param = param.substring("css/".length());
+		}
+		if (ldpd != null) {
+			Path ldp = ldpd.resolve("css/" + param);
+			boolean predefinedStyleName = isPredefinedStyle(param);
+			if (!Files.exists(ldp) && !predefinedStyleName) {
+				param = "css/nogrid";
+				String message = "{} does not exist, using default css/nogrid as default video styles";
+				Main.getStartupLogger().error(message, ldp.toAbsolutePath());
+				logger./**/error(message, ldp.toAbsolutePath());
+			}
+		}
+		if (!param.startsWith("css/")) {
+			param = "css/" + param;
+		}
+		return param;
+	}
+
 	public String getPin() {
 		return this.pin;
 	}
@@ -660,16 +719,6 @@ public class Config {
 		}
 		return bd;
 	}
-	
-	@Transient
-	@JsonIgnore
-	public String getVideoStylesDirBase() {
-		String bd = getParamVideoStylesDir();
-		if (bd.startsWith("css/")) {
-			return bd.substring("css/".length());
-		}
-		return bd;
-	}
 
 	public String getStylesDirectory() {
 		return this.stylesDirectory;
@@ -685,6 +734,24 @@ public class Config {
 
 	public String getUpdatekey() {
 		return this.updatekey;
+	}
+
+	public String getVideoDataKey() {
+		return this.videoDataKey;
+	}
+
+	public String getVideoDataURL() {
+		return this.videoDataURL;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getVideoStylesDirBase() {
+		String bd = getParamVideoStylesDir();
+		if (bd.startsWith("css/")) {
+			return bd.substring("css/".length());
+		}
+		return bd;
 	}
 
 	public String getVideoStylesDirectory() {
@@ -836,7 +903,7 @@ public class Config {
 		// we cannot override Moquette login to directly invoke our authenticator...
 		if (getMqttConfig() != null) {
 			getMqttConfig().setProperty(IConfig.ALLOW_ANONYMOUS_PROPERTY_NAME,
-					Boolean.toString(mqttUserName == null || mqttUserName.isBlank()));
+			        Boolean.toString(mqttUserName == null || mqttUserName.isBlank()));
 		}
 		this.mqttUserName = mqttUserName;
 	}
@@ -881,7 +948,6 @@ public class Config {
 	public void setTimeZone(TimeZone timeZone) {
 		if (timeZone == null) {
 			this.timeZoneId = null;
-			return;
 		} else {
 			this.timeZoneId = timeZone.getID();
 		}
@@ -889,6 +955,14 @@ public class Config {
 
 	public void setUpdatekey(String updatekey) {
 		this.updatekey = updatekey;
+	}
+
+	public void setVideoDataKey(String videoDataKey) {
+		this.videoDataKey = videoDataKey;
+	}
+
+	public void setVideoDataURL(String videoDataURL) {
+		this.videoDataURL = videoDataURL;
 	}
 
 	public void setVideoStylesDirectory(String videoStylesDirectory) {
