@@ -649,6 +649,18 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 			ix++;
 		}
 	}
+	// TODO! see if needed!
+//	private void medalsInit() {
+//		OwlcmsSession.withFop(fop -> {
+//			logger.trace("{}Starting result board on FOP {}", fop.getLoggingName());
+//			setId("medals-" + fop.getName());
+//			setWideTeamNames(false);
+//			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
+//			this.setGroup(fop.getVideoGroup());
+//			this.setCategory(fop.getVideoCategory());
+//		});
+//		setTranslationMap();
+//	}
 
 	private boolean isMedalist(Athlete a) {
 		if (this.snatchCJTotalMedals) {

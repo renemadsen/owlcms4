@@ -1064,14 +1064,16 @@ Jury.JuryMember,Jury Member,,Miembro del Jurado,,Miembro del Jurado,Miembro del 
 Jury.Signature,Signature,,Firma,,Firma,Firma,Firma,Signature,,,Assinatura,Подпись,Unterschrift,Underskrift,Underskrift,Signature,Aláírás,Semnătură,Signature,Allekirjoitus,1055,,
 Jury.Level,Level,,Nivel,,Nivel,Nivel,Nivel,Niveau,,,Nível,Уровень,Ebene,Level,Niveau,Level,Szint,Nivel,Level,Taso,1056,,
 Jury.Score,Computed Scores,,Nivel,,Nivel,Nivel,Nivel,Score calculé,,,Pontuações computadas,Вычисленные баллы,Berechnete Ergebnisse,Computed Scores,Beregnet score,Computed Scores,Számított pontszámok,Scoruri calculate,Computed Scores,Lasketut pisteet,1057,,
-Jury.A,"A - Number of attempts",,"A - Número de intentos
+Jury.A,"A - Number of attempts
+",,"A - Número de intentos
 ",,"A - Número de intentos
 ","A - Número de intentos
 ","A - Número de intentos
 ",A - Nombre d'essais,,,A - Número de Tentativas,"A - Количество подъемов
 ","A - Anzahl der Versuche
 ","A - Antal lyft.
-",A - Antal løft,"A - Number of attempts","A – A kísérletek száma
+",A - Antal løft,"A - Number of attempts
+","A – A kísérletek száma
 ",A - Numărul de încercări,A - Number of attempts,"A - Yritysten määrä
 ",1058,,
 Jury.B,B - Incomplete Attempts,,B - Intentos no completados,,B - Intentos no completados,B - Intentos no completados,B - Intentos no completados,B - Essais non-complétés,,,B – Tentativas Incompletas,B - Incomplete Attempts,B - Unvollständige Versuche,B - Icke avslutade lyft,B - Ikke-afsluttede løft,B - Incomplete Attempts,B - Befejezetlen kísérletek,B - Încercări incomplete,B - Incomplete Attempts,B - Epäonnistuneet yritykset,1059,,
