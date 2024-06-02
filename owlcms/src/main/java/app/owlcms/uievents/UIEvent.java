@@ -9,6 +9,7 @@ package app.owlcms.uievents;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +18,8 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.notification.Notification.Position;
 import com.vaadin.flow.component.notification.NotificationVariant;
 
+import app.owlcms.data.agegroup.AgeGroup;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.group.Group;
@@ -26,12 +29,12 @@ import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.i18n.Translator;
 import app.owlcms.utils.LoggerUtils;
+import app.owlcms.utils.StartupUtils;
 import ch.qos.logback.classic.Logger;
 
 /**
- * UIEvents are triggered in response to field of play events (FOPEvents). Each
- * field of play has an associated uiEventBus on which the user interface
- * commands are posted. The various browsers subscribe to UIEvents and react
+ * UIEvents are triggered in response to field of play events (FOPEvents). Each field of play has an associated
+ * uiEventBus on which the user interface commands are posted. The various browsers subscribe to UIEvents and react
  * accordingly.
  *
  * @author owlcms
@@ -61,38 +64,17 @@ public class UIEvent {
 		public BreakDone(Object origin, BreakType breakType) {
 			super(origin);
 			this.setBreakType(breakType);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public BreakType getBreakType() {
-			return breakType;
+			return this.breakType;
 		}
 
 		public void setBreakType(BreakType breakType) {
 			this.breakType = breakType;
-		}
-	}
-
-	static public class TimeRemaining extends UIEvent {
-
-		private int timeRemaining;
-
-		/**
-		 * Instantiates a new break done.
-		 *
-		 * @param origin    the origin
-		 * @param breakType
-		 */
-		public TimeRemaining(Object origin, int timeRemaining) {
-			super(origin);
-			this.timeRemaining = timeRemaining;
-		}
-
-		public int getTimeRemaining() {
-			return timeRemaining;
-		}
-
-		public void setTimeRemaining(int timeRemaining) {
-			this.timeRemaining = timeRemaining;
 		}
 	}
 
@@ -102,7 +84,6 @@ public class UIEvent {
 	static public class BreakPaused extends UIEvent {
 
 		protected BreakType breakType;
-
 		protected CountdownType countdownType;
 		protected LocalDateTime end;
 		protected boolean indefinite;
@@ -117,33 +98,35 @@ public class UIEvent {
 			this.breakType = bt;
 			this.countdownType = ct;
 			this.setDisplayToggle(displayToggle);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public BreakType getBreakType() {
-			return breakType;
+			return this.breakType;
 		}
 
 		public int getMillis() {
-			return (timeRemaining != null ? timeRemaining : 0);
+			return (this.timeRemaining != null ? this.timeRemaining : 0);
 		}
 
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 
 		/**
-		 * @return true if is a request for toggling display (and not an actual break
-		 *         start)
+		 * @return true if is a request for toggling display (and not an actual break start)
 		 */
 		public boolean isDisplayToggle() {
-			return displayToggle;
+			return this.displayToggle;
 		}
 
 		/**
 		 * @return true if break lasts indefinitely and timeRemaining should be ignored
 		 */
 		public boolean isIndefinite() {
-			return indefinite;
+			return this.indefinite;
 		}
 
 		/**
@@ -155,9 +138,10 @@ public class UIEvent {
 
 		@Override
 		public String toString() {
-			return "UIEvent.BreakPaused [displayToggle=" + displayToggle + ", timeRemaining=" + timeRemaining
-			        + ", indefinite=" + indefinite + ", end=" + end + ", breakType=" + breakType + ", countdownType="
-			        + countdownType + "]";
+			return "UIEvent.BreakPaused [displayToggle=" + this.displayToggle + ", timeRemaining=" + this.timeRemaining
+			        + ", indefinite=" + this.indefinite + ", end=" + this.end + ", breakType=" + this.breakType
+			        + ", countdownType="
+			        + this.countdownType + "]";
 		}
 
 	}
@@ -192,27 +176,28 @@ public class UIEvent {
 			this.breakType = bt;
 			this.countdownType = ct;
 			this.trace = trace;
-			// logger.trace("BreakSetTime setting to {} from {}", getTimeRemaining(),
-			// trace);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public BreakType getBreakType() {
-			return breakType;
+			return this.breakType;
 		}
 
 		public LocalDateTime getEnd() {
-			return end;
+			return this.end;
 		}
 
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 
 		/**
 		 * @return true if break lasts indefinitely and timeRemaining should be ignored
 		 */
 		public boolean isIndefinite() {
-			return indefinite;
+			return this.indefinite;
 		}
 	}
 
@@ -223,7 +208,6 @@ public class UIEvent {
 	static public class BreakStarted extends UIEvent {
 
 		protected BreakType breakType;
-
 		protected CountdownType countdownType;
 		protected LocalDateTime end;
 		protected boolean indefinite;
@@ -240,12 +224,15 @@ public class UIEvent {
 			this.countdownType = ct;
 			this.setDisplayToggle(displayToggle);
 			this.setPaused(paused);
-			this.setTrace(trace);
+			this.trace = trace;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public BreakType getBreakType() {
-			//logger.debug("BreakStarted getBreakType {}",breakType);
-			return breakType;
+			// logger.debug("BreakStarted getBreakType {}",breakType);
+			return this.breakType;
 		}
 
 		public int getMillis() {
@@ -253,26 +240,30 @@ public class UIEvent {
 		}
 
 		public Boolean getPaused() {
-			return paused;
+			return this.paused;
 		}
 
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 
 		/**
-		 * @return true if is a request for toggling display (and not an actual break
-		 *         start)
+		 * @return true if is a request for toggling display (and not an actual break start)
 		 */
 		public boolean isDisplayToggle() {
-			return displayToggle;
+			return this.displayToggle;
 		}
 
 		/**
 		 * @return true if break lasts indefinitely and timeRemaining should be ignored
 		 */
 		public boolean isIndefinite() {
-			return indefinite;
+			return this.indefinite;
+		}
+
+		public final void setBreakType(BreakType breakType) {
+			// logger.debug("BreakStarted getBreakType {}",breakType);
+			this.breakType = breakType;
 		}
 
 		/**
@@ -288,14 +279,10 @@ public class UIEvent {
 
 		@Override
 		public String toString() {
-			return "UIEvent.BreakStarted [displayToggle=" + displayToggle + ", timeRemaining=" + timeRemaining
-			        + ", indefinite=" + indefinite + ", end=" + end + ", breakType=" + breakType + ", countdownType="
-			        + countdownType + "]";
-		}
-
-		public final void setBreakType(BreakType breakType) {
-			//logger.debug("BreakStarted getBreakType {}",breakType);
-			this.breakType = breakType;
+			return "UIEvent.BreakStarted [displayToggle=" + this.displayToggle + ", timeRemaining=" + this.timeRemaining
+			        + ", indefinite=" + this.indefinite + ", end=" + this.end + ", breakType=" + this.breakType
+			        + ", countdownType="
+			        + this.countdownType + "]";
 		}
 
 	}
@@ -307,10 +294,13 @@ public class UIEvent {
 		public Broadcast(String string, Object origin) {
 			super(origin);
 			this.setMessage(string);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public String getMessage() {
-			return message;
+			return this.message;
 		}
 
 		public void setMessage(String message) {
@@ -320,7 +310,7 @@ public class UIEvent {
 	}
 
 	/**
-	 * Class BreakDone.
+	 * Class CeremonyDone.
 	 */
 	static public class CeremonyDone extends UIEvent {
 
@@ -335,10 +325,13 @@ public class UIEvent {
 		public CeremonyDone(CeremonyType ceremonyType, Object origin) {
 			super(origin);
 			this.setCeremonyType(ceremonyType);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public CeremonyType getCeremonyType() {
-			return ceremonyType;
+			return this.ceremonyType;
 		}
 
 		public void setCeremonyType(CeremonyType ceremonyType) {
@@ -350,20 +343,35 @@ public class UIEvent {
 	/**
 	 * Class BreakStarted.
 	 */
-	// MUST NOT EXTEND otherwise subscription triggers on supertype as well
 	static public class CeremonyStarted extends UIEvent {
 
 		private Category ceremonyCategory;
-		private Group ceremonyGroup;
+		private Group ceremonySession;
 		private CeremonyType ceremonyType;
+		private Championship championship;
+		private AgeGroup ageGroup;
 
-		public CeremonyStarted(CeremonyType ceremonyType, Group ceremonyGroup, Category ceremonyCategory, String trace,
+		public CeremonyStarted(CeremonyType ceremonyType, Group ceremonySession, Category ceremonyCategory, String trace,
 		        Object origin) {
 			super(origin);
 			this.setCeremonyType(ceremonyType);
-			this.setCeremonyGroup(ceremonyGroup);
+			this.setCeremonySession(ceremonySession);
 			this.setCeremonyCategory(ceremonyCategory);
-			this.setTrace(trace);
+			AgeGroup ageGroup = ceremonyCategory != null ? ceremonyCategory.getAgeGroup() : null;
+			this.setCeremonyAgeGroup(ageGroup);
+			this.setCeremonyChampionship(ageGroup != null ? ageGroup.getChampionship() : null);
+			this.trace = trace;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
+		}
+
+		private void setCeremonyChampionship(Championship championship) {
+			this.championship=championship;
+		}
+
+		private void setCeremonyAgeGroup(AgeGroup ageGroup) {
+			this.setAgeGroup(ageGroup);
 		}
 
 		@Override
@@ -375,29 +383,30 @@ public class UIEvent {
 				return false;
 			}
 			CeremonyStarted other = (CeremonyStarted) obj;
-			return Objects.equals(ceremonyCategory, other.ceremonyCategory)
-			        && Objects.equals(ceremonyGroup, other.ceremonyGroup) && ceremonyType == other.ceremonyType;
+			return Objects.equals(this.ceremonyCategory, other.ceremonyCategory)
+			        && Objects.equals(this.ceremonySession, other.ceremonySession)
+			        && this.ceremonyType == other.ceremonyType;
 		}
 
 		public Category getCeremonyCategory() {
-			return ceremonyCategory;
+			return this.ceremonyCategory;
 		}
 
-		public Group getCeremonyGroup() {
-			return this.ceremonyGroup;
+		public Group getCeremonySession() {
+			return this.ceremonySession;
 		}
 
 		public CeremonyType getCeremonyType() {
-			return ceremonyType;
+			return this.ceremonyType;
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(ceremonyCategory, ceremonyGroup, ceremonyType);
+			return Objects.hash(this.ceremonyCategory, this.ceremonySession, this.ceremonyType);
 		}
 
-		public void setCeremonyGroup(Group ceremonyGroup2) {
-			this.ceremonyGroup = ceremonyGroup2;
+		public void setCeremonySession(Group ceremonyGroup2) {
+			this.ceremonySession = ceremonyGroup2;
 		}
 
 		public void setCeremonyType(CeremonyType ceremonyType) {
@@ -406,12 +415,28 @@ public class UIEvent {
 
 		@Override
 		public String toString() {
-			return "CeremonyStarted [ceremonyType=" + ceremonyType + ", ceremonyCategory=" + ceremonyCategory
-			        + ", ceremonyGroup=" + ceremonyGroup + "]";
+			return "CeremonyStarted [ceremonyType=" + this.ceremonyType + ", ceremonyCategory=" + this.ceremonyCategory
+			        + ", ceremonySession=" + this.ceremonySession + "]";
 		}
 
 		private void setCeremonyCategory(Category ceremonyCategory2) {
 			this.ceremonyCategory = ceremonyCategory2;
+		}
+
+		public Championship getChampionship() {
+			return championship;
+		}
+
+		public void setChampionship(Championship championship) {
+			this.championship = championship;
+		}
+
+		public AgeGroup getAgeGroup() {
+			return ageGroup;
+		}
+
+		public void setAgeGroup(AgeGroup ageGroup) {
+			this.ageGroup = ageGroup;
 		}
 	}
 
@@ -422,13 +447,10 @@ public class UIEvent {
 
 		/** decision. */
 		public Boolean decision = null;
-
 		/** ref 1. */
 		public Boolean ref1;
-
 		/** ref 2. */
 		public Boolean ref2;
-
 		/** ref 3. */
 		public Boolean ref3;
 
@@ -447,8 +469,10 @@ public class UIEvent {
 			this.ref1 = ref1;
 			this.ref2 = ref2;
 			this.ref3 = ref3;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
-
 	}
 
 	/**
@@ -463,6 +487,9 @@ public class UIEvent {
 		 */
 		public DecisionReset(Athlete a, Object origin) {
 			super(a, origin);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 	}
 
@@ -478,12 +505,18 @@ public class UIEvent {
 		 */
 		public DownSignal(Object origin) {
 			super(origin);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 	}
 
 	static public class GlobalRankingUpdated extends UIEvent {
 		public GlobalRankingUpdated(Object object) {
 			super(object);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 	}
 
@@ -500,36 +533,14 @@ public class UIEvent {
 		public GroupDone(Group group, UI ui, String stackTrace) {
 			super(ui);
 			this.setGroup(group);
-			this.setTrace(stackTrace);
+			this.trace = stackTrace;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public Group getGroup() {
-			return group;
-		}
-
-		public void setGroup(Group group) {
-			this.group = group;
-		}
-	}
-	
-	static public class SnatchDone extends UIEvent {
-
-		private Group group;
-
-		/**
-		 * Instantiates a new athlete announced.
-		 *
-		 * @param athlete the athlete
-		 * @param ui      the ui
-		 */
-		public SnatchDone(Group group, UI ui, String stackTrace) {
-			super(ui);
-			this.setGroup(group);
-			this.setTrace(stackTrace);
-		}
-
-		public Group getGroup() {
-			return group;
+			return this.group;
 		}
 
 		public void setGroup(Group group) {
@@ -545,13 +556,17 @@ public class UIEvent {
 		private boolean requestForAnnounce = false;
 
 		public JuryNotification(Athlete athleteUnderReview, Object origin,
-		        JuryDeliberationEventType deliberationEventType, Boolean reversal, Boolean newRecord, boolean requestForAnnounce) {
+		        JuryDeliberationEventType deliberationEventType, Boolean reversal, Boolean newRecord,
+		        boolean requestForAnnounce) {
 			super(athleteUnderReview, origin);
 			this.setDeliberationEventType(deliberationEventType);
 			this.setReversal(reversal);
 			this.setNewRecord(newRecord != null && newRecord);
-			this.setTrace(LoggerUtils.stackTrace());
+			this.setTrace(() -> LoggerUtils.stackTrace());
 			this.requestForAnnounce = requestForAnnounce;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
@@ -561,24 +576,31 @@ public class UIEvent {
 		 */
 		public JuryNotification(Athlete a, Object origin, String notificationString, String fopEventString) {
 			super(a, origin);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
 		 * @return the deliberationEventType
 		 */
 		public JuryDeliberationEventType getDeliberationEventType() {
-			return deliberationEventType;
+			return this.deliberationEventType;
 		}
 
 		public boolean getNewRecord() {
-			return newRecord;
+			return this.newRecord;
 		}
 
 		/**
 		 * @return the reversal
 		 */
 		public Boolean getReversal() {
-			return reversal;
+			return this.reversal;
+		}
+
+		public boolean isRequestForAnnounce() {
+			return this.requestForAnnounce;
 		}
 
 		/**
@@ -599,10 +621,6 @@ public class UIEvent {
 			this.newRecord = newRecord;
 		}
 
-		public boolean isRequestForAnnounce() {
-			return requestForAnnounce;
-		}
-
 	}
 
 	static public class JuryUpdate extends UIEvent {
@@ -610,7 +628,6 @@ public class UIEvent {
 		private Boolean collective;
 		private Boolean[] juryMemberDecision;
 		private int jurySize;
-
 		private Integer juryMemberUpdated;
 
 		public JuryUpdate(Object origin, boolean collective, Boolean[] juryMemberDecision, int jurySize) {
@@ -618,6 +635,9 @@ public class UIEvent {
 			this.collective = collective;
 			this.juryMemberDecision = juryMemberDecision;
 			this.jurySize = jurySize;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public JuryUpdate(Object origin, int i, Boolean[] juryMemberDecision2, int jurySize) {
@@ -625,34 +645,37 @@ public class UIEvent {
 			this.collective = null;
 			this.juryMemberUpdated = i;
 			this.juryMemberDecision = juryMemberDecision2;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
 		 * @return the collective
 		 */
 		public Boolean getCollective() {
-			return collective;
+			return this.collective;
 		}
 
 		/**
 		 * @return the juryMemberDecision
 		 */
 		public Boolean[] getJuryMemberDecision() {
-			return juryMemberDecision;
+			return this.juryMemberDecision;
 		}
 
 		/**
 		 * @return the juryMemberUpdated
 		 */
 		public Integer getJuryMemberUpdated() {
-			return juryMemberUpdated;
+			return this.juryMemberUpdated;
 		}
 
 		/**
 		 * @return the jurySize
 		 */
 		public int getJurySize() {
-			return jurySize;
+			return this.jurySize;
 		}
 
 	}
@@ -677,26 +700,22 @@ public class UIEvent {
 		 * Instantiates a new lifting order updated command.
 		 *
 		 * @param athlete         the current athlete after recalculation
-		 * @param nextAthlete     the next athlete that will lift (cannot be the same as
-		 *                        athlete)
-		 * @param previousAthlete the last athlete to have lifted (can be the same as
-		 *                        athlete)
+		 * @param nextAthlete     the next athlete that will lift (cannot be the same as athlete)
+		 * @param previousAthlete the last athlete to have lifted (can be the same as athlete)
 		 * @param changingAthlete the athlete who triggered the lifting update
 		 * @param liftingOrder    the lifting order
 		 * @param displayOrder    the display order
 		 * @param timeAllowed     the time allowed
-		 * @param displayToggle   if true, just update display according to lifting
-		 *                        order.
+		 * @param displayToggle   if true, just update display according to lifting order.
 		 * @param origin          the origin
-		 * @param newWeight       newly requested weight, null if no change from
-		 *                        previous
+		 * @param newWeight       newly requested weight, null if no change from previous
 		 */
 		public LiftingOrderUpdated(Athlete athlete, Athlete nextAthlete, Athlete previousAthlete,
 		        Athlete changingAthlete, List<Athlete> liftingOrder, List<Athlete> displayOrder, Integer timeAllowed,
 		        boolean currentDisplayAffected, boolean displayToggle, Object origin, boolean inBreak,
 		        Integer newWeight) {
 			super(athlete, origin);
-			this.setTrace(LoggerUtils.stackTrace());
+			this.setTrace(() -> LoggerUtils.stackTrace());
 			this.nextAthlete = nextAthlete;
 			this.previousAthlete = previousAthlete;
 			this.changingAthlete = changingAthlete;
@@ -707,10 +726,13 @@ public class UIEvent {
 			this.setDisplayToggle(displayToggle);
 			this.setInBreak(inBreak);
 			this.setNewWeight(newWeight);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public Athlete getChangingAthlete() {
-			return changingAthlete;
+			return this.changingAthlete;
 		}
 
 		/**
@@ -719,7 +741,7 @@ public class UIEvent {
 		 * @return the display order
 		 */
 		public List<Athlete> getDisplayOrder() {
-			return displayOrder;
+			return this.displayOrder;
 		}
 
 		/**
@@ -728,11 +750,11 @@ public class UIEvent {
 		 * @return the lifting order
 		 */
 		public List<Athlete> getLiftingOrder() {
-			return liftingOrder;
+			return this.liftingOrder;
 		}
 
 		public Integer getNewWeight() {
-			return newWeight;
+			return this.newWeight;
 		}
 
 		/**
@@ -741,7 +763,7 @@ public class UIEvent {
 		 * @return the next athlete
 		 */
 		public Athlete getNextAthlete() {
-			return nextAthlete;
+			return this.nextAthlete;
 		}
 
 		/**
@@ -750,7 +772,7 @@ public class UIEvent {
 		 * @return the previous athlete
 		 */
 		public Athlete getPreviousAthlete() {
-			return previousAthlete;
+			return this.previousAthlete;
 		}
 
 		/**
@@ -759,22 +781,22 @@ public class UIEvent {
 		 * @return the timeAllowed
 		 */
 		public Integer getTimeAllowed() {
-			return timeAllowed;
+			return this.timeAllowed;
 		}
 
 		/**
 		 * @return true if the current event requires to stop the timer
 		 */
 		public boolean isCurrentDisplayAffected() {
-			return currentDisplayAffected;
+			return this.currentDisplayAffected;
 		}
 
 		public boolean isDisplayToggle() {
-			return displayToggle;
+			return this.displayToggle;
 		}
 
 		public boolean isInBreak() {
-			return inBreak;
+			return this.inBreak;
 		}
 
 		public void setDisplayToggle(boolean displayToggle) {
@@ -801,15 +823,10 @@ public class UIEvent {
 		}
 
 		public static final int NORMAL_DURATION = 3000;
-
 		private String fopEventString;
-
 		private String notificationString;
-
 		private Level level;
-
 		private String[] infos;
-
 		private Integer msDuration;
 
 		public Notification(Athlete curAthlete, Object origin, FOPEvent e, FOPState state, Notification.Level level) {
@@ -817,6 +834,9 @@ public class UIEvent {
 			this.setFopEventString(e.getClass().getSimpleName());
 			this.setNotificationString(state.toString());
 			this.level = level;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
@@ -833,10 +853,13 @@ public class UIEvent {
 		        String... infos) {
 			super(a, origin);
 			this.setNotificationString(notificationString);
-			this.setFopEventString(fopEventString);
+			this.setFopEventString(this.fopEventString);
 			this.setLevel(level);
 			this.setInfos(infos);
 			this.setMsDuration(msDuration);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public void doNotification() {
@@ -853,45 +876,45 @@ public class UIEvent {
 			n.add(div);
 
 			switch (getLevel()) {
-			case ERROR:
-				n.setPosition(Position.MIDDLE);
-				n.addThemeVariants(NotificationVariant.LUMO_ERROR);
-				break;
-			case INFO:
-				n.setPosition(Position.BOTTOM_START);
-				n.addThemeVariants(NotificationVariant.LUMO_PRIMARY);
-				break;
-			case SUCCESS:
-				n.setPosition(Position.BOTTOM_START);
-				n.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
-				break;
-			case WARNING:
-				n.setPosition(Position.TOP_START);
-				n.getElement().getThemeList().add("warning");
-				break;
+				case ERROR:
+					n.setPosition(Position.MIDDLE);
+					n.addThemeVariants(NotificationVariant.LUMO_ERROR);
+					break;
+				case INFO:
+					n.setPosition(Position.BOTTOM_START);
+					n.addThemeVariants(NotificationVariant.LUMO_PRIMARY);
+					break;
+				case SUCCESS:
+					n.setPosition(Position.BOTTOM_START);
+					n.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+					break;
+				case WARNING:
+					n.setPosition(Position.TOP_START);
+					n.getElement().getThemeList().add("warning");
+					break;
 			}
 			n.setDuration(getMsDuration() != null ? getMsDuration() : NORMAL_DURATION);
 			n.open();
 		}
 
 		public String getFopEventString() {
-			return fopEventString;
+			return this.fopEventString;
 		}
 
 		public String[] getInfos() {
-			return infos;
+			return this.infos;
 		}
 
 		public Level getLevel() {
-			return level;
+			return this.level;
 		}
 
 		public Integer getMsDuration() {
-			return msDuration;
+			return this.msDuration;
 		}
 
 		public String getNotificationString() {
-			return notificationString;
+			return this.notificationString;
 		}
 
 		public void setFopEventString(String fopEventString) {
@@ -939,6 +962,9 @@ public class UIEvent {
 			this.ref1Time = long1;
 			this.ref2Time = long2;
 			this.ref3Time = long3;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 	}
 
@@ -972,8 +998,11 @@ public class UIEvent {
 		 */
 		public SetTime(Integer timeRemaining, Object origin, String trace) {
 			super(origin);
-			this.setTrace(trace);
 			this.timeRemaining = timeRemaining;
+			this.trace = trace;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
@@ -982,9 +1011,37 @@ public class UIEvent {
 		 * @return the time remaining
 		 */
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 
+	}
+
+	static public class SnatchDone extends UIEvent {
+
+		private Group group;
+
+		/**
+		 * Instantiates a new athlete announced.
+		 *
+		 * @param athlete the athlete
+		 * @param ui      the ui
+		 */
+		public SnatchDone(Group group, UI ui, String stackTrace) {
+			super(ui);
+			this.setGroup(group);
+			this.trace = stackTrace;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
+		}
+
+		public Group getGroup() {
+			return this.group;
+		}
+
+		public void setGroup(Group group) {
+			this.group = group;
+		}
 	}
 
 	public static class StartLifting extends UIEvent {
@@ -993,10 +1050,13 @@ public class UIEvent {
 		public StartLifting(Group group, Object object) {
 			super(object);
 			this.setGroup(group);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public Group getGroup() {
-			return group;
+			return this.group;
 		}
 
 		public void setGroup(Group group) {
@@ -1011,6 +1071,8 @@ public class UIEvent {
 
 		private boolean serverSound;
 		private Integer timeRemaining;
+		private long start;
+		private long end;
 
 		/**
 		 * Instantiates a new start time.
@@ -1021,12 +1083,25 @@ public class UIEvent {
 		 */
 		public StartTime(Integer timeRemaining, Object origin, boolean serverSound) {
 			super(origin);
+			this.start = System.currentTimeMillis();
+			this.end = this.start + timeRemaining;
 			this.timeRemaining = timeRemaining;
 			this.serverSound = serverSound;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public StartTime(Integer timeRemaining, Object origin, boolean serverSound, String stackTrace) {
 			this(timeRemaining, origin, serverSound);
+		}
+
+		public long getEnd() {
+			return this.end;
+		}
+
+		public long getStart() {
+			return this.start;
 		}
 
 		/**
@@ -1035,11 +1110,19 @@ public class UIEvent {
 		 * @return the time remaining
 		 */
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 
 		public boolean isServerSound() {
-			return serverSound;
+			return this.serverSound;
+		}
+
+		public void setEnd(long end) {
+			this.end = end;
+		}
+
+		public void setStart(long start) {
+			this.start = start;
 		}
 
 	}
@@ -1060,6 +1143,9 @@ public class UIEvent {
 		public StopTime(int timeRemaining, Object origin) {
 			super(origin);
 			this.timeRemaining = timeRemaining;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		/**
@@ -1068,7 +1154,7 @@ public class UIEvent {
 		 * @return the time remaining
 		 */
 		public Integer getTimeRemaining() {
-			return timeRemaining;
+			return this.timeRemaining;
 		}
 	}
 
@@ -1080,6 +1166,9 @@ public class UIEvent {
 			// ref 1..3 ; 4 is technical controller.
 			super(origin);
 			this.ref = refNum;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 	}
@@ -1093,14 +1182,17 @@ public class UIEvent {
 			this.setGroup(group2);
 			this.setAthlete(curAthlete);
 			this.setState(state);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public Group getGroup() {
-			return group;
+			return this.group;
 		}
 
 		public FOPState getState() {
-			return state;
+			return this.state;
 		}
 
 		public void setGroup(Group group) {
@@ -1112,6 +1204,33 @@ public class UIEvent {
 		}
 	}
 
+	static public class TimeRemaining extends UIEvent {
+
+		private int timeRemaining;
+
+		/**
+		 * Instantiates a new break done.
+		 *
+		 * @param origin    the origin
+		 * @param breakType
+		 */
+		public TimeRemaining(Object origin, int timeRemaining) {
+			super(origin);
+			this.timeRemaining = timeRemaining;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
+		}
+
+		public int getTimeRemaining() {
+			return this.timeRemaining;
+		}
+
+		public void setTimeRemaining(int timeRemaining) {
+			this.timeRemaining = timeRemaining;
+		}
+	}
+
 	public static class VideoRefresh extends UIEvent {
 		private Group group;
 		private Category category;
@@ -1120,22 +1239,25 @@ public class UIEvent {
 			super(origin);
 			this.setGroup(g);
 			this.setCategory(c);
-		}
-
-		public Group getGroup() {
-			return group;
-		}
-
-		public void setGroup(Group g) {
-			this.group = g;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 		public Category getCategory() {
-			return category;
+			return this.category;
+		}
+
+		public Group getGroup() {
+			return this.group;
 		}
 
 		public void setCategory(Category c) {
 			this.category = c;
+		}
+
+		public void setGroup(Group g) {
+			this.group = g;
 		}
 	}
 
@@ -1148,16 +1270,16 @@ public class UIEvent {
 			super(origin);
 			this.ref = lastRef;
 			this.on = b;
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
 		}
 
 	}
 
 	protected String trace;
-
 	Logger logger = (Logger) LoggerFactory.getLogger(UIEvent.class);
-
 	private Athlete athlete;
-
 	private Object origin;
 
 	private UIEvent(Athlete athlete, Object origin) {
@@ -1175,7 +1297,7 @@ public class UIEvent {
 	 * @return the athlete
 	 */
 	public Athlete getAthlete() {
-		return athlete;
+		return this.athlete;
 	}
 
 	/**
@@ -1184,11 +1306,11 @@ public class UIEvent {
 	 * @return the originating object
 	 */
 	public Object getOrigin() {
-		return origin;
+		return this.origin;
 	}
 
 	public String getTrace() {
-		return trace;
+		return this.trace;
 	}
 
 	public void setAthlete(Athlete athlete) {
@@ -1199,8 +1321,10 @@ public class UIEvent {
 		this.origin = origin;
 	}
 
-	protected void setTrace(String stackTrace) {
-		this.trace = stackTrace;
+	protected void setTrace(Supplier<String> stackTrace) {
+		if (StartupUtils.isTraceSetting()) {
+			this.trace = stackTrace.get();
+		}
 	}
 
 }

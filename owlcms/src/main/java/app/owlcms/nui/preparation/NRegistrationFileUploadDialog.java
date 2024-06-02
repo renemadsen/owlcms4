@@ -19,6 +19,7 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 
+import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.spreadsheet.IRegistrationFileProcessor;
 import app.owlcms.spreadsheet.NRegistrationFileProcessor;
@@ -85,7 +86,7 @@ public class NRegistrationFileUploadDialog extends Dialog {
 //			// empty cell indicates old format
 //			boolean nullCell = cell == null;
 //			CellType cellType = cell.getCellType();
-//			logger.warn("cell type {} {}", cellType,
+//			logger.debug("cell type {} {}", cellType,
 //			        cellType == CellType.STRING ? ">" + cell.getStringCellValue() + "<" : "-");
 //			boolean b = nullCell
 //			        || cellType == CellType.BLANK
@@ -100,6 +101,7 @@ public class NRegistrationFileUploadDialog extends Dialog {
 
 	public void processInput(InputStream inputStream, TextArea ta) {
 		// clear athletes to be able to clear groups
+		CategoryRepository.resetCodeMap();
 		this.processor.resetAthletes();
 
 		// first do a dry run to count groups

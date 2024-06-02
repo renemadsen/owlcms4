@@ -6,8 +6,6 @@
  *******************************************************************************/
 package app.owlcms.tests;
 
-import static app.owlcms.data.category.AgeDivision.MASTERS;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,11 +20,13 @@ import javax.persistence.EntityManager;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
-import app.owlcms.data.category.AgeDivision;
+import app.owlcms.data.category.Category;
+import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.group.Group;
@@ -63,7 +63,7 @@ public class TestData {
      */
     public static void insertInitialData(int nbAthletes, boolean testMode) {
         JPAService.runInTransaction(em -> {
-            EnumSet<AgeDivision> divisions = EnumSet.of(AgeDivision.IWF);
+        	EnumSet<ChampionshipType> divisions = EnumSet.of(ChampionshipType.IWF);
             Competition competition = createDefaultCompetition(divisions);
             CompetitionRepository.save(competition);
             AgeGroupRepository.insertAgeGroups(em, divisions, "/agegroups/AgeGroups_Tests.xlsx");
@@ -104,13 +104,12 @@ public class TestData {
     protected static void createAthlete(EntityManager em, Random r, Athlete p, double nextDouble, int catLimit) {
         p.setBodyWeight(81 - nextDouble);
         p.setGender(Gender.M);
-//        Category categ = CategoryRepository.findByGenderAgeBW(Gender.M, 40, p.getBodyWeight()).get(0);
-//        p.addEligibleCategory(em.contains(categ) ? categ : em.merge(categ));
-//        p.setCategory(categ);
+        Category cat = CategoryRepository.findByCode("SR_M81");
+        p.setCategory(cat);
         logger.debug("athlete {} category {} participations {}", p, p.getCategory(), p.getParticipations());
     }
 
-    protected static Competition createDefaultCompetition(EnumSet<AgeDivision> ageDivisions) {
+    protected static Competition createDefaultCompetition(EnumSet<ChampionshipType> championshipTypes) {
         Competition competition = new Competition();
 
         competition.setCompetitionName("Spring Equinox Open");
@@ -124,7 +123,7 @@ public class TestData {
         competition.setFederationWebSite("http://national-weightlifting.org");
 
         competition.setEnforce20kgRule(true);
-        competition.setMasters(ageDivisions != null && ageDivisions.contains(MASTERS));
+        competition.setMasters(championshipTypes != null && championshipTypes.contains(ChampionshipType.MASTERS));
         competition.setUseBirthYear(true);
         competition.setAnnouncerLiveDecisions(true);
 

@@ -25,8 +25,10 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
+import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.config.Config;
@@ -47,7 +49,6 @@ import ch.qos.logback.classic.Logger;
 public class CompetitionData {
 
 	final static Logger logger = (Logger) LoggerFactory.getLogger(CompetitionData.class);
-
 	private List<AgeGroup> ageGroups;
 	private List<Athlete> athletes;
 	private Competition competition;
@@ -106,11 +107,11 @@ public class CompetitionData {
 		setAgeGroups(AgeGroupRepository.findAll());
 		List<Athlete> allAthletes = AthleteRepository
 		        .findAll()
-                .stream()
-//                .findFirst()
-//                .map(Arrays::asList).orElseGet(List::of);
-            .collect(Collectors.toList());
-		;
+		        .stream()
+		        // .findFirst()
+		        // .map(Arrays::asList).orElseGet(List::of);
+		        .collect(Collectors.toList());
+
 		setAthletes(allAthletes);
 		setGroups(GroupRepository.findAll());
 		setPlatforms(PlatformRepository.findAll());
@@ -123,46 +124,42 @@ public class CompetitionData {
 
 	@JsonProperty(index = 30)
 	public List<AgeGroup> getAgeGroups() {
-		return ageGroups;
+		return this.ageGroups;
 	}
 
 	@JsonProperty(index = 40)
 	public List<Athlete> getAthletes() {
-		return athletes;
+		return this.athletes;
 	}
 
 	@JsonProperty(index = 5)
 	public Competition getCompetition() {
-		return competition;
+		return this.competition;
 	}
 
 	@JsonProperty(index = 1)
 	public Config getConfig() {
-		return config;
+		return this.config;
 	}
 
 	@JsonProperty(index = 20)
 	public List<Group> getGroups() {
-		return groups;
+		return this.groups;
 	}
 
 	@JsonProperty(index = 10)
 	public List<Platform> getPlatforms() {
-		return platforms;
+		return this.platforms;
+	}
+
+	@JsonProperty(index = 60)
+	public RecordConfig getRecordConfig() {
+		return this.recordConfig;
 	}
 
 	@JsonProperty(index = 50)
 	public List<RecordEvent> getRecords() {
-		return records;
-	}
-	
-	@JsonProperty(index = 60)
-	public RecordConfig getRecordConfig() {
-		return recordConfig;
-	}
-
-	public void setRecordConfig(RecordConfig recordConfig) {
-		this.recordConfig = recordConfig;
+		return this.records;
 	}
 
 	public CompetitionData importData(InputStream serialized) {
@@ -193,6 +190,7 @@ public class CompetitionData {
 		JPAService.runInTransaction(em -> {
 			try {
 				Athlete.setSkipValidationsDuringImport(true);
+				OwlcmsFactory.resetFOPByName();
 
 				CompetitionData updated = this.importData(inputStream);
 				Config config = updated.getConfig();
@@ -227,7 +225,7 @@ public class CompetitionData {
 						em.merge(p);
 					}
 				}
-				
+
 				if (updated.getRecordConfig() != null) {
 					{
 						em.merge(updated.getRecordConfig());
@@ -244,9 +242,11 @@ public class CompetitionData {
 			}
 			return null;
 		});
+		Championship.reset();
+		CategoryRepository.resetCodeMap();
 		// register the new FOPs for events and MQTT
-		OwlcmsFactory.initFOPByName();
-		
+		OwlcmsFactory.initDefaultFOP();
+
 		// set the record order if empty (compensate for issue #766)
 		RecordConfig current = RecordConfig.getCurrent();
 		current.addMissing(RecordRepository.findAllRecordNames());
@@ -261,9 +261,8 @@ public class CompetitionData {
 	}
 
 	/**
-	 * When importing data, set the imported Competition instance as the current
-	 * instance. This is required because it affects how some objects are processed
-	 * (e.g., birth dates).
+	 * When importing data, set the imported Competition instance as the current instance. This is required because it
+	 * affects how some objects are processed (e.g., birth dates).
 	 *
 	 * @param competition the competition to set
 	 */
@@ -275,9 +274,8 @@ public class CompetitionData {
 	}
 
 	/**
-	 * When importing data, set the imported Competition instance as the current
-	 * instance. This is prudent in case the configuration might affect further
-	 * processing.
+	 * When importing data, set the imported Competition instance as the current instance. This is prudent in case the
+	 * configuration might affect further processing.
 	 *
 	 * @param config the config to set
 	 */
@@ -293,6 +291,10 @@ public class CompetitionData {
 
 	public void setPlatforms(List<Platform> platforms) {
 		this.platforms = platforms;
+	}
+
+	public void setRecordConfig(RecordConfig recordConfig) {
+		this.recordConfig = recordConfig;
 	}
 
 	public void setRecords(List<RecordEvent> records) {

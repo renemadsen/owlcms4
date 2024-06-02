@@ -48,6 +48,7 @@ import app.owlcms.data.competition.Competition;
 import app.owlcms.fieldofplay.CountdownType;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FOPState;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.AthleteGridContent;
@@ -71,9 +72,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		logger.setLevel(Level.DEBUG);
 		uiEventLogger.setLevel(Level.INFO);
 	}
-
 	Notification decisionNotification;
-
 	List<ShortcutRegistration> registrations;
 	private Athlete athleteUnderReview;
 	private JuryDisplayDecisionElement decisions;
@@ -87,19 +86,16 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	private HorizontalLayout refContainer;
 	private Component refereeLabelWrapper;
 	private boolean summonEnabled;
-
 	Athlete previousAthleteAtStart;
 	int previousAttemptNumber;
 	Athlete currentAthleteAtStart;
 	int currentAttemptNumber;
 	private boolean newClock;
-
-	Map<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
+	Map<String, List<String>> urlParameterMap = new HashMap<>();
 
 	public JuryContent() {
 		// we don't actually inherit behaviour from the superclass because
 		// all this does is call init() -- which we override.
-		super();
 		// when navigating to the page, Vaadin will call setParameter+readParameters
 		// these parameters will be applied.
 		setDefaultParameters(QueryParameters.simple(Map.of(
@@ -144,6 +140,17 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		return getTranslation("Jury") + OwlcmsSession.getFopNameIfMultiple();
 	}
 
+	@Override
+	@Subscribe
+	public void slaveBreakStart(UIEvent.BreakStarted e) {
+		super.slaveBreakStart(e);
+		if (e.getBreakType() == BreakType.JURY || e.getBreakType() == BreakType.CHALLENGE) {
+			UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+				resetJuryVoting();
+			});
+		}
+	}
+
 	@Subscribe
 	public void slaveDown(UIEvent.DownSignal e) {
 		// Ignore down signal
@@ -157,7 +164,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		// logger.debug("update jury decisions {} {} {} {}", goodBad, juryMember, this,
 		// e.getOrigin());
 		if (juryMember != null && goodBad != null) {
-			UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, uiEventBus, e, this, () -> {
+			UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this, () -> {
 				// logger.debug("updating");
 				juryVote(juryMember, goodBad, false);
 			});
@@ -169,29 +176,29 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		// uiEventLogger.debug("### {} {} {} {}", this.getClass().getSimpleName(),
 		// e.getClass().getSimpleName(),
 		// e.getAthlete());
-		UIEventProcessor.uiAccess(this, uiEventBus, e, () -> {
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			// juryDeliberationButton.setEnabled(true);
 			int d = e.decision ? 1 : 0;
 			String text = getTranslation("NoLift_GoodLift", d, e.getAthlete().getFullName());
 			// logger.debug("setting athleteUnderReview2 {}", e.getAthlete());
 			setAthleteUnderReview(e.getAthlete());
 
-			decisionNotification = new Notification();
+			this.decisionNotification = new Notification();
 			// Notification theme styling is done in
 			// META-INF/resources/frontend/styles/shared-styles.html
 			String themeName = e.decision ? "success" : "error";
-			decisionNotification.getElement().getThemeList().add(themeName);
+			this.decisionNotification.getElement().getThemeList().add(themeName);
 
 			Div label = new Div();
 			label.add(text);
-			label.addClickListener((event) -> decisionNotification.close());
+			label.addClickListener((event) -> this.decisionNotification.close());
 			label.setSizeFull();
 			label.getStyle().set("font-size", "large");
-			decisionNotification.add(label);
-			decisionNotification.setPosition(Position.TOP_START);
+			this.decisionNotification.add(label);
+			this.decisionNotification.setPosition(Position.TOP_START);
 			// let the lift/no lift decision go away - people can see the referee lights.
-			decisionNotification.setDuration(5000);
-			decisionNotification.open();
+			this.decisionNotification.setDuration(5000);
+			this.decisionNotification.open();
 
 			swapRefereeLabel(e.getAthlete());
 		});
@@ -199,7 +206,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 
 	@Subscribe
 	public void slaveResetOnNewClock(UIEvent.ResetOnNewClock e) {
-		UIEventProcessor.uiAccess(this, uiEventBus, e, () -> syncWithFOP(true));
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> syncWithFOP(true));
 	}
 
 	/**
@@ -208,51 +215,40 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	@Override
 	@Subscribe
 	public void slaveStartLifting(UIEvent.StartLifting e) {
-		UIEventProcessor.uiAccess(this, uiEventBus, () -> {
-			if (juryDialog != null && juryDialog.isOpened()) {
-				juryDialog.doClose(true);
+		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+			if (this.juryDialog != null && this.juryDialog.isOpened()) {
+				this.juryDialog.doClose(true);
 			} else {
 				doSync();
 			}
 		});
 	}
 
-	@Override
-	@Subscribe
-	public void slaveBreakStart(UIEvent.BreakStarted e) {
-		super.slaveBreakStart(e);
-		if (e.getBreakType() == BreakType.JURY || e.getBreakType() == BreakType.CHALLENGE) {
-			UIEventProcessor.uiAccess(this, uiEventBus, () -> {
-				resetJuryVoting();
-			});
-		}
-	}
-
 	@Subscribe
 	public void slaveTimeStarted(UIEvent.StartTime e) {
 		OwlcmsSession.withFop(fop -> {
-			currentAthleteAtStart = fop.getClockOwner();
-			if (currentAthleteAtStart != null) {
-				currentAttemptNumber = currentAthleteAtStart.getActuallyAttemptedLifts();
+			this.currentAthleteAtStart = fop.getClockOwner();
+			if (this.currentAthleteAtStart != null) {
+				this.currentAttemptNumber = this.currentAthleteAtStart.getActuallyAttemptedLifts();
 			} else {
-				currentAttemptNumber = 0;
+				this.currentAttemptNumber = 0;
 			}
-			newClock = e.getTimeRemaining() == 60000 || e.getTimeRemaining() == 120000;
+			this.newClock = e.getTimeRemaining() == 60000 || e.getTimeRemaining() == 120000;
 		});
 		// this is redundant because of slaveResetOnNewClock
-		if ((currentAthleteAtStart != previousAthleteAtStart)
-		        || (currentAttemptNumber != previousAttemptNumber)
-		        || newClock) {
+		if ((this.currentAthleteAtStart != this.previousAthleteAtStart)
+		        || (this.currentAttemptNumber != this.previousAttemptNumber)
+		        || this.newClock) {
 			// we switched lifter, or we switched attempt.
 			// reset the decisions.
 			// logger.debug("RESETTING");
-			UIEventProcessor.uiAccess(this, uiEventBus, () -> {
-				decisions.doReset();
-				juryVotingButtons.removeAll();
+			UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+				this.decisions.doReset();
+				this.juryVotingButtons.removeAll();
 				resetJuryVoting();
-				decisions.setSilenced(true);
-				if (decisionNotification != null) {
-					decisionNotification.close();
+				this.decisions.setSilenced(true);
+				if (this.decisionNotification != null) {
+					this.decisionNotification.close();
 				}
 				// referee decisions handle reset on their own, nothing to do.
 				// reset referee decision label
@@ -261,8 +257,8 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		} else {
 			// logger.debug("NOT resetting");
 		}
-		previousAthleteAtStart = currentAthleteAtStart;
-		previousAttemptNumber = currentAttemptNumber;
+		this.previousAthleteAtStart = this.currentAthleteAtStart;
+		this.previousAttemptNumber = this.currentAttemptNumber;
 	}
 
 	/**
@@ -272,378 +268,6 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	public Athlete update(Athlete athlete) {
 		// do nothing
 		return athlete;
-	}
-
-	private Icon bigIcon(VaadinIcon iconDef, String color) {
-		Icon icon = iconDef.create();
-		icon.setSize("80%");
-		icon.getStyle().set("color", color);
-		return icon;
-	}
-
-	private void buildJuryBox(VerticalLayout juryContainer) {
-		// logger.trace("buildJuryBox {}", LoggerUtils.whereFrom());
-		HorizontalLayout topRow = new HorizontalLayout();
-		juryLabel = new NativeLabel(getTranslation("JuryDecisions"));
-		H3 labelWrapper = new H3(juryLabel);
-		labelWrapper.setWidth("15em");
-		NativeLabel spacer = new NativeLabel();
-		spacer.setWidth("3em");
-		topRow.add(labelWrapper, juryDeliberationButtons(),
-		        juryDecisionButtons());
-		topRow.setDefaultVerticalComponentAlignment(Alignment.CENTER);
-
-		buildJuryVoting();
-		resetJuryVoting();
-
-		juryContainer.setBoxSizing(BoxSizing.BORDER_BOX);
-		juryContainer.setMargin(false);
-		juryContainer.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
-		juryContainer.add(topRow);
-		juryContainer.setAlignSelf(Alignment.START, topRow);
-		juryContainer.add(juryVotingCenterHorizontally);
-
-	}
-
-	private void buildJuryVoting() {
-		// center buttons vertically, spread withing proper width
-		juryVotingButtons = new HorizontalLayout();
-		juryVotingButtons.setBoxSizing(BoxSizing.BORDER_BOX);
-		juryVotingButtons.setJustifyContentMode(JustifyContentMode.EVENLY);
-		juryVotingButtons.setDefaultVerticalComponentAlignment(Alignment.CENTER);
-		juryVotingButtons.setHeight("100%");
-		juryVotingButtons.setWidth(getNbJurors() == 3 ? "50%" : "85%");
-		juryVotingButtons.getStyle().set("background-color", "black");
-		juryVotingButtons.setPadding(false);
-		juryVotingButtons.setMargin(false);
-
-		// center the button cluster within page width
-		juryVotingCenterHorizontally = new VerticalLayout();
-		juryVotingCenterHorizontally.setWidthFull();
-		juryVotingCenterHorizontally.setBoxSizing(BoxSizing.BORDER_BOX);
-		juryVotingCenterHorizontally.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
-		juryVotingCenterHorizontally.setPadding(true);
-		juryVotingCenterHorizontally.setMargin(true);
-		juryVotingCenterHorizontally.setHeight("80%");
-		juryVotingCenterHorizontally.getStyle().set("background-color", "black");
-
-		juryVotingCenterHorizontally.add(juryVotingButtons);
-		return;
-	}
-
-	private void buildRefereeBox(VerticalLayout container) {
-		refereeLabelWrapper = createRefereeLabel(null);
-
-		decisions = new JuryDisplayDecisionElement(false);
-		decisions.getElement().setAttribute("theme", "dark");
-		Div decisionWrapper = new Div(decisions);
-		decisionWrapper.getStyle().set("width", "50%");
-		//decisionWrapper.getStyle().set("height", "max-content");
-
-		refContainer = new HorizontalLayout(decisionWrapper);
-		refContainer.setBoxSizing(BoxSizing.BORDER_BOX);
-		refContainer.setJustifyContentMode(JustifyContentMode.CENTER);
-		refContainer.getStyle().set("background-color", "black");
-		refContainer.setHeight("80%");
-		refContainer.setWidthFull();
-		refContainer.setPadding(true);
-		refContainer.setMargin(true);
-
-		container.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
-		container.add(refereeLabelWrapper);
-		container.setAlignSelf(Alignment.START, refereeLabelWrapper);
-		container.add(refContainer);
-	}
-
-	private void checkAllVoted() {
-		UIEventProcessor.uiAccess(this, uiEventBus, () -> {
-			boolean allVoted = true;
-			for (int i = 0; i < juryVotes.length; i++) {
-				if (juryVotes[i] == null) {
-					allVoted = false;
-					break;
-				}
-			}
-
-			if (allVoted) {
-				juryVotingButtons.removeAll();
-				for (int i = 0; i < juryVotes.length; i++) {
-					Icon fullSizeIcon;
-					if (juryVotes[i]) {
-						fullSizeIcon = bigIcon(VaadinIcon.CHECK_CIRCLE, "white");
-					} else {
-						fullSizeIcon = bigIcon(VaadinIcon.CLOSE_CIRCLE, "red");
-					}
-					juryVotingButtons.add(fullSizeIcon);
-					juryIcons[i] = fullSizeIcon;
-				}
-			}
-		});
-	}
-
-	private Component createRefereeLabel(Athlete athlete) {
-		Html refereeLabel = new Html("<span>" +
-		        getTranslation("RefereeDecisions")
-		        + (athlete != null
-		                ? "&nbsp;&nbsp;&nbsp;" + athleteFullId(athlete) + "&nbsp;&nbsp;&nbsp;"
-		                        + formatAttempt(athlete.getAttemptsDone() - 1)
-		                : "")
-		        + "</span>");
-		H3 refereeLabelWrapper = new H3(refereeLabel);
-		refereeLabelWrapper.setHeight("5%");
-		return refereeLabelWrapper;
-	}
-
-	private String formatAttempt(Integer attemptNo) {
-		String translate = Translator.translate("AttemptBoard_attempt_number", (attemptNo % 3) + 1);
-		return translate;
-	}
-
-	private Athlete getAthleteUnderReview() {
-		return athleteUnderReview;
-	}
-
-	private Key getBadKey(int i) {
-		switch (i) {
-		case 0:
-			return Key.DIGIT_2;
-		case 1:
-			return Key.DIGIT_4;
-		case 2:
-			return Key.DIGIT_6;
-		case 3:
-			return Key.DIGIT_8;
-		case 4:
-			return Key.DIGIT_0;
-		default:
-			return Key.UNIDENTIFIED;
-		}
-	}
-
-	private Key getGoodKey(int i) {
-		switch (i) {
-		case 0:
-			return Key.DIGIT_1;
-		case 1:
-			return Key.DIGIT_3;
-		case 2:
-			return Key.DIGIT_5;
-		case 3:
-			return Key.DIGIT_7;
-		case 4:
-			return Key.DIGIT_9;
-		default:
-			return Key.UNIDENTIFIED;
-		}
-	}
-
-	private int getNbJurors() {
-		return Competition.getCurrent().getJurySize();
-	}
-
-	private HorizontalLayout juryDecisionButtons() {
-		HorizontalLayout decisions = new HorizontalLayout();
-		return decisions;
-	}
-
-	private HorizontalLayout juryDeliberationButtons() {
-		Button juryDeliberationButton = new Button(
-				new Icon(VaadinIcon.TIMER),
-				(e) -> {
-			openJuryDialog(JuryDeliberationEventType.START_DELIBERATION);
-		});
-		juryDeliberationButton.getElement().setAttribute("theme", "primary");
-		juryDeliberationButton.setText(getTranslation("BreakButton.JuryDeliberation"));
-		
-		Button challengeButton = new Button(
-				new Icon(VaadinIcon.TIMER),
-				(e) -> {
-			openJuryDialog(JuryDeliberationEventType.CHALLENGE);
-		});
-		challengeButton.getElement().setAttribute("theme", "primary");
-		challengeButton.setText(getTranslation("BreakButton.CHALLENGE"));
-		// juryDeliberationButton.getElement().setAttribute("title",
-		// getTranslation("BreakButton.JuryDeliberation"));
-
-		Button technicalPauseButton = new Button(
-				new Icon(VaadinIcon.TIMER),
-				(e) -> {
-			openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE);
-		});
-		technicalPauseButton.getElement().setAttribute("theme", "primary");
-		technicalPauseButton.setText(getTranslation("BreakType.TECHNICAL"));
-
-		HorizontalLayout buttons = new HorizontalLayout(juryDeliberationButton, challengeButton, technicalPauseButton);
-
-		if (summonEnabled) {
-			Button summonRefereesButton = new Button(
-					new Icon(VaadinIcon.TIMER), 
-					(e) -> {
-				openJuryDialog(JuryDeliberationEventType.CALL_REFEREES);
-			});
-			summonRefereesButton.getElement().setAttribute("theme", "primary");
-			summonRefereesButton.setText(getTranslation("BreakButton.SummonReferees"));
-			buttons.add(summonRefereesButton);
-		}
-
-		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
-		return buttons;
-	}
-
-	private void juryVote(Integer juryMember, Boolean goodBad, boolean sendFOPEvent) {
-		if (goodBad == null) {
-			Icon nonVotedIcon = bigIcon(VaadinIcon.CIRCLE_THIN, "gray");
-			juryVotingButtons.replace(juryIcons[juryMember], nonVotedIcon);
-			juryIcons[juryMember] = nonVotedIcon;
-			juryVotes[juryMember] = null;
-			return;
-		}
-		Icon votedIcon = bigIcon(VaadinIcon.CIRCLE, "gray");
-		juryVotingButtons.replace(juryIcons[juryMember], votedIcon);
-		juryIcons[juryMember] = votedIcon;
-		juryVotes[juryMember] = goodBad;
-		if (sendFOPEvent) {
-			OwlcmsSession.withFop(fop -> {
-				fop.fopEventPost(new FOPEvent.JuryMemberDecisionUpdate(this, juryMember, goodBad));
-			});
-		}
-		checkAllVoted();
-	}
-
-	private void openJuryDialog(JuryDeliberationEventType deliberation) {
-		long now = System.currentTimeMillis();
-		if (now - lastOpen > 100 && (juryDialog == null || !juryDialog.isOpened())) {
-			OwlcmsSession.withFop(fop -> {
-				if (fop.getState() != FOPState.BREAK && deliberation != JuryDeliberationEventType.TECHNICAL_PAUSE) {
-					fop.fopEventPost(
-					        new FOPEvent.BreakStarted(
-					        		deliberation == JuryDeliberationEventType.CHALLENGE ? BreakType.CHALLENGE : BreakType.JURY, CountdownType.INDEFINITE, 0, null, true, this));
-				}
-				juryDialog = new JuryDialog(JuryContent.this, getAthleteUnderReview(), deliberation, summonEnabled);
-				juryDialog.open();
-				lastOpen = now;
-			});
-		}
-	}
-
-	private void resetJuryVoting() {
-		//logger.debug("resetJuryVoting {} {}", UI.getCurrent(), LoggerUtils.whereFrom());
-		for (ShortcutRegistration sr : registrations) {
-			sr.remove();
-		}
-		juryIcons = new Icon[getNbJurors()];
-		juryVotes = new Boolean[getNbJurors()];
-		juryVotingButtons.removeAll();
-		for (int i = 0; i < getNbJurors(); i++) {
-			final int ix = i;
-			Icon nonVotedIcon = bigIcon(VaadinIcon.CIRCLE_THIN, "gray");
-			juryIcons[ix] = nonVotedIcon;
-			juryVotes[ix] = null;
-			juryVotingButtons.add(juryIcons[ix], nonVotedIcon);
-			ShortcutRegistration reg;
-			reg = UI.getCurrent().addShortcutListener(() -> {
-				juryVote(ix, true, true);
-			}, getGoodKey(i));
-			registrations.add(reg);
-			reg = UI.getCurrent().addShortcutListener(() -> {
-				juryVote(ix, false, true);
-			}, getBadKey(i));
-			registrations.add(reg);
-			reg = UI.getCurrent().addShortcutListener(
-			        () -> openJuryDialog(JuryDeliberationEventType.START_DELIBERATION), Key.KEY_D);
-			registrations.add(reg);
-			reg = UI.getCurrent().addShortcutListener(
-			        () -> openJuryDialog(JuryDeliberationEventType.CHALLENGE), Key.KEY_C);
-			registrations.add(reg);
-			reg = UI.getCurrent().addShortcutListener(
-			        () -> openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE), Key.KEY_T);
-			reg = UI.getCurrent().addShortcutListener(
-			        () -> {
-				        openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE);
-				        summonReferee(4);
-			        }, Key.KEY_C);
-			registrations.add(reg);
-			if (summonEnabled) {
-				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(1), Key.KEY_H);
-				registrations.add(reg);
-				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(2), Key.KEY_I);
-				registrations.add(reg);
-				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(3), Key.KEY_J);
-				registrations.add(reg);
-				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(0), Key.KEY_K);
-				registrations.add(reg);
-			}
-		}
-	}
-
-	private void setAthleteUnderReview(Athlete athleteUnderReview) {
-		this.athleteUnderReview = athleteUnderReview;
-	}
-
-	private void setNbJurors(int nbJurors) {
-		this.removeAll();
-		Competition.getCurrent().setJurySize(nbJurors);
-		init(nbJurors);
-	}
-
-	private void summonReferee(int i) {
-		long now = System.currentTimeMillis();
-		if (now - lastOpen > 100) {
-
-			openJuryDialog(JuryDeliberationEventType.CALL_REFEREES);
-			lastOpen = now;
-
-			OwlcmsSession.withFop(fop -> {
-				if (i > 0) {
-					fop.fopEventPost(new FOPEvent.SummonReferee(this.getOrigin(), i));
-				} else {
-					// i = 0 means call all refs.
-					for (int j = 1; j <= 3; j++) {
-						fop.fopEventPost(new FOPEvent.SummonReferee(this.getOrigin(), j));
-					}
-				}
-			});
-		}
-	}
-
-	@SuppressWarnings("unused")
-	private Component summonRefereeButtons() {
-		Button one = new Button("1", (e) -> {
-			OwlcmsSession.withFop(fop -> {
-				this.summonReferee(1);
-			});
-		});
-		one.setWidth("4em");
-
-		Button two = new Button("2", (e) -> {
-			OwlcmsSession.withFop(fop -> {
-				this.summonReferee(2);
-			});
-		});
-		two.setWidth("4em");
-
-		Button three = new Button("3", (e) -> {
-			OwlcmsSession.withFop(fop -> {
-				this.summonReferee(3);
-			});
-		});
-		three.setWidth("4em");
-
-		Button all = new Button("*", (e) -> {
-			OwlcmsSession.withFop(fop -> {
-				this.summonReferee(0);
-			});
-		});
-		all.setWidth("4em");
-
-		HorizontalLayout selection = new HorizontalLayout(one, two, three, all);
-		return selection;
-	}
-
-	private void swapRefereeLabel(Athlete athlete) {
-		Component nc = createRefereeLabel(athlete);
-		this.replace(refereeLabelWrapper, nc);
-		refereeLabelWrapper = nc;
 	}
 
 	/**
@@ -657,11 +281,11 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 
 	@Override
 	protected void createTopBarSettingsMenu() {
-		topBarSettings = new MenuBar();
-		topBarSettings.addThemeVariants(MenuBarVariant.LUMO_SMALL, MenuBarVariant.LUMO_TERTIARY_INLINE);
-		MenuItem item2 = topBarSettings.addItem(
-				new Icon(VaadinIcon.COG)//IronIcons.SETTINGS.create()
-				);
+		this.topBarSettings = new MenuBar();
+		this.topBarSettings.addThemeVariants(MenuBarVariant.LUMO_SMALL, MenuBarVariant.LUMO_TERTIARY_INLINE);
+		MenuItem item2 = this.topBarSettings.addItem(
+		        new Icon(VaadinIcon.COG)// IronIcons.SETTINGS.create()
+		);
 		SubMenu subMenu2 = item2.getSubMenu();
 		subMenu2.addItem(
 		        this.isSilenced() ? Translator.translate("Settings.TurnOnSound")
@@ -670,14 +294,14 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			        switchSoundMode(!this.isSilenced(), true);
 			        e.getSource().setText(this.isSilenced() ? Translator.translate("Settings.TurnOnSound")
 			                : Translator.translate("Settings.TurnOffSound"));
-			        if (decisionDisplay != null) {
-				        decisionDisplay.setSilenced(true);
+			        if (this.decisionDisplay != null) {
+				        this.decisionDisplay.setSilenced(true);
 			        }
-			        if (decisions != null) {
-				        decisions.setSilenced(true);
+			        if (this.decisions != null) {
+				        this.decisions.setSilenced(true);
 			        }
-			        if (timer != null) {
-				        timer.setSilenced(this.isSilenced());
+			        if (this.timer != null) {
+				        this.timer.setSilenced(this.isSilenced());
 			        }
 		        });
 		subMenu2.addItem("3", (e) -> {
@@ -703,11 +327,11 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 
 	protected void doSync() {
 		syncWithFOP(false);
-		decisions.slaveDecisionReset(null);
+		this.decisions.slaveDecisionReset(null);
 
 		// OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(this));
-		if (decisionNotification != null) {
-			decisionNotification.close();
+		if (this.decisionNotification != null) {
+			this.decisionNotification.close();
 		}
 	}
 
@@ -718,8 +342,8 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 
 	protected void init(int nbj) {
 		// logger.trace("init {}", LoggerUtils.whereFrom());
-		summonEnabled = true; // works with phones/tablets
-		registrations = new ArrayList<>();
+		this.summonEnabled = true; // works with phones/tablets
+		this.registrations = new ArrayList<>();
 		this.setBoxSizing(BoxSizing.BORDER_BOX);
 		this.setSizeFull();
 		Competition.getCurrent().setJurySize(nbj);
@@ -736,27 +360,396 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			if (curDecisions != null) {
 				for (int i = 0; i < getNbJurors(); i++) {
 					Boolean goodBad = curDecisions[i];
-//                    logger.debug("existing jury {} {}", i, goodBad);
+					// logger.debug("existing jury {} {}", i, goodBad);
 					juryVote(i, goodBad, false);
 				}
 			}
 			Boolean[] curRefDecisions = fop.getRefereeDecision();
 			Long[] curRefTimes = fop.getRefereeTime();
-			decisions.doReset();
+			this.decisions.doReset();
 			if (curRefDecisions != null) {
-//                for (int i = 0; i < 3; i++) {
-//                    Boolean goodBad = curRefDecisions[i];
-//                    logger.debug("existing ref {} {}", i, goodBad);
-//                }
+				// for (int i = 0; i < 3; i++) {
+				// Boolean goodBad = curRefDecisions[i];
+				// logger.debug("existing ref {} {}", i, goodBad);
+				// }
 				if (fop.isRefereeForcedDecision()) {
-					decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(athleteUnderReview, null,
+					this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview, null,
 					        curRefDecisions[1], null, null, curRefTimes[1], null, this));
 				} else {
-					decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(athleteUnderReview, curRefDecisions[0],
+					this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview,
+					        curRefDecisions[0],
 					        curRefDecisions[1], curRefDecisions[2], curRefTimes[0], curRefTimes[1], curRefTimes[2],
 					        this));
 				}
 			}
 		});
+	}
+
+	private Icon bigIcon(VaadinIcon iconDef, String color) {
+		Icon icon = iconDef.create();
+		icon.setSize("80%");
+		icon.getStyle().set("color", color);
+		return icon;
+	}
+
+	private void buildJuryBox(VerticalLayout juryContainer) {
+		// logger.trace("buildJuryBox {}", LoggerUtils.whereFrom());
+		HorizontalLayout topRow = new HorizontalLayout();
+		this.juryLabel = new NativeLabel(getTranslation("JuryDecisions"));
+		H3 labelWrapper = new H3(this.juryLabel);
+		labelWrapper.setWidth("15em");
+		NativeLabel spacer = new NativeLabel();
+		spacer.setWidth("3em");
+		topRow.add(labelWrapper, juryDeliberationButtons(),
+		        juryDecisionButtons());
+		topRow.setDefaultVerticalComponentAlignment(Alignment.CENTER);
+
+		buildJuryVoting();
+		resetJuryVoting();
+
+		juryContainer.setBoxSizing(BoxSizing.BORDER_BOX);
+		juryContainer.setMargin(false);
+		juryContainer.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
+		juryContainer.add(topRow);
+		juryContainer.setAlignSelf(Alignment.START, topRow);
+		juryContainer.add(this.juryVotingCenterHorizontally);
+
+	}
+
+	private void buildJuryVoting() {
+		// center buttons vertically, spread withing proper width
+		this.juryVotingButtons = new HorizontalLayout();
+		this.juryVotingButtons.setBoxSizing(BoxSizing.BORDER_BOX);
+		this.juryVotingButtons.setJustifyContentMode(JustifyContentMode.EVENLY);
+		this.juryVotingButtons.setDefaultVerticalComponentAlignment(Alignment.CENTER);
+		this.juryVotingButtons.setHeight("100%");
+		this.juryVotingButtons.setWidth(getNbJurors() == 3 ? "50%" : "85%");
+		this.juryVotingButtons.getStyle().set("background-color", "black");
+		this.juryVotingButtons.setPadding(false);
+		this.juryVotingButtons.setMargin(false);
+
+		// center the button cluster within page width
+		this.juryVotingCenterHorizontally = new VerticalLayout();
+		this.juryVotingCenterHorizontally.setWidthFull();
+		this.juryVotingCenterHorizontally.setBoxSizing(BoxSizing.BORDER_BOX);
+		this.juryVotingCenterHorizontally.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
+		this.juryVotingCenterHorizontally.setPadding(true);
+		this.juryVotingCenterHorizontally.setMargin(true);
+		this.juryVotingCenterHorizontally.setHeight("80%");
+		this.juryVotingCenterHorizontally.getStyle().set("background-color", "black");
+
+		this.juryVotingCenterHorizontally.add(this.juryVotingButtons);
+	}
+
+	private void buildRefereeBox(VerticalLayout container) {
+		this.refereeLabelWrapper = createRefereeLabel(null);
+
+		this.decisions = new JuryDisplayDecisionElement(false);
+		this.decisions.getElement().setAttribute("theme", "dark");
+		Div decisionWrapper = new Div(this.decisions);
+		decisionWrapper.getStyle().set("width", "50%");
+		// decisionWrapper.getStyle().set("height", "max-content");
+
+		this.refContainer = new HorizontalLayout(decisionWrapper);
+		this.refContainer.setBoxSizing(BoxSizing.BORDER_BOX);
+		this.refContainer.setJustifyContentMode(JustifyContentMode.CENTER);
+		this.refContainer.getStyle().set("background-color", "black");
+		this.refContainer.setHeight("80%");
+		this.refContainer.setWidthFull();
+		this.refContainer.setPadding(true);
+		this.refContainer.setMargin(true);
+
+		container.setDefaultHorizontalComponentAlignment(Alignment.CENTER);
+		container.add(this.refereeLabelWrapper);
+		container.setAlignSelf(Alignment.START, this.refereeLabelWrapper);
+		container.add(this.refContainer);
+	}
+
+	private void checkAllVoted() {
+		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+			boolean allVoted = true;
+			for (Boolean juryVote : this.juryVotes) {
+				if (juryVote == null) {
+					allVoted = false;
+					break;
+				}
+			}
+
+			if (allVoted) {
+				this.juryVotingButtons.removeAll();
+				for (int i = 0; i < this.juryVotes.length; i++) {
+					Icon fullSizeIcon;
+					if (this.juryVotes[i]) {
+						fullSizeIcon = bigIcon(VaadinIcon.CHECK_CIRCLE, "white");
+					} else {
+						fullSizeIcon = bigIcon(VaadinIcon.CLOSE_CIRCLE, "red");
+					}
+					this.juryVotingButtons.add(fullSizeIcon);
+					this.juryIcons[i] = fullSizeIcon;
+				}
+			}
+		});
+	}
+
+	private Component createRefereeLabel(Athlete athlete) {
+		Html refereeLabel = new Html("<span>" +
+		        getTranslation("RefereeDecisions")
+		        + (athlete != null
+		                ? "&nbsp;&nbsp;&nbsp;" + athleteFullId(athlete) + "&nbsp;&nbsp;&nbsp;"
+		                        + formatAttempt(athlete.getAttemptsDone() - 1)
+		                : "")
+		        + "</span>");
+		H3 refereeLabelWrapper = new H3(refereeLabel);
+		refereeLabelWrapper.setHeight("5%");
+		return refereeLabelWrapper;
+	}
+
+	private String formatAttempt(Integer attemptNo) {
+		String translate = Translator.translate("AttemptBoard_attempt_number", (attemptNo % 3) + 1);
+		return translate;
+	}
+
+	private Athlete getAthleteUnderReview() {
+		return this.athleteUnderReview;
+	}
+
+	private Key getBadKey(int i) {
+		switch (i) {
+			case 0:
+				return Key.DIGIT_2;
+			case 1:
+				return Key.DIGIT_4;
+			case 2:
+				return Key.DIGIT_6;
+			case 3:
+				return Key.DIGIT_8;
+			case 4:
+				return Key.DIGIT_0;
+			default:
+				return Key.UNIDENTIFIED;
+		}
+	}
+
+	private Key getGoodKey(int i) {
+		switch (i) {
+			case 0:
+				return Key.DIGIT_1;
+			case 1:
+				return Key.DIGIT_3;
+			case 2:
+				return Key.DIGIT_5;
+			case 3:
+				return Key.DIGIT_7;
+			case 4:
+				return Key.DIGIT_9;
+			default:
+				return Key.UNIDENTIFIED;
+		}
+	}
+
+	private int getNbJurors() {
+		return Competition.getCurrent().getJurySize();
+	}
+
+	private HorizontalLayout juryDecisionButtons() {
+		HorizontalLayout decisions = new HorizontalLayout();
+		return decisions;
+	}
+
+	private HorizontalLayout juryDeliberationButtons() {
+		Button juryDeliberationButton = new Button(
+		        new Icon(VaadinIcon.TIMER),
+		        (e) -> {
+			        FieldOfPlay fop = OwlcmsSession.getFop();
+			        if (fop.getState() == FOPState.BREAK && fop.getBreakType().isCountdown()) {
+				        slaveNotification(
+				                new UIEvent.Notification(null, this,
+				                        UIEvent.Notification.Level.ERROR,
+				                        "BreakButton.cannotInterruptBreak",
+				                        3000));
+			        } else {
+				        openJuryDialog(JuryDeliberationEventType.START_DELIBERATION);
+			        }
+		        });
+		juryDeliberationButton.getElement().setAttribute("theme", "primary");
+		juryDeliberationButton.setText(getTranslation("BreakButton.JuryDeliberation"));
+
+		Button challengeButton = new Button(
+		        new Icon(VaadinIcon.TIMER),
+		        (e) -> {
+			        FieldOfPlay fop = OwlcmsSession.getFop();
+			        if (fop.getState() == FOPState.BREAK && fop.getBreakType().isCountdown()) {
+				        slaveNotification(
+				                new UIEvent.Notification(null, this,
+				                        UIEvent.Notification.Level.ERROR,
+				                        "BreakButton.cannotInterruptBreak",
+				                        3000));
+			        } else {
+				        openJuryDialog(JuryDeliberationEventType.CHALLENGE);
+			        }
+		        });
+		challengeButton.getElement().setAttribute("theme", "primary");
+		challengeButton.setText(getTranslation("BreakButton.CHALLENGE"));
+		// juryDeliberationButton.getElement().setAttribute("title",
+		// getTranslation("BreakButton.JuryDeliberation"));
+
+		Button technicalPauseButton = new Button(
+		        new Icon(VaadinIcon.TIMER),
+		        (e) -> {
+			        FieldOfPlay fop = OwlcmsSession.getFop();
+			        if (fop.getState() == FOPState.BREAK && fop.getBreakType().isCountdown()) {
+				        slaveNotification(
+				                new UIEvent.Notification(null, this,
+				                        UIEvent.Notification.Level.ERROR,
+				                        "BreakButton.cannotInterruptBreak",
+				                        3000));
+			        } else {
+				        openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE);
+			        }
+		        });
+		technicalPauseButton.getElement().setAttribute("theme", "primary");
+		technicalPauseButton.setText(getTranslation("BreakType.TECHNICAL"));
+
+		HorizontalLayout buttons = new HorizontalLayout(juryDeliberationButton, challengeButton, technicalPauseButton);
+
+		if (this.summonEnabled) {
+			Button summonRefereesButton = new Button(
+			        new Icon(VaadinIcon.TIMER),
+			        (e) -> {
+				        openJuryDialog(JuryDeliberationEventType.CALL_REFEREES);
+			        });
+			summonRefereesButton.getElement().setAttribute("theme", "primary");
+			summonRefereesButton.setText(getTranslation("BreakButton.SummonReferees"));
+			buttons.add(summonRefereesButton);
+		}
+
+		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
+		return buttons;
+	}
+
+	private void juryVote(Integer juryMember, Boolean goodBad, boolean sendFOPEvent) {
+		if (goodBad == null) {
+			Icon nonVotedIcon = bigIcon(VaadinIcon.CIRCLE_THIN, "gray");
+			this.juryVotingButtons.replace(this.juryIcons[juryMember], nonVotedIcon);
+			this.juryIcons[juryMember] = nonVotedIcon;
+			this.juryVotes[juryMember] = null;
+			return;
+		}
+		Icon votedIcon = bigIcon(VaadinIcon.CIRCLE, "gray");
+		this.juryVotingButtons.replace(this.juryIcons[juryMember], votedIcon);
+		this.juryIcons[juryMember] = votedIcon;
+		this.juryVotes[juryMember] = goodBad;
+		if (sendFOPEvent) {
+			OwlcmsSession.withFop(fop -> {
+				fop.fopEventPost(new FOPEvent.JuryMemberDecisionUpdate(this, juryMember, goodBad));
+			});
+		}
+		checkAllVoted();
+	}
+
+	private void openJuryDialog(JuryDeliberationEventType deliberation) {
+		long now = System.currentTimeMillis();
+		if (now - this.lastOpen > 100 && (this.juryDialog == null || !this.juryDialog.isOpened())) {
+			OwlcmsSession.withFop(fop -> {
+				if (fop.getState() != FOPState.BREAK && deliberation != JuryDeliberationEventType.TECHNICAL_PAUSE) {
+					fop.fopEventPost(
+					        new FOPEvent.BreakStarted(
+					                deliberation == JuryDeliberationEventType.CHALLENGE ? BreakType.CHALLENGE
+					                        : BreakType.JURY,
+					                CountdownType.INDEFINITE, 0, null, true, this));
+				}
+				this.juryDialog = new JuryDialog(JuryContent.this, getAthleteUnderReview(), deliberation,
+				        this.summonEnabled);
+				this.juryDialog.open();
+				this.lastOpen = now;
+			});
+		}
+	}
+
+	private void resetJuryVoting() {
+		// logger.debug("resetJuryVoting {} {}", UI.getCurrent(), LoggerUtils.whereFrom());
+		for (ShortcutRegistration sr : this.registrations) {
+			sr.remove();
+		}
+		this.juryIcons = new Icon[getNbJurors()];
+		this.juryVotes = new Boolean[getNbJurors()];
+		this.juryVotingButtons.removeAll();
+		for (int i = 0; i < getNbJurors(); i++) {
+			final int ix = i;
+			Icon nonVotedIcon = bigIcon(VaadinIcon.CIRCLE_THIN, "gray");
+			this.juryIcons[ix] = nonVotedIcon;
+			this.juryVotes[ix] = null;
+			this.juryVotingButtons.add(this.juryIcons[ix], nonVotedIcon);
+			ShortcutRegistration reg;
+			reg = UI.getCurrent().addShortcutListener(() -> {
+				juryVote(ix, true, true);
+			}, getGoodKey(i));
+			this.registrations.add(reg);
+			reg = UI.getCurrent().addShortcutListener(() -> {
+				juryVote(ix, false, true);
+			}, getBadKey(i));
+			this.registrations.add(reg);
+			reg = UI.getCurrent().addShortcutListener(
+			        () -> openJuryDialog(JuryDeliberationEventType.START_DELIBERATION), Key.KEY_D);
+			this.registrations.add(reg);
+			reg = UI.getCurrent().addShortcutListener(
+			        () -> openJuryDialog(JuryDeliberationEventType.CHALLENGE), Key.KEY_C);
+			this.registrations.add(reg);
+			reg = UI.getCurrent().addShortcutListener(
+			        () -> openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE), Key.KEY_T);
+			reg = UI.getCurrent().addShortcutListener(
+			        () -> {
+				        openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE);
+				        summonReferee(4);
+			        }, Key.KEY_C);
+			this.registrations.add(reg);
+			if (this.summonEnabled) {
+				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(1), Key.KEY_H);
+				this.registrations.add(reg);
+				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(2), Key.KEY_I);
+				this.registrations.add(reg);
+				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(3), Key.KEY_J);
+				this.registrations.add(reg);
+				reg = UI.getCurrent().addShortcutListener(() -> summonReferee(0), Key.KEY_K);
+				this.registrations.add(reg);
+			}
+		}
+	}
+
+	private void setAthleteUnderReview(Athlete athleteUnderReview) {
+		this.athleteUnderReview = athleteUnderReview;
+	}
+
+	private void setNbJurors(int nbJurors) {
+		this.removeAll();
+		Competition.getCurrent().setJurySize(nbJurors);
+		init(nbJurors);
+	}
+
+	private void summonReferee(int i) {
+		long now = System.currentTimeMillis();
+		if (now - this.lastOpen > 100) {
+
+			openJuryDialog(JuryDeliberationEventType.CALL_REFEREES);
+			this.lastOpen = now;
+
+			OwlcmsSession.withFop(fop -> {
+				if (i > 0) {
+					fop.fopEventPost(new FOPEvent.SummonReferee(this.getOrigin(), i));
+				} else {
+					// i = 0 means call all refs.
+					for (int j = 1; j <= 3; j++) {
+						fop.fopEventPost(new FOPEvent.SummonReferee(this.getOrigin(), j));
+					}
+				}
+			});
+		}
+	}
+
+
+	private void swapRefereeLabel(Athlete athlete) {
+		Component nc = createRefereeLabel(athlete);
+		this.replace(this.refereeLabelWrapper, nc);
+		this.refereeLabelWrapper = nc;
 	}
 }

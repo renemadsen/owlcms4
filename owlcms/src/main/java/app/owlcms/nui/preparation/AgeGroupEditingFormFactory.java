@@ -35,8 +35,8 @@ import com.vaadin.flow.data.validator.StringLengthValidator;
 import app.owlcms.components.fields.CategoryGridField;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Gender;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.i18n.Translator;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
@@ -99,29 +99,29 @@ public class AgeGroupEditingFormFactory
 		formLayout.setResponsiveSteps(new ResponsiveStep("0", 1, LabelsPosition.ASIDE));
 		formLayout.setWidth("50em");
 
-		binder = buildBinder(null, aFromDb);
+		this.binder = buildBinder(null, aFromDb);
 		String message = Translator.translate("AgeFormat");
 
 		TextField codeField = new TextField();
 		formLayout.addFormItem(codeField, Translator.translate("AgeGroupCode"));
 		int maxLength = 5;
 		codeField.setRequired(true);
-		binder.forField(codeField)
+		this.binder.forField(codeField)
 		        .withValidator(
 		                new StringLengthValidator(Translator.translate("ThisFieldIsRequired", maxLength), 1, maxLength))
 		        .withValidator(
 		                new StringLengthValidator(Translator.translate("CodeMustBeShort", maxLength), 0, maxLength))
 		        .bind(AgeGroup::getCode, AgeGroup::setCode);
 
-		ComboBox<AgeDivision> ageDivisionField = new ComboBox<>();
-		ageDivisionField.setItems(new ListDataProvider<>(Arrays.asList(AgeDivision.values())));
-		ageDivisionField.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.name()));
-		binder.forField(ageDivisionField).bind(AgeGroup::getAgeDivision, AgeGroup::setAgeDivision);
-		formLayout.addFormItem(ageDivisionField, Translator.translate("AgeDivision"));
+		ComboBox<Championship> ageDivisionField = new ComboBox<>();
+		ageDivisionField.setItems(new ListDataProvider<>(Arrays.asList(Championship.values())));
+		ageDivisionField.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.getName()));
+		this.binder.forField(ageDivisionField).bind(AgeGroup::getChampionship, AgeGroup::setChampionship);
+		formLayout.addFormItem(ageDivisionField, Translator.translate("Championship"));
 
 		TextField minAgeField = new TextField();
 		formLayout.addFormItem(minAgeField, Translator.translate("MinimumAge"));
-		binder.forField(minAgeField)
+		this.binder.forField(minAgeField)
 		        .withNullRepresentation("")
 		        .withConverter(new StringToIntegerConverter(message))
 		        .withValidator(new IntegerRangeValidator(message, 0, 999))
@@ -129,7 +129,7 @@ public class AgeGroupEditingFormFactory
 
 		TextField maxAgeField = new TextField();
 		formLayout.addFormItem(maxAgeField, Translator.translate("MaximumAge"));
-		binder.forField(maxAgeField)
+		this.binder.forField(maxAgeField)
 		        .withNullRepresentation("")
 		        .withConverter(new StringToIntegerConverter(message))
 		        .withValidator(new IntegerRangeValidator(message, 0, 999))
@@ -141,38 +141,38 @@ public class AgeGroupEditingFormFactory
 			genderField.setItems(Gender.M, Gender.F);
 			genderField.setItemLabelGenerator((i) -> {
 				switch (i) {
-				case M:
-					return Translator.translate("Gender.Men");
-				case F:
-					return Translator.translate("Gender.Women");
-				default:
-					throw new IllegalStateException("can't happen");
+					case M:
+						return Translator.translate("Gender.Men");
+					case F:
+						return Translator.translate("Gender.Women");
+					default:
+						throw new IllegalStateException("can't happen");
 				}
 			});
 		} else {
 			genderField.setItems(Gender.M, Gender.F, Gender.I);
 			genderField.setItemLabelGenerator((i) -> {
 				switch (i) {
-				case M:
-					return Translator.translate("Gender.Men");
-				case F:
-					return Translator.translate("Gender.Women");
-				case I:
-					return Translator.translate("Gender.Inclusive");
-				default:
-					throw new IllegalStateException("can't happen");
+					case M:
+						return Translator.translate("Gender.Men");
+					case F:
+						return Translator.translate("Gender.Women");
+					case I:
+						return Translator.translate("Gender.Inclusive");
+					default:
+						throw new IllegalStateException("can't happen");
 				}
 			});
 		}
-		binder.forField(genderField).bind(AgeGroup::getGender, AgeGroup::setGender);
+		this.binder.forField(genderField).bind(AgeGroup::getGender, AgeGroup::setGender);
 		formLayout.addFormItem(genderField, Translator.translate("Gender"));
 
-		catField = new CategoryGridField(aFromDb);
-		catField.setWidthFull();
-		binder.forField(catField).bind(AgeGroup::getCategories, AgeGroup::setCategories);
-		formLayout.addFormItem(catField, Translator.translate("BodyWeightCategories"));
+		this.catField = new CategoryGridField(aFromDb);
+		this.catField.setWidthFull();
+		this.binder.forField(this.catField).bind(AgeGroup::getCategories, AgeGroup::setCategories);
+		formLayout.addFormItem(this.catField, Translator.translate("BodyWeightCategories"));
 
-		binder.readBean(aFromDb);
+		this.binder.readBean(aFromDb);
 		if (minAgeField.getValue().isEmpty()) {
 			minAgeField.setValue("0");
 		}
@@ -183,7 +183,7 @@ public class AgeGroupEditingFormFactory
 			genderField.setValue(Gender.F);
 		}
 		if (ageDivisionField.getValue() == null) {
-			ageDivisionField.setValue(AgeDivision.U);
+			ageDivisionField.setValue(Championship.of(Championship.U));
 		}
 
 		Component footerLayout = this.buildFooter(operation, aFromDb, cancelButtonClickListener,
@@ -202,11 +202,11 @@ public class AgeGroupEditingFormFactory
 		return super.buildOperationButton(operation, domainObject, gridCallBackAction);
 	}
 
-//	@Override
-//	public TextField defineOperationTrigger(CrudOperation operation, AgeGroup domainObject,
-//	        ComponentEventListener<ClickEvent<Button>> action) {
-//		return super.defineOperationTrigger(operation, domainObject, action);
-//	}
+	// @Override
+	// public TextField defineOperationTrigger(CrudOperation operation, AgeGroup domainObject,
+	// ComponentEventListener<ClickEvent<Button>> action) {
+	// return super.defineOperationTrigger(operation, domainObject, action);
+	// }
 
 	@Override
 	public void delete(AgeGroup ageGroup) {
@@ -231,15 +231,15 @@ public class AgeGroupEditingFormFactory
 	public AgeGroup update(AgeGroup ageGroup) {
 		AgeGroup saved = AgeGroupRepository.save(ageGroup);
 		// logger.trace("saved {}", saved.getCategories().get(0).longDump());
-		origin.closeDialog();
-		origin.highlightResetButton();
+		this.origin.closeDialog();
+		this.origin.highlightResetButton();
 		return saved;
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void bindField(HasValue field, String property, Class<?> propertyType, CrudFormConfiguration c) {
-		binder.forField(field);
+		this.binder.forField(field);
 		super.bindField(field, property, propertyType, c);
 	}
 

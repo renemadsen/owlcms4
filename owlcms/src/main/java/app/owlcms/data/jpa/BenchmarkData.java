@@ -6,8 +6,6 @@
  *******************************************************************************/
 package app.owlcms.data.jpa;
 
-import static app.owlcms.data.category.AgeDivision.MASTERS;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
@@ -19,11 +17,11 @@ import javax.persistence.EntityManager;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.group.Group;
@@ -46,43 +44,41 @@ public class BenchmarkData {
 	static {
 		logger.setLevel(Level.INFO);
 	}
-
 	final static String[] lnames = { "Smith", "Johnson", "Williams", "Jones", "Brown", "Davis", "Miller", "Wilson",
-			"Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia",
-			"Martinez", "Robinson", "Clark", "Rodriguez", "Lewis", "Lee", "Walker", "Hall", "Allen", "Young",
-			"Hernandez", "King", "Wright", "Lopez", "Hill", "Scott", "Green", "Adams", "Baker", "Gonzalez",
-			"Nelson", "Carter", "Mitchell", "Perez", "Roberts", "Turner", "Phillips", "Campbell", "Parker", "Evans",
-			"Edwards", "Collins", };
-
+	        "Moore", "Taylor", "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Garcia",
+	        "Martinez", "Robinson", "Clark", "Rodriguez", "Lewis", "Lee", "Walker", "Hall", "Allen", "Young",
+	        "Hernandez", "King", "Wright", "Lopez", "Hill", "Scott", "Green", "Adams", "Baker", "Gonzalez",
+	        "Nelson", "Carter", "Mitchell", "Perez", "Roberts", "Turner", "Phillips", "Campbell", "Parker", "Evans",
+	        "Edwards", "Collins", };
 	final static String[] mNames = { "James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph",
-			"Thomas", "Charles", "Christopher", "Daniel", "Matthew", "Anthony", "Donald", "Mark", "Paul", "Steven",
-			"Andrew", "Kenneth", "George", "Joshua", "Kevin", "Brian", "Edward", "Ronald", "Timothy", "Jason",
-			"Jeffrey", "Ryan", "Jacob", "Gary", "Nicholas", "Eric", "Stephen", "Jonathan", "Larry", "Justin",
-			"Scott", "Brandon", "Frank", "Benjamin", "Gregory", "Raymond", "Samuel", "Patrick", "Alexander", "Jack",
-			"Dennis", "Jerry", };
+	        "Thomas", "Charles", "Christopher", "Daniel", "Matthew", "Anthony", "Donald", "Mark", "Paul", "Steven",
+	        "Andrew", "Kenneth", "George", "Joshua", "Kevin", "Brian", "Edward", "Ronald", "Timothy", "Jason",
+	        "Jeffrey", "Ryan", "Jacob", "Gary", "Nicholas", "Eric", "Stephen", "Jonathan", "Larry", "Justin",
+	        "Scott", "Brandon", "Frank", "Benjamin", "Gregory", "Raymond", "Samuel", "Patrick", "Alexander", "Jack",
+	        "Dennis", "Jerry", };
 	final static String[] fNames = { "Emily", "Abigail", "Alexis", "Alyssa", "Angela", "Ashley", "Brianna", "Cynthia",
-			"Deborah", "Donna", "Elizabeth", "Elizabeth", "Emma", "Grace", "Hannah", "Jennifer", "Jessica", "Julie",
-			"Karen", "Kayla", "Kimberly", "Laura", "Lauren", "Linda", "Lisa", "Lori", "Madison", "Mary", "Megan",
-			"Michelle", "Olivia", "Pamela", "Patricia", "Samantha", "Sandra", "Sarah", "Susan", "Tammy", "Taylor",
-			"Victoria", };
+	        "Deborah", "Donna", "Elizabeth", "Elizabeth", "Emma", "Grace", "Hannah", "Jennifer", "Jessica", "Julie",
+	        "Karen", "Kayla", "Kimberly", "Laura", "Lauren", "Linda", "Lisa", "Lori", "Madison", "Mary", "Megan",
+	        "Michelle", "Olivia", "Pamela", "Patricia", "Samantha", "Sandra", "Sarah", "Susan", "Tammy", "Taylor",
+	        "Victoria", };
 	static String[][] bwcats = {
-			{ "45", "49", "55", "59", "64", "71", "76", "81", "87", "+87" },
-			{ "55", "61", "67", "73", "81", "89", "96", "102", "109", "+109" } };
-
+	        { "45", "49", "55", "59", "64", "71", "76", "81", "87", "+87" },
+	        { "55", "61", "67", "73", "81", "89", "96", "102", "109", "+109" } };
 	static String[][] ageGroups = {
-			{ "YTH", "JR", "SR", "W35", "W40", "W45", "W50", "W55", "W60", "W65", "W70", "W75", "W80", "W85" },
-			{ "YTH", "JR", "SR", "M35", "M40", "W45", "W50", "M55", "M60", "M65", "M70", "M75", "M80", "M85" } };
+	        { "YTH", "JR", "SR", "W35", "W40", "W45", "W50", "W55", "W60", "W65", "W70", "W75", "W80", "W85" },
+	        { "YTH", "JR", "SR", "M35", "M40", "W45", "W50", "M55", "M60", "M65", "M70", "M75", "M80", "M85" } };
 	private static int nbAthletesPerGender;
+
 	/**
 	 * Insert initial data if the database is empty.
 	 *
-	 * @param ageDivisions
+	 * @param championshipTypes
 	 */
-	public static void insertInitialData(EnumSet<AgeDivision> ageDivisions) {
+	public static void insertInitialData(EnumSet<ChampionshipType> championshipTypes) {
 		JPAService.runInTransaction(em -> {
-			Competition competition = createDefaultCompetition(ageDivisions);
+			Competition competition = createDefaultCompetition(championshipTypes);
 			CompetitionRepository.save(competition);
-			AgeGroupRepository.insertAgeGroups(em, ageDivisions);
+			AgeGroupRepository.insertAgeGroups(em, championshipTypes);
 			return null;
 		});
 
@@ -95,10 +91,10 @@ public class BenchmarkData {
 
 		JPAService.runInTransaction(em -> {
 			AthleteRepository.doFindAll(em).stream()
-			.forEach(a -> a.getParticipations().forEach(part -> part.setTeamMember(true)));
+			        .forEach(a -> a.getParticipations().forEach(part -> part.setTeamMember(true)));
 			return null;
 		});
-		
+
 		JPAService.runInTransaction(em -> {
 			startNumbers(em);
 			return null;
@@ -112,7 +108,7 @@ public class BenchmarkData {
 	}
 
 	private static void createAthlete(EntityManager em, Group session, Random r, Gender gender, int genderIndex,
-			String ageGroup, String bwcat) {
+	        String ageGroup, String bwcat) {
 		Athlete p = new Athlete();
 		p.setValidation(false);
 		Level prevLoggerLevel = p.getLogger().getLevel();
@@ -131,12 +127,12 @@ public class BenchmarkData {
 			int minAge = 13;
 			int maxAge = 99;
 			if (ageGroup.startsWith("M") || ageGroup.startsWith("W")) {
-				//ageDivision = AgeDivision.MASTERS;
+				// ageDivision = Championship.of(Championship.MASTERS));
 				String s = ageGroup.substring(1);
 				minAge = Integer.parseInt(s);
-				maxAge = minAge + 5; //(exclusive)
+				maxAge = minAge + 5; // (exclusive)
 			} else {
-				//ageDivision = AgeDivision.IWF;
+				// ageDivision = Championship.of(Championship.IWF));
 				if (ageGroup.contentEquals("YTH")) {
 					minAge = 13;
 					maxAge = 17;
@@ -154,7 +150,7 @@ public class BenchmarkData {
 			} else {
 				cat = Integer.parseInt(bwcat);
 			}
-			
+
 			int referenceYear = LocalDate.now().getYear();
 			LocalDate baseDate = LocalDate.of(referenceYear, 12, 31);
 
@@ -167,13 +163,14 @@ public class BenchmarkData {
 			long icjd = Math.round(sd * 1.20D);
 			p.setCleanJerk1Declaration(Long.toString(icjd));
 			nextDouble = r.nextDouble();
-			
+
 			// 10 athletes per team max (roughly); so normally there are nbAthletes/10 teams at a minimum
 			// create more to be under 10.
 			int nbTeams = (int) ((nbAthletesPerGender / 10) * 1.4);
-			String team = "T" + (int)(nextDouble * nbTeams);
+			String team = "T" + (int) (nextDouble * nbTeams);
 			p.setTeam(team);
-			logger.info("creating athlete {} {} {} {} {} {}", p.getLastName(), p.getFirstName(), team, gender, ageGroup, bwcat);
+			logger.info("creating athlete {} {} {} {} {} {}", p.getLastName(), p.getFirstName(), team, gender, ageGroup,
+			        bwcat);
 			// compute a random number of weeks inside the age bracket
 			long weeksToSubtract = (long) ((minAge * 52) + Math.floor(r.nextDouble() * (maxAge - minAge) * 52));
 			LocalDate fullBirthDate = baseDate.minusWeeks(weeksToSubtract);
@@ -193,7 +190,7 @@ public class BenchmarkData {
 
 	}
 
-	private static Competition createDefaultCompetition(EnumSet<AgeDivision> ageDivisions) {
+	private static Competition createDefaultCompetition(EnumSet<ChampionshipType> championshipTypes) {
 		// RecordConfig rc = new RecordConfig(Arrays.asList());
 		// JPAService.runInTransaction(em -> {
 		// em.persist(rc);
@@ -213,7 +210,7 @@ public class BenchmarkData {
 		competition.setFederationWebSite("http://national-weightlifting.org");
 
 		competition.setEnforce20kgRule(true);
-		competition.setMasters(ageDivisions != null && ageDivisions.contains(MASTERS));
+		competition.setMasters(championshipTypes != null && championshipTypes.contains(ChampionshipType.MASTERS));
 		competition.setUseBirthYear(false);
 		competition.setAnnouncerLiveDecisions(true);
 		competition.setMensBestN(null);
@@ -252,7 +249,6 @@ public class BenchmarkData {
 		int sessionCount = 0;
 		Random r = new Random(0);
 
-
 		for (char groupName = lastGroup; groupName >= 'A'; groupName--) {
 			for (int bwCatIndex = 0; bwCatIndex < 10; bwCatIndex++) {
 				for (int genderIndex = 0; genderIndex < 2; genderIndex++) {
@@ -260,8 +256,8 @@ public class BenchmarkData {
 
 					int platformIndex = sessionCount % nbPlatforms;
 					String sessionName = "P" + (platformIndex + 1) + "-" + g.name()
-					+ bwcats[genderIndex][bwCatIndex]
-							+ groupName;
+					        + bwcats[genderIndex][bwCatIndex]
+					        + groupName;
 					sessionCount++;
 
 					if (sessionCount > 0 && (sessionCount % (nbPlatforms * sessionsPerDay)) == 0) {
@@ -285,7 +281,7 @@ public class BenchmarkData {
 					for (int ageGroupIndex = 0; ageGroupIndex < ageGroups[genderIndex].length; ageGroupIndex++) {
 						// add an athlete to the session
 						createAthlete(em, session, r, g, genderIndex, ageGroups[genderIndex][ageGroupIndex],
-								bwcats[genderIndex][bwCatIndex]);
+						        bwcats[genderIndex][bwCatIndex]);
 						em.flush();
 					}
 
@@ -299,7 +295,7 @@ public class BenchmarkData {
 			em.persist(p);
 		}
 		em.flush();
-		
+
 		logger.info("assigning start numbers");
 		startNumbers(em);
 

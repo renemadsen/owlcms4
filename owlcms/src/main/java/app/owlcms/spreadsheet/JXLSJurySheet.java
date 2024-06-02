@@ -8,6 +8,9 @@ package app.owlcms.spreadsheet;
 
 import java.util.List;
 
+import org.apache.poi.ss.usermodel.PrintSetup;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,16 +28,23 @@ import net.sf.jxls.transformer.XLSTransformer;
 public class JXLSJurySheet extends JXLSWorkbookStreamSource {
 
 	Logger logger = LoggerFactory.getLogger(JXLSJurySheet.class);
+	private int nbAthletes;
 
 	public JXLSJurySheet() {
-		super();
+	}
+
+	@Override
+	public List<Athlete> getSortedAthletes() {
+		List<Athlete> athletes = AthleteSorter
+		        .displayOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(getGroup(), isExcludeNotWeighed()));
+		this.nbAthletes = athletes.size();
+		return athletes;
 	}
 
 	/*
 	 * (non-Javadoc)
 	 *
-	 * @see
-	 * org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
+	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
 	 * configureTransformer(net.sf.jxls.transformer.XLSTransformer )
 	 */
 	@Override
@@ -43,14 +53,33 @@ public class JXLSJurySheet extends JXLSWorkbookStreamSource {
 		if (!fileName.startsWith("Jury.")) {
 			transformer.markAsFixedSizeCollection("athletes");
 		} else {
-			logger./**/warn/**/("not setting fixed size");
+			this.logger./**/warn/**/("not setting fixed size");
 		}
 	}
 
+	/*
+	 * (non-Javadoc)
+	 *
+	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
+	 * postProcess(org.apache.poi.ss.usermodel.Workbook)
+	 */
 	@Override
-	public List<Athlete> getSortedAthletes() {
-		return AthleteSorter
-		        .displayOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(getGroup(), isExcludeNotWeighed()));
+	protected void postProcess(Workbook workbook) {
+		// 13 is the number of lines if 0 athletes were present.
+		setPageBreaks(workbook, 13 + nbAthletes);
+	}
+
+	protected void setPageBreaks(Workbook workbook, int line) {
+		Sheet sheet = workbook.getSheetAt(0);
+
+		sheet.setFitToPage(true);
+		PrintSetup printSetup = sheet.getPrintSetup();
+		printSetup.setFitWidth((short) 1);
+		printSetup.setFitHeight((short) 0);
+
+		sheet.setAutobreaks(false);
+		sheet.setRowBreak(line - 1);
+
 	}
 
 }

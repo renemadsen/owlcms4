@@ -46,8 +46,7 @@ public class LiftingNavigationContent extends BaseNavigationContent implements N
 	static {
 		logger.setLevel(Level.INFO);
 	}
-
-	Map<String, List<String>> urlParameterMap = new HashMap<String, List<String>>();
+	Map<String, List<String>> urlParameterMap = new HashMap<>();
 
 	/**
 	 * Competition Group Navigation
@@ -56,6 +55,8 @@ public class LiftingNavigationContent extends BaseNavigationContent implements N
 		logger.trace("LiftingNavigationContent constructor start");
 
 		Button weighIn = openInNewTabNoParam(WeighinContent.class, getTranslation("WeighIn_Title"));
+		weighIn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
+		weighIn.setIcon(new Icon(VaadinIcon.SCALE));
 		// weighIn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(weighIn);
 		doGroup(getTranslation("WeighIn_Title"), grid3, this);
@@ -85,7 +86,6 @@ public class LiftingNavigationContent extends BaseNavigationContent implements N
 		DebugUtils.gc();
 	}
 
-
 	@Override
 	public String getMenuTitle() {
 		return getTranslation("RunLiftingGroup");
@@ -100,9 +100,7 @@ public class LiftingNavigationContent extends BaseNavigationContent implements N
 	/*
 	 * (non-Javadoc)
 	 *
-	 * @see
-	 * app.owlcms.nui.home.BaseNavigationContent#createTopBarFopField(java.lang.
-	 * String, java.lang.String)
+	 * @see app.owlcms.nui.home.BaseNavigationContent#createTopBarFopField(java.lang. String, java.lang.String)
 	 */
 	@Override
 	protected HorizontalLayout createMenuBarFopField(String label, String placeHolder) {

@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
@@ -42,19 +41,18 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 	}
 
 	public JXLSMedalsSheet() {
-		super();
 	}
 
 	@Override
 	public List<Athlete> getSortedAthletes() {
-		if (sortedAthletes != null) {
-			return sortedAthletes;
+		if (this.sortedAthletes != null) {
+			return this.sortedAthletes;
 		}
 
 		Group group = getGroup();
-		TreeMap<Category, TreeSet<Athlete>> medals = Competition.getCurrent().getMedals(group, true);
-		sortedAthletes = new ArrayList<>();
-		for (Entry<Category, TreeSet<Athlete>> medalCat : medals.entrySet()) {
+		TreeMap<String, TreeSet<Athlete>> medals = Competition.getCurrent().getMedals(group, true);
+		this.sortedAthletes = new ArrayList<>();
+		for (Entry<String, TreeSet<Athlete>> medalCat : medals.entrySet()) {
 			TreeSet<Athlete> medalists = medalCat.getValue();
 			if (medalists != null && !medalists.isEmpty()) {
 				for (Athlete p : medalists) {
@@ -62,35 +60,35 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 					// {}",Competition.getCurrent().isSnatchCJTotalMedals());
 					if (Competition.getCurrent().isSnatchCJTotalMedals()) {
 						if (p.getSnatchRank() <= 3) {
-							sortedAthletes
+							this.sortedAthletes
 							        .add(new MAthlete((PAthlete) p, Ranking.SNATCH, p.getSnatchRank(),
 							                p.getBestSnatch()));
 						}
 						if (p.getCleanJerkRank() <= 3) {
-							sortedAthletes.add(new MAthlete((PAthlete) p, Ranking.CLEANJERK, p.getCleanJerkRank(),
+							this.sortedAthletes.add(new MAthlete((PAthlete) p, Ranking.CLEANJERK, p.getCleanJerkRank(),
 							        p.getBestCleanJerk()));
 						}
 					}
 					if (p.getTotalRank() <= 3) {
-						sortedAthletes.add(new MAthlete((PAthlete) p, Ranking.TOTAL, p.getTotalRank(), p.getTotal()));
+						this.sortedAthletes
+						        .add(new MAthlete((PAthlete) p, Ranking.TOTAL, p.getTotalRank(), p.getTotal()));
 					}
 				}
 			}
 		}
 
-		MAthlete[] array = sortedAthletes.toArray(new MAthlete[0]);
+		MAthlete[] array = this.sortedAthletes.toArray(new MAthlete[0]);
 		Arrays.sort(array, new MAthlete.MedalComparator());
-		sortedAthletes = Arrays.asList(array).stream().filter(m -> m.getLiftRank() >= 1 && m.getLiftRank() <= 3)
+		this.sortedAthletes = Arrays.asList(array).stream().filter(m -> m.getLiftRank() >= 1 && m.getLiftRank() <= 3)
 		        .collect(Collectors.toList());
-		return sortedAthletes;
+		return this.sortedAthletes;
 		// @formatter:on
 	}
 
 	/*
 	 * (non-Javadoc)
 	 *
-	 * @see
-	 * org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
+	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
 	 * postProcess(org.apache.poi.ss.usermodel.Workbook)
 	 */
 	@Override

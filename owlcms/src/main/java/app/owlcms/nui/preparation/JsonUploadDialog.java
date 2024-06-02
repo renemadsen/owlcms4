@@ -51,7 +51,6 @@ public class JsonUploadDialog extends Dialog {
 
 		upload.addSucceededListener(event -> {
 			try {
-				System.err.println("success");
 				processInput(event.getFileName(), buffer.getInputStream(), ta);
 			} catch (Throwable e) {
 				ta.setValue(LoggerUtils./**/stackTrace(e));
@@ -63,13 +62,13 @@ public class JsonUploadDialog extends Dialog {
 			ta.clear();
 			ta.setVisible(false);
 		});
-		
+
 		upload.addFailedListener(event -> {
-			logger.error("failed upload {}",event.getReason());
+			logger.error("failed upload {}", event.getReason());
 		});
-		
+
 		upload.addFileRejectedListener(event -> {
-			logger.error("rejected {}"+event.getErrorMessage());
+			logger.error("rejected {}" + event.getErrorMessage());
 		});
 
 		H3 title = new H3(getTranslation("ExportDatabase.UploadJson"));
@@ -82,7 +81,7 @@ public class JsonUploadDialog extends Dialog {
 	        throws StreamReadException, DatabindException, IOException {
 		try {
 			new CompetitionData().restore(inputStream);
-			ui.getPage().reload();
+			this.ui.getPage().reload();
 		} catch (Throwable e1) {
 			ta.setValue(LoggerUtils.exceptionMessage(e1));
 		}

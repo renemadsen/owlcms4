@@ -15,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
@@ -27,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
@@ -65,14 +65,47 @@ public class AgeGroupRepository {
 		return nAgeGroup;
 	}
 
-	public static List<AgeDivision> allAgeDivisionsForAllAgeGroups() {
-		return JPAService.runInTransaction((em) -> {
-			TypedQuery<AgeDivision> q = em.createQuery(
-			        "select distinct ag.ageDivision from Participation p join p.category c join c.ageGroup ag",
-			        AgeDivision.class);
-			List<AgeDivision> resultSet = q.getResultList();
+	public static List<String> allChampionshipsForAllAgeGroups() {
+		List<AgeGroup> ageGroups = JPAService.runInTransaction((em) -> {
+			TypedQuery<AgeGroup> q = em.createQuery(
+			        // "select ag from Participation p join p.category c join c.ageGroup ag",
+			        "select ag from AgeGroup ag",
+			        AgeGroup.class);
+			List<AgeGroup> resultSet = q.getResultList();
 			return resultSet;
 		});
+		TreeSet<String> ts = new TreeSet<>();
+		for (AgeGroup ag : ageGroups) {
+			if (ag.computeChampionshipName() != null && !ag.computeChampionshipName().isBlank()) {
+				ts.add(ag.computeChampionshipName() + "¤" + ag.getAgeDivision());
+			} else if (ag.getAgeDivision() != null){
+				ts.add(ag.getAgeDivision());
+			} else {
+				logger.error("{} {} {}",ag.getId(), ag.code, ag.computeChampionshipName(), ag.getCategoriesAsString());
+			}
+		}
+		return new ArrayList<>(ts);
+	}
+
+	public static List<String> allActiveChampionshipsNames(boolean activeOnly) {
+		List<AgeGroup> ageGroups = JPAService.runInTransaction((em) -> {
+			TypedQuery<AgeGroup> q = em.createQuery(
+			        "select ag from AgeGroup ag",
+			        AgeGroup.class);
+			List<AgeGroup> resultSet = q.getResultList();
+			return resultSet;
+		});
+		TreeSet<String> ts = new TreeSet<>();
+		for (AgeGroup ag : ageGroups) {
+			if (!activeOnly || ag.isActive()) {
+				if (ag.computeChampionshipName() != null && !ag.computeChampionshipName().isBlank()) {
+					ts.add(ag.computeChampionshipName());
+				} else {
+					ts.add(ag.getAgeDivision());
+				}
+			}
+		}
+		return new ArrayList<>(ts);
 	}
 
 	/**
@@ -98,15 +131,15 @@ public class AgeGroupRepository {
 	// allParticipationsForAgeDivision
 
 	public static List<Participation> allParticipationsForAgeGroupAgeDivision(String ageGroupPrefix,
-	        AgeDivision ageDivision) {
+	        Championship championship) {
 		List<Participation> participations = JPAService.runInTransaction(em -> {
 
 			List<String> whereList = new ArrayList<>();
 			if (ageGroupPrefix != null && !ageGroupPrefix.isBlank()) {
 				whereList.add("ag.code = :ageGroupPrefix");
 			}
-			if (ageDivision != null) {
-				whereList.add("ag.ageDivision = :ageDivision");
+			if (championship != null) {
+				whereList.add("((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))");
 			}
 			String whereClause = "";
 			if (whereList.size() > 0) {
@@ -120,8 +153,8 @@ public class AgeGroupRepository {
 			if (ageGroupPrefix != null && !ageGroupPrefix.isBlank()) {
 				q.setParameter("ageGroupPrefix", ageGroupPrefix);
 			}
-			if (ageDivision != null) {
-				q.setParameter("ageDivision", ageDivision);
+			if (championship != null) {
+				q.setParameter("championshipName", championship.getName());
 			}
 
 			List<Participation> resultSet = q.getResultList();
@@ -178,8 +211,11 @@ public class AgeGroupRepository {
 		return parts.stream().map(p -> new PAthlete(p)).collect(Collectors.toList());
 	}
 
-	public static List<Athlete> allPAthletesForAgeGroupAgeDivision(String ageGroupPrefix, AgeDivision ageDivision) {
-		List<Participation> participations = allParticipationsForAgeGroupAgeDivision(ageGroupPrefix, ageDivision);
+	public static List<Athlete> allPAthletesForAgeGroupAgeDivision(String ageGroupPrefix, Championship championship) {
+		if (championship == null) {
+			return AthleteRepository.findAll().stream().map(a -> new PAthlete(a)).collect(Collectors.toList());
+		}
+		List<Participation> participations = allParticipationsForAgeGroupAgeDivision(ageGroupPrefix, championship);
 		List<Athlete> collect = participations.stream().map(p -> new PAthlete(p)).collect(Collectors.toList());
 		return collect;
 	}
@@ -204,7 +240,7 @@ public class AgeGroupRepository {
 	}
 
 	public static List<Athlete> allWeighedInPAthletesForAgeGroupAgeDivision(String ageGroupPrefix,
-	        AgeDivision ageDivision) {
+	        Championship ageDivision) {
 		List<Participation> participations = allParticipationsForAgeGroupAgeDivision(ageGroupPrefix, ageDivision);
 		List<Athlete> collect = participations.stream().map(p -> new PAthlete(p))
 		        .filter(a -> a.getBodyWeight() != null && a.getBodyWeight() > 0.1).collect(Collectors.toList());
@@ -240,24 +276,36 @@ public class AgeGroupRepository {
 
 	@SuppressWarnings("unchecked")
 	public static AgeGroup doFindByName(String name, EntityManager em) {
-		Query query = em.createQuery("select u from AgeGroup u where u.name=:name");
+		TypedQuery<AgeGroup> query = em.createQuery("select u from AgeGroup u where u.name=:name", AgeGroup.class);
 		query.setParameter("name", name);
-		return (AgeGroup) query.getResultList().stream().findFirst().orElse(null);
+		AgeGroup ag = query.getResultList().stream().findFirst().orElse(null);
+		fixAg(ag);
+		return ag;
 	}
 
-	/**
-	 * @return active categories
-	 */
-	public static List<AgeGroup> findActive() {
-		List<AgeGroup> findFiltered = findFiltered((String) null, (Gender) null, (AgeDivision) null, (Integer) null,
-		        true, -1, -1);
-		return findFiltered;
+	private static AgeGroup fixAg(AgeGroup ag) {
+		if (ag.getChampionshipType() == ChampionshipType.MASTERS) {
+			ag.setAlreadyGendered(true);
+		}
+		if (ag.getCode().startsWith("!")) {
+			ag.setCode(ag.getCode().substring(1));
+			ag.setAlreadyGendered(true);
+		}
+		return ag;
 	}
 
-	public static List<String> findActiveAndUsed(AgeDivision ageDivisionValue) {
+//	/**
+//	 * @return active categories
+//	 */
+//	private static List<AgeGroup> findActive() {
+//		List<AgeGroup> findFiltered = findFiltered((String) null, (Gender) null, (Championship) null, (Integer) null,
+//		        true, -1, -1);
+//		return findFiltered.stream().map(ag -> fixAg(ag)).collect(Collectors.toList());
+//	}
 
+	public static List<String> findActiveAndUsedAgeGroupNames(Championship championship) {
 		return JPAService.runInTransaction((em) -> {
-			if (ageDivisionValue == null) {
+			if (championship == null) {
 				TypedQuery<String> q = em.createQuery(
 				        "select distinct ag.code from Participation p join p.category c join c.ageGroup ag",
 				        String.class);
@@ -265,14 +313,28 @@ public class AgeGroupRepository {
 				return resultSet;
 			} else {
 				TypedQuery<String> q = em.createQuery(
-				        "select distinct ag.code from Participation p join p.category c join c.ageGroup ag where ag.ageDivision = :agv",
+				        "select distinct ag.code from Participation p join p.category c join c.ageGroup ag where ((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))",
 				        String.class);
-				q.setParameter("agv", ageDivisionValue);
+				q.setParameter("championshipName", championship.getName());
 				List<String> resultSet = q.getResultList();
 				return resultSet;
 			}
-
 		});
+	}
+
+	/**
+	 * Fetch all age groups present in the current group
+	 *
+	 * @param g
+	 * @return
+	 */
+	public static List<String> findAgeGroupPrefixes(Group g) {
+		List<AgeGroup> l = findAgeGroups(g);
+		LinkedHashSet<String> lhss = new LinkedHashSet<>();
+		for (AgeGroup ag : l) {
+			lhss.add(ag.getCode());
+		}
+		return new ArrayList<>(lhss);
 	}
 
 	/**
@@ -301,21 +363,6 @@ public class AgeGroupRepository {
 	}
 
 	/**
-	 * Fetch all age groups present in the current group
-	 *
-	 * @param g
-	 * @return
-	 */
-	public static List<String> findAgeGroupPrefixes(Group g) {
-		List<AgeGroup> l = findAgeGroups(g);
-		LinkedHashSet<String> lhss = new LinkedHashSet<>();
-		for (AgeGroup ag : l) {
-			lhss.add(ag.getCode());
-		}
-		return new ArrayList<String>(lhss);
-	}
-
-	/**
 	 * Find all.
 	 *
 	 * @return the list
@@ -330,17 +377,17 @@ public class AgeGroupRepository {
 		});
 	}
 
-	public static List<AgeGroup> findFiltered(String name, Gender gender, AgeDivision ageDivision, Integer age,
+	public static List<AgeGroup> findFiltered(String name, Gender gender, Championship championship, Integer age,
 	        boolean active, int offset, int limit) {
 
 		List<AgeGroup> findFiltered = JPAService.runInTransaction(em -> {
 			String qlString = "select ag from AgeGroup ag"
-			        + filteringSelection(name, gender, ageDivision, age, active)
+			        + filteringSelection(name, gender, championship, age, active)
 			        + " order by ag.ageDivision, ag.gender, ag.minAge, ag.maxAge";
 			logger.debug("query = {}", qlString);
 
 			Query query = em.createQuery(qlString);
-			setFilteringParameters(name, gender, ageDivision, age, active, query);
+			setFilteringParameters(name, gender, championship, age, active, query);
 			if (offset >= 0) {
 				query.setFirstResult(offset);
 			}
@@ -376,59 +423,34 @@ public class AgeGroupRepository {
 		return (AgeGroup) query.getResultList().stream().findFirst().orElse(null);
 	}
 
-	public static void insertAgeGroups(EntityManager em, EnumSet<AgeDivision> es) {
+	public static void insertAgeGroups(EntityManager em, EnumSet<ChampionshipType> forcedInsertion) {
 		try {
 			String localizedName = ResourceWalker.getLocalizedResourceName("/agegroups/AgeGroups.xlsx");
-			AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(es, localizedName);
+			AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(forcedInsertion, localizedName);
 		} catch (FileNotFoundException e1) {
 			// ignore
 		}
 	}
 
-	public static void insertAgeGroups(EntityManager em, EnumSet<AgeDivision> es, String resourceName) {
+	public static void insertAgeGroups(EntityManager em, EnumSet<ChampionshipType> forcedInsertion, String resourceName) {
 		try {
 			String localizedName = ResourceWalker.getLocalizedResourceName(resourceName);
-			AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(es, localizedName);
+			AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(forcedInsertion, localizedName);
 		} catch (FileNotFoundException e1) {
 			throw new RuntimeException(e1);
 		}
 	}
 
-	public static void reloadDefinitions(String localizedFileName) {
-		cleanUpExisting();
-		AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(null, "/agegroups/" + localizedFileName);
-		AthleteRepository.resetParticipations();
-	}
-	
 	public static void reloadDefinitions(InputStream inputStream) {
 		cleanUpExisting();
 		AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(inputStream);
 		AthleteRepository.resetParticipations();
 	}
 
-	private static void cleanUpExisting() {
-		JPAService.runInTransaction(em -> {
-			List<Athlete> athletes = AthleteRepository.doFindAll(em);
-			for (Athlete a : athletes) {
-				a.setCategory(null);
-				a.setEligibleCategories(null);
-				em.merge(a);
-			}
-			em.flush();
-			Competition.getCurrent().setRankingsInvalid(true);
-			return null;
-		});
-		JPAService.runInTransaction(em -> {
-			try {
-				Query upd = em.createQuery("delete from Category");
-				upd.executeUpdate();
-				upd = em.createQuery("delete from AgeGroup");
-				upd.executeUpdate();
-			} catch (Exception e) {
-				LoggerUtils.logError(logger, e);
-			}
-			return null;
-		});
+	public static void reloadDefinitions(String localizedFileName) {
+		cleanUpExisting();
+		AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(null, "/agegroups/" + localizedFileName);
+		AthleteRepository.resetParticipations();
 	}
 
 	/**
@@ -450,6 +472,42 @@ public class AgeGroupRepository {
 		});
 
 		return nAgeGroup;
+	}
+
+	static void cascadeCategoryRemoval(EntityManager em, AgeGroup mAgeGroup, Category nc) {
+		// so far we have not categories removed from the age group, time to do so
+		logger.debug("removing category {} from age group", nc.getId());
+		mAgeGroup.removeCategory(nc);
+		em.remove(nc);
+	}
+
+	static Category createCategoryFromTemplate(String catCode, AgeGroup ag, Map<String, Category> templates,
+	        double curMin, String qualTotal) throws Exception {
+		Category template = templates.get(catCode);
+		if (template == null) {
+			logger.trace("template {} not found", catCode);
+			return null;
+		} else {
+			try {
+				Category newCat = new Category(template);
+				newCat.setMinimumWeight(curMin);
+				newCat.setCode(ag.getCode() + "_" + template.getCode());
+				newCat.setAgeGroup(ag);
+				// logger.debug("code = {} {}",newCat.getCode(), newCat.getComputedCode());
+				ag.addCategory(newCat);
+				newCat.setActive(ag.isActive());
+				try {
+					newCat.setQualifyingTotal(Integer.parseInt(qualTotal));
+				} catch (NumberFormatException e) {
+					throw new Exception(e);
+				}
+				// logger.debug(newCat.dump());
+				return newCat;
+			} catch (IllegalAccessException | InvocationTargetException e) {
+				logger.error("cannot create category from template\n{}", LoggerUtils./**/stackTrace(e));
+				return null;
+			}
+		}
 	}
 
 	@SuppressWarnings("unchecked")
@@ -499,6 +557,10 @@ public class AgeGroupRepository {
 		}
 
 		for (Category newC : newCats) {
+			newC.setAgeGroup(ageGroup);
+			newC.setGender(ageGroup.getGender());
+			newC.setCode(newC.getComputedCode());
+			newC.setName(newC.getDisplayName());
 			em.merge(newC);
 		}
 
@@ -516,24 +578,63 @@ public class AgeGroupRepository {
 		return mAgeGroup;
 	}
 
+	private static void cleanUpExisting() {
+		JPAService.runInTransaction(em -> {
+			List<Athlete> athletes = AthleteRepository.doFindAll(em);
+			for (Athlete a : athletes) {
+				a.setCategory(null);
+				a.setEligibleCategories(null);
+				em.merge(a);
+			}
+			em.flush();
+			Competition.getCurrent().setRankingsInvalid(true);
+			return null;
+		});
+		JPAService.runInTransaction(em -> {
+			try {
+				Query upd = em.createQuery("delete from Category");
+				upd.executeUpdate();
+				upd = em.createQuery("delete from AgeGroup");
+				upd.executeUpdate();
+			} catch (Exception e) {
+				LoggerUtils.logError(logger, e);
+			}
+			return null;
+		});
+	}
+
+	public static void updateExistingChampionships() {
+		JPAService.runInTransaction(em -> {
+			List<AgeGroup> ags = doFindAll(em);
+			for (AgeGroup a : ags) {
+				if (a.computeChampionshipName() == null || a.computeChampionshipName().isBlank()) {
+					a.setChampionshipName(a.getAgeDivision());
+				}
+				em.merge(a);
+			}
+			em.flush();
+			return null;
+		});
+	}
+
 	@SuppressWarnings("unchecked")
 	private static List<AgeGroup> doFindAll(EntityManager em) {
 		return em.createQuery("select c from AgeGroup c order by c.ageDivision,c.minAge,c.maxAge").getResultList();
 	}
 
-	private static String filteringSelection(String name, Gender gender, AgeDivision ageDivision, Integer age,
+	private static String filteringSelection(String name, Gender gender, Championship championship, Integer age,
 	        Boolean active) {
 		String joins = null;
-		String where = filteringWhere(name, ageDivision, age, gender, active);
+		String where = filteringWhere(name, championship, age, gender, active);
 		String selection = (joins != null ? " " + joins : "") + (where != null ? " where " + where : "");
 		return selection;
 	}
 
-	private static String filteringWhere(String name, AgeDivision ageDivision, Integer age, Gender gender,
+	private static String filteringWhere(String name, Championship championship, Integer age, Gender gender,
 	        Boolean active) {
 		List<String> whereList = new LinkedList<>();
-		if (ageDivision != null) {
-			whereList.add("ag.ageDivision = :division");
+		if (championship != null) {
+			whereList.add("((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))");
 		}
 		if (name != null && name.trim().length() > 0) {
 			whereList.add("lower(ag.name) like :name");
@@ -555,7 +656,7 @@ public class AgeGroupRepository {
 		}
 	}
 
-	private static void setFilteringParameters(String name, Gender gender, AgeDivision ageDivision, Integer age,
+	private static void setFilteringParameters(String name, Gender gender, Championship championship, Integer age,
 	        Boolean active, Query query) {
 		if (name != null && name.trim().length() > 0) {
 			// starts with
@@ -567,47 +668,11 @@ public class AgeGroupRepository {
 		if (age != null) {
 			query.setParameter("age", age);
 		}
-		if (ageDivision != null) {
-			query.setParameter("division", ageDivision); // ageDivision is a string
+		if (championship != null) {
+			query.setParameter("championshipName", championship.getName()); // is a string
 		}
 		if (gender != null) {
 			query.setParameter("gender", gender);
-		}
-	}
-
-	static void cascadeCategoryRemoval(EntityManager em, AgeGroup mAgeGroup, Category nc) {
-		// so far we have not categories removed from the age group, time to do so
-		logger.debug("removing category {} from age group", nc.getId());
-		mAgeGroup.removeCategory(nc);
-		em.remove(nc);
-	}
-
-	static Category createCategoryFromTemplate(String catCode, AgeGroup ag, Map<String, Category> templates,
-	        double curMin, String qualTotal) throws Exception {
-		Category template = templates.get(catCode);
-		if (template == null) {
-			logger.trace("template {} not found", catCode);
-			return null;
-		} else {
-			try {
-				Category newCat = new Category(template);
-				newCat.setMinimumWeight(curMin);
-				newCat.setCode(ag.getCode() + "_" + template.getCode());
-				newCat.setAgeGroup(ag);
-				// logger.debug("code = {} {}",newCat.getCode(), newCat.getComputedCode());
-				ag.addCategory(newCat);
-				newCat.setActive(ag.isActive());
-				try {
-					newCat.setQualifyingTotal(Integer.parseInt(qualTotal));
-				} catch (NumberFormatException e) {
-					throw new Exception(e);
-				}
-				// logger.debug(newCat.dump());
-				return newCat;
-			} catch (IllegalAccessException | InvocationTargetException e) {
-				logger.error("cannot create category from template\n{}", LoggerUtils./**/stackTrace(e));
-				return null;
-			}
 		}
 	}
 
