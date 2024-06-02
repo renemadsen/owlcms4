@@ -12,7 +12,7 @@ import com.vaadin.flow.router.Location;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
-import app.owlcms.data.category.AgeDivision;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Logger;
@@ -29,9 +29,9 @@ public interface ResultsParametersReader extends ResultsParameters, FOPParameter
 
 		@SuppressWarnings("unused")
 		Logger logger = (Logger) LoggerFactory.getLogger(ResultsParametersReader.class);
-		//logger.debug("ResultsParameterReader readParams");
-		
-//		var fop = getFop();
+		// logger.debug("ResultsParameterReader readParams");
+
+		// var fop = getFop();
 
 		// handle previous parameters by calling superclass
 		Map<String, List<String>> newParameterMap = FOPParametersReader.super.readParams(location, parametersMap);
@@ -42,19 +42,19 @@ public interface ResultsParametersReader extends ResultsParameters, FOPParameter
 			List<String> ageGroupNames = parametersMap.get(AGEGROUP);
 			if (ageGroupNames != null && ageGroupNames.get(0) != null) {
 				ageGroup = AgeGroupRepository.findByName(ageGroupNames.get(0));
-			} 
-//			else if (fop != null && fop.getVideoAgeGroup() != null) {
-//				ageGroup = fop.getVideoAgeGroup();
-//			}
+			}
+			// else if (fop != null && fop.getVideoAgeGroup() != null) {
+			// ageGroup = fop.getVideoAgeGroup();
+			// }
 			if (ageGroup != null) {
 				newParameterMap.put(AGEGROUP, Arrays.asList(URLUtils.urlEncode(ageGroup.getName())));
 			}
 			this.setAgeGroup(ageGroup);
-		} 
-//		else if (fop != null && fop.getVideoAgeGroup() != null) {
-//			ageGroup = fop.getVideoAgeGroup();
-//			newParameterMap.put(AGEGROUP, Arrays.asList(URLUtils.urlEncode(ageGroup.getName())));
-//		} 
+		}
+		// else if (fop != null && fop.getVideoAgeGroup() != null) {
+		// ageGroup = fop.getVideoAgeGroup();
+		// newParameterMap.put(AGEGROUP, Arrays.asList(URLUtils.urlEncode(ageGroup.getName())));
+		// }
 		else {
 			newParameterMap.remove(AGEGROUP);
 		}
@@ -63,13 +63,13 @@ public interface ResultsParametersReader extends ResultsParameters, FOPParameter
 		try {
 			String ageDivisionName = (ageDivisionParams != null
 			        && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
-			AgeDivision valueOf = AgeDivision.valueOf(ageDivisionName);
-			setAgeDivision(valueOf);
+			Championship valueOf = Championship.of(ageDivisionName);
+			setChampionship(valueOf);
 		} catch (Exception e) {
-			setAgeDivision(null);
+			setChampionship(null);
 		}
 		// remove if now null
-		String value = getAgeDivision() != null ? getAgeDivision().name() : null;
+		String value = getChampionship() != null ? getChampionship().getName() : null;
 		updateParam(newParameterMap, AGEDIVISION, value);
 
 		List<String> ageGroupParams = newParameterMap.get(AGEGROUP_PREFIX);

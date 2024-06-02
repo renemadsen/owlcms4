@@ -35,7 +35,9 @@ import javax.persistence.EntityManagerFactory;
 import javax.persistence.spi.PersistenceUnitInfo;
 
 import org.h2.tools.Server;
+import org.hibernate.SessionFactory;
 import org.hibernate.dialect.H2Dialect;
+import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
 import org.hibernate.hikaricp.internal.HikariCPConnectionProvider;
 import org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl;
 import org.hibernate.jpa.boot.internal.PersistenceUnitInfoDescriptor;
@@ -43,6 +45,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.zaxxer.hikari.HikariDataSource;
 
 import app.owlcms.Main;
 import app.owlcms.data.agegroup.AgeGroup;
@@ -66,9 +69,7 @@ import ch.qos.logback.classic.Logger;
 public class JPAService {
 
 	private static EntityManagerFactory factory;
-
 	private static boolean localDb = false;
-
 	private static final Logger logger = (Logger) LoggerFactory.getLogger(JPAService.class);
 	private static final Logger startLogger = (Logger) LoggerFactory.getLogger(Main.class);
 
@@ -89,7 +90,7 @@ public class JPAService {
 	/**
 	 * @return the factory
 	 */
-	public static EntityManagerFactory getFactory() {
+	static EntityManagerFactory getFactory() {
 		return factory;
 	}
 
@@ -123,6 +124,10 @@ public class JPAService {
 			}
 			setFactory(factory2);
 		}
+	}
+
+	public static boolean isLocalDb() {
+		return JPAService.localDb;
 	}
 
 	public static Properties processSettings(boolean inMemory, boolean reset) throws RuntimeException {
@@ -191,29 +196,16 @@ public class JPAService {
 		return properties;
 	}
 
-	/**
-	 * Run in transaction.
-	 *
-	 * @param <T>      the generic type
-	 * @param function the function
-	 * @return the t
-	 */
-	public static <T> T runInTransaction(EntityManager entityManager, Function<EntityManager, T> function) {
-		try {
-			entityManager.getTransaction().begin();
-
-			T result = function.apply(entityManager);
-
-			entityManager.getTransaction().commit();
-			return result;
-
-		} finally {
-			if (entityManager != null) {
-				entityManager.close();
+	private static void traceLeak() {
+		if (logger.isTraceEnabled()) {
+			int active = JPAService.getPoolStatistics();
+			if (active > 0) {
+				logger.trace("active > 0 {}", whereFrom.values());
 			}
 		}
 	}
 
+	static Map<EntityManager,String> whereFrom = new HashMap<>();
 	/**
 	 * Run in transaction.
 	 *
@@ -223,23 +215,27 @@ public class JPAService {
 	 */
 	public static <T> T runInTransaction(Function<EntityManager, T> function) {
 		EntityManager entityManager = null;
-
+		String whereFromString = LoggerUtils.whereFrom();
 		try {
 			if (getFactory() == null) {
 				logger.debug("JPAService {}", LoggerUtils./**/stackTrace());
 			}
 			entityManager = getFactory().createEntityManager();
+			whereFrom.put(entityManager, whereFromString);
 			entityManager.getTransaction().begin();
-
 			T result = function.apply(entityManager);
-
 			entityManager.getTransaction().commit();
+			entityManager.close();
+			whereFrom.remove(entityManager);
+			entityManager = null;
 			return result;
-
 		} finally {
 			if (entityManager != null) {
 				entityManager.close();
+				whereFrom.remove(entityManager);
 			}
+			traceLeak();
+
 		}
 	}
 
@@ -252,24 +248,89 @@ public class JPAService {
 	 */
 	public static List<Object[]> runInTransactionMultipleResults(Function<EntityManager, List<Object[]>> function) {
 		EntityManager entityManager = null;
-
+		String whereFromString = LoggerUtils.whereFrom();
 		try {
 			if (getFactory() == null) {
 				logger.debug("JPAService {}", LoggerUtils./**/stackTrace());
 			}
 			entityManager = getFactory().createEntityManager();
+			whereFrom.put(entityManager, whereFromString);
 			entityManager.getTransaction().begin();
 
 			List<Object[]> result = function.apply(entityManager);
-
 			entityManager.getTransaction().commit();
+			entityManager.close();
+			whereFrom.remove(entityManager);
+			entityManager = null;
 			return result;
 
 		} finally {
 			if (entityManager != null) {
 				entityManager.close();
+				whereFrom.remove(entityManager);
 			}
+			traceLeak();
 		}
+	}
+
+	public static void setLocalDb(boolean localDb) {
+		logger.debug("setting localDb {} {}", localDb, LoggerUtils.whereFrom());
+		JPAService.localDb = localDb;
+	}
+
+	/**
+	 * Entity class names.
+	 *
+	 * @return the list
+	 */
+	protected static List<String> entityClassNames() {
+		ImmutableList<String> vals = new ImmutableList.Builder<String>()
+		        .add(Group.class.getName())
+		        .add(Category.class.getName())
+		        .add(Athlete.class.getName())
+		        .add(Platform.class.getName())
+		        .add(Competition.class.getName())
+		        .add(AgeGroup.class.getName())
+		        .add(Config.class.getName())
+		        .add(RecordEvent.class.getName())
+		        .add(Participation.class.getName())
+		        .add(RecordConfig.class.getName())
+		        .build();
+		return vals;
+	}
+
+	/**
+	 * Properties for running in memory (used for tests and demos)
+	 *
+	 * @return the properties
+	 */
+	protected static Properties h2MemProperties(String schemaGeneration) {
+		setLocalDb(true);
+
+		ImmutableMap<String, Object> vals = jpaProperties();
+		Properties props = new Properties();
+		props.putAll(vals);
+
+		// keep the database even if all the connections have timed out
+		// to turn off transactions MVCC=FALSE;MV_STORE=FALSE;LOCK_MODE=0;
+		String url = "jdbc:h2:mem:owlcms;DB_CLOSE_DELAY=-1;TRACE_LEVEL_FILE=4";
+		props.put(JPA_JDBC_URL, url);
+		props.put(JPA_JDBC_USER, "sa");
+		props.put(JPA_JDBC_PASSWORD, "");
+
+		props.put(JPA_JDBC_DRIVER, org.h2.Driver.class.getName());
+		props.put("javax.persistence.schema-generation.database.action", schemaGeneration);
+		props.put(DIALECT, H2Dialect.class.getName());
+
+		startLogger.info("Database: {}, inMemory={}, schema={}", url, true, schemaGeneration);
+		return props;
+	}
+
+	/**
+	 * @param factory the factory to set
+	 */
+	protected static void setFactory(EntityManagerFactory factory) {
+		JPAService.factory = factory;
 	}
 
 	/**
@@ -290,10 +351,22 @@ public class JPAService {
 		return factory;
 	}
 
+	public static int getPoolStatistics() {
+		SessionFactory sessionFactory = factory.unwrap(SessionFactory.class);
+        ConnectionProvider connectionProvider = sessionFactory.getSessionFactoryOptions().getServiceRegistry().getService(ConnectionProvider.class);
+        HikariDataSource dataSource = connectionProvider.unwrap(HikariDataSource.class);
+        HikariDataSourcePoolDetail dsd = new HikariDataSourcePoolDetail(dataSource);
+        int active = dsd.getActive();
+        if (logger.isTraceEnabled()) {
+        	logger.trace("HikariDataSource details: max={} active={}", dsd.getMax(), active);
+        }
+		return active;
+	}
+
 	private static Properties h2FileProperties(String schemaGeneration, String dbUrl, String userName,
 	        String password) {
 		setLocalDb(true);
-		
+
 		ImmutableMap<String, Object> vals = jpaProperties();
 		Properties props = new Properties();
 		props.putAll(vals);
@@ -326,7 +399,7 @@ public class JPAService {
 	private static Properties h2ServerProperties(String schemaGeneration, String dbUrl, String userName,
 	        String password) {
 		setLocalDb(true);
-		
+
 		ImmutableMap<String, Object> vals = jpaProperties();
 		Properties props = new Properties();
 		props.putAll(vals);
@@ -358,15 +431,18 @@ public class JPAService {
 		        .put("hibernate.javax.cache.missing_cache_strategy", "create")
 		        .put("javax.persistence.sharedCache.mode", "ALL").put("hibernate.c3p0.min_size", 5)
 		        .put("hibernate.enable_lazy_load_no_trans", true)
-//                .put("hibernate.c3p0.max_size", 20).put("hibernate.c3p0.acquire_increment", 5)
-//                .put("hibernate.c3p0.timeout", 84200).put("hibernate.c3p0.preferredTestQuery", "SELECT 1")
-//                .put("hibernate.c3p0.testConnectionOnCheckout", true).put("hibernate.c3p0.idle_test_period", 500)
+		        // .put("hibernate.c3p0.max_size", 20).put("hibernate.c3p0.acquire_increment", 5)
+		        // .put("hibernate.c3p0.timeout", 84200).put("hibernate.c3p0.preferredTestQuery", "SELECT 1")
+		        // .put("hibernate.c3p0.testConnectionOnCheckout", true).put("hibernate.c3p0.idle_test_period", 500)
 		        .put("hibernate.connection.provider_class", cp)
 		        .put("hibernate.hikari.minimumIdle", "5")
 		        .put("hibernate.hikari.maximumPoolSize", "15")
 		        .put("hibernate.hikari.idleTimeout", "300000") // 5 minutes
 		        .put("hibernate.hikari.maxLifetime", "600000") // 10 minutes (docker kills sockets after 15min)
 		        .put("hibernate.hikari.initializationFailTimeout", "60000")
+		        .put("hibernate.hikari.leakDetectionThreshold", "5000")
+		        .put("hibernate.hikari.autoCommit","false")
+		        .put("hibernate.connection.provider_disables_autocommit",true)
 		        .build();
 		return vals;
 	}
@@ -410,11 +486,11 @@ public class JPAService {
 
 		setLocalDb(false);
 		if (postgresHost != null) {
-			setLocalDb(postgresHost.contentEquals("localhost") 
-					|| postgresHost.startsWith("127.")
-					|| postgresHost.contentEquals("::1")
-					|| postgresHost.contentEquals("0:0:0:0:0:0:0:1"));
-		} 
+			setLocalDb(postgresHost.contentEquals("localhost")
+			        || postgresHost.startsWith("127.")
+			        || postgresHost.contentEquals("::1")
+			        || postgresHost.contentEquals("0:0:0:0:0:0:0:1"));
+		}
 		postgresHost = postgresHost == null ? "localhost" : postgresHost;
 		postgresPort = postgresPort == null ? "5432" : postgresPort;
 		postgresDb = postgresDb == null ? "owlcms" : postgresDb;
@@ -435,7 +511,7 @@ public class JPAService {
 		props.put(JPA_JDBC_URL, url);
 		props.put(JPA_JDBC_USER, userName != null ? userName : "owlcms");
 		props.put(JPA_JDBC_PASSWORD, password != null ? password : "db_owlcms");
-		
+
 		if (dbUrl == null) {
 			// fly.io format was parsed in parsePostgresUrl
 			props.put("hibernate.hikari.idleTimeout", "60000"); // 1 minute
@@ -456,9 +532,8 @@ public class JPAService {
 	 * Not enabled by default, protected by a feature switch
 	 * (<code>-DH2ServerPort=9092 or OWLCMS_H2SERVERPORT=9092</code>)
 	 * <p>
-	 * When using a tool to connect, such as the H2 console
-	 * (<code>java -jar h2-1.4.200.jar</code>) or DBVisualizer, the the URL given to
-	 * the tool must include the absolute path to the database for example:
+	 * When using a tool to connect, such as the H2 console (<code>java -jar h2-1.4.200.jar</code>) or DBVisualizer, the
+	 * the URL given to the tool must include the absolute path to the database for example:
 	 *
 	 * <pre>
 	 * jdbc:h2:tcp://localhost:9092/c:/dev/git/owlcms4/owlcms/database/owlcms
@@ -480,70 +555,6 @@ public class JPAService {
 		} catch (SQLException e) {
 			LoggerUtils.logError(logger, e);
 		}
-	}
-
-	/**
-	 * Entity class names.
-	 *
-	 * @return the list
-	 */
-	protected static List<String> entityClassNames() {
-		ImmutableList<String> vals = new ImmutableList.Builder<String>()
-		        .add(Group.class.getName())
-		        .add(Category.class.getName())
-		        .add(Athlete.class.getName())
-		        .add(Platform.class.getName())
-		        .add(Competition.class.getName())
-		        .add(AgeGroup.class.getName())
-		        .add(Config.class.getName())
-		        .add(RecordEvent.class.getName())
-		        .add(Participation.class.getName())
-		        .add(RecordConfig.class.getName())
-		        .build();
-		return vals;
-	}
-
-	/**
-	 * Properties for running in memory (used for tests and demos)
-	 *
-	 * @return the properties
-	 */
-	protected static Properties h2MemProperties(String schemaGeneration) {
-		setLocalDb(true);
-		
-		ImmutableMap<String, Object> vals = jpaProperties();
-		Properties props = new Properties();
-		props.putAll(vals);
-
-		// keep the database even if all the connections have timed out
-		// to turn off transactions MVCC=FALSE;MV_STORE=FALSE;LOCK_MODE=0;
-		String url = "jdbc:h2:mem:owlcms;DB_CLOSE_DELAY=-1;TRACE_LEVEL_FILE=4";
-		props.put(JPA_JDBC_URL, url);
-		props.put(JPA_JDBC_USER, "sa");
-		props.put(JPA_JDBC_PASSWORD, "");
-
-		props.put(JPA_JDBC_DRIVER, org.h2.Driver.class.getName());
-		props.put("javax.persistence.schema-generation.database.action", schemaGeneration);
-		props.put(DIALECT, H2Dialect.class.getName());
-
-		startLogger.info("Database: {}, inMemory={}, schema={}", url, true, schemaGeneration);
-		return props;
-	}
-
-	/**
-	 * @param factory the factory to set
-	 */
-	protected static void setFactory(EntityManagerFactory factory) {
-		JPAService.factory = factory;
-	}
-
-	public static boolean isLocalDb() {
-		return JPAService.localDb;
-	}
-
-	public static void setLocalDb(boolean localDb) {
-		logger.debug("setting localDb {} {}", localDb, LoggerUtils.whereFrom());
-		JPAService.localDb = localDb;
 	}
 
 }

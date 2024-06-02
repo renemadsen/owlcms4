@@ -14,7 +14,7 @@ import ch.qos.logback.classic.Logger;
 /**
  * The Enum Ranking.
  */
-public enum Ranking {
+public enum Ranking {	
 	SNATCH("Sn"),
 	CLEANJERK("CJ"),
 	TOTAL("Tot"),

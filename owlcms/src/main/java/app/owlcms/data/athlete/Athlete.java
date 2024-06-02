@@ -47,7 +47,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 import app.owlcms.data.agegroup.AgeGroup;
-import app.owlcms.data.category.AgeDivision;
+import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.category.Participation;
@@ -769,7 +770,7 @@ public class Athlete {
 	public String getAllCategoriesAsString() {
 		Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
 		// use getName because we don't want the translated gender.
-		String mainCategory = mrCat != null ? mrCat.getComputedName() : "";
+		String mainCategory = mrCat != null ? mrCat.getDisplayName() : "";
 
 		String mainCategoryString = mainCategory;
 		if (mrCat != null && !getMainRankings().getTeamMember()) {
@@ -780,7 +781,7 @@ public class Athlete {
 		        .filter(p -> (p.getCategory() != mrCat))
 		        .sorted((a, b) -> a.getCategory().getAgeGroup().compareTo(b.getCategory().getAgeGroup()))
 		        .map(p -> {
-			        String catName = p.getCategory().getComputedName();
+			        String catName = p.getCategory().getDisplayName();
 			        return catName + (!p.getTeamMember() ? RAthlete.NoTeamMarker : "");
 		        })
 		        .collect(Collectors.joining(";"));
@@ -791,31 +792,31 @@ public class Athlete {
 		}
 	}
 
-	@Transient
-	@JsonIgnore
-	public String getAllTranslatedCategoriesAsString() {
-		Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
-		String mainCategory = mrCat != null ? mrCat.getTranslatedName() : "";
-
-		String mainCategoryString = mainCategory;
-		if (mrCat != null && !getMainRankings().getTeamMember()) {
-			mainCategoryString = mainCategory + RAthlete.NoTeamMarker;
-		}
-
-		String eligiblesAsString = this.getParticipations().stream()
-		        .filter(p -> (p.getCategory() != mrCat))
-		        .sorted((a, b) -> a.getCategory().getAgeGroup().compareTo(b.getCategory().getAgeGroup()))
-		        .map(p -> {
-			        String catName = p.getCategory().getTranslatedName();
-			        return catName + (!p.getTeamMember() ? RAthlete.NoTeamMarker : "");
-		        })
-		        .collect(Collectors.joining(";"));
-		if (eligiblesAsString.isBlank()) {
-			return mainCategoryString;
-		} else {
-			return mainCategory + "|" + eligiblesAsString;
-		}
-	}
+//	@Transient
+//	@JsonIgnore
+//	private String getAllTranslatedCategoriesAsString() {
+//		Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
+//		String mainCategory = mrCat != null ? mrCat.getNameWithAgeGroup() : "";
+//
+//		String mainCategoryString = mainCategory;
+//		if (mrCat != null && !getMainRankings().getTeamMember()) {
+//			mainCategoryString = mainCategory + RAthlete.NoTeamMarker;
+//		}
+//
+//		String eligiblesAsString = this.getParticipations().stream()
+//		        .filter(p -> (p.getCategory() != mrCat))
+//		        .sorted((a, b) -> a.getCategory().getAgeGroup().compareTo(b.getCategory().getAgeGroup()))
+//		        .map(p -> {
+//			        String catName = p.getCategory().getNameWithAgeGroup();
+//			        return catName + (!p.getTeamMember() ? RAthlete.NoTeamMarker : "");
+//		        })
+//		        .collect(Collectors.joining(";"));
+//		if (eligiblesAsString.isBlank()) {
+//			return mainCategoryString;
+//		} else {
+//			return mainCategory + "|" + eligiblesAsString;
+//		}
+//	}
 
 	/**
 	 * Number of attempt 1..3, relative to current lift
@@ -947,8 +948,57 @@ public class Athlete {
 			}
 		}
 		return 0; // no match - bomb-out.
-
 	}
+	
+	/**
+	 * Gets the best snatch attempt number.
+	 *
+	 * @return the best snatch attempt number
+	 */
+	@Transient
+	@JsonIgnore
+	public LocalDateTime getBestSnatchAttemptTime() {
+		int referenceValue = getBestSnatch();
+		if (referenceValue > 0) {
+			if (zeroIfInvalid(this.snatch3ActualLift) == referenceValue) {
+				return this.getSnatch3LiftTime();
+			}
+			if (zeroIfInvalid(this.snatch2ActualLift) == referenceValue) {
+				return this.getSnatch2LiftTime();
+			}
+			if (zeroIfInvalid(this.snatch1ActualLift) == referenceValue) {
+				return this.getSnatch1LiftTime();
+			}
+		}
+		// should not be required - bomb-out.
+		return LocalDateTime.MIN;
+	}
+	
+	/**
+	 * Gets the best snatch attempt number.
+	 *
+	 * @return the best snatch attempt number
+	 */
+	@Transient
+	@JsonIgnore
+	public LocalDateTime getBestCleanJerkAttemptTime() {
+		int referenceValue = getBestCleanJerk();
+		if (referenceValue > 0) {
+			if (zeroIfInvalid(this.cleanJerk3ActualLift) == referenceValue) {
+				return this.getCleanJerk3LiftTime();
+			}
+			if (zeroIfInvalid(this.cleanJerk2ActualLift) == referenceValue) {
+				return this.getSnatch2LiftTime();
+			}
+			if (zeroIfInvalid(this.cleanJerk1ActualLift) == referenceValue) {
+				return this.getCleanJerk1LiftTime();
+			}
+		}
+		// should not be required - bomb-out.
+		return LocalDateTime.MIN;
+	}
+	
+	
 
 	/**
 	 * Gets the birth date.
@@ -1040,6 +1090,25 @@ public class Athlete {
 			return 0.0D;
 		}
 		return getSinclair(categoryWeight);
+	}
+
+	/**
+	 * Gets the sinclair factor.
+	 *
+	 * @return the sinclair factor
+	 */
+	@Transient
+	@JsonIgnore
+	public Double getCatSinclairFactor() {
+		if (this.gender == Gender.M) {
+			return sinclairFactor(this.getCategory().getMaximumWeight(), getSinclairProperties().menCoefficient(),
+			        getSinclairProperties().menMaxWeight());
+		} else if (getGender() == Gender.F) {
+			return sinclairFactor(this.getCategory().getMaximumWeight(), getSinclairProperties().womenCoefficient(),
+			        getSinclairProperties().womenMaxWeight());
+		} else {
+			return 0.0D;
+		}
 	}
 
 	public int getCatSinclairRank() {
@@ -1476,7 +1545,8 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getDisplayCategory() {
-		return getLongCategory();
+		Category category = getCategory();
+		return (category != null ? category.getDisplayName() : "");
 	}
 
 	@JsonIgnore
@@ -1508,7 +1578,7 @@ public class Athlete {
 	@JsonIgnore
 	public String getEligibleCategoriesAsString() {
 		Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
-		String mainCategory = mrCat != null ? mrCat.getTranslatedName() : "";
+		String mainCategory = mrCat != null ? mrCat.getDisplayName() : "";
 
 		String mainCategoryString = mainCategory;
 		if (mrCat != null && !getMainRankings().getTeamMember()) {
@@ -1519,7 +1589,7 @@ public class Athlete {
 		        .filter(p -> (p.getCategory() != mrCat))
 		        .sorted((a, b) -> a.getCategory().getAgeGroup().compareTo(b.getCategory().getAgeGroup()))
 		        .map(p -> {
-			        String catName = p.getCategory().getTranslatedName();
+			        String catName = p.getCategory().getNameWithAgeGroup();
 			        return catName;
 		        })
 		        .collect(Collectors.joining(";"));
@@ -1593,6 +1663,18 @@ public class Athlete {
 			return getFullBirthDate().format(shortStyleFormatter);
 		}
 	}
+	
+	@Transient
+	@JsonIgnore
+	public String getIsoBirth() {
+		if (Competition.getCurrent().isUseBirthYear()) {
+			Integer yearOfBirth = getYearOfBirth();
+			return yearOfBirth != null ? yearOfBirth.toString() : "";
+		} else {
+			DateTimeFormatter shortStyleFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+			return getFullBirthDate().format(shortStyleFormatter);
+		}
+	}
 
 	/**
 	 * Gets the full birth date.
@@ -1629,6 +1711,16 @@ public class Athlete {
 		}
 	}
 
+	@Transient
+	@JsonIgnore
+	public Double getGamx() {
+		if (!Config.getCurrent().featureSwitch("gamx")) {
+			return 0.0D;
+		}
+		Integer total = getBestCleanJerk() + getBestSnatch();
+		return (double) GAMX.getGamx(this, total);
+	}
+
 	/**
 	 * Gets the gender.
 	 *
@@ -1636,6 +1728,10 @@ public class Athlete {
 	 */
 	public Gender getGender() {
 		return this.gender;
+	}
+
+	public Integer getGmaxRank() {
+		return this.gmaxRank;
 	}
 
 	/**
@@ -1753,7 +1849,7 @@ public class Athlete {
 	@JsonIgnore
 	public String getLongCategory() {
 		Category category = getCategory();
-		return (category != null ? category.getTranslatedName() : "");
+		return (category != null ? category.getNameWithAgeGroup() : "");
 	}
 
 	/**
@@ -1849,7 +1945,7 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getMastersLongCategory() {
-		return getCategory().getComputedName();
+		return getCategory().getDisplayName();
 	}
 
 	/**
@@ -2128,8 +2224,17 @@ public class Athlete {
 		// since is same for women and men
 		double robiA = 1000.0D / Math.pow(wr, Category.ROBI_B);
 		double robi = robiA * Math.pow(getTotal(), Category.ROBI_B);
-		
+
 		return robi;
+	}
+
+	/**
+	 * Gets the robi rank.
+	 *
+	 * @return the robi rank
+	 */
+	public Integer getRobiRank() {
+		return this.robiRank;
 	}
 
 	@Transient
@@ -2157,19 +2262,6 @@ public class Athlete {
 		return wr;
 	}
 
-	/**
-	 * Gets the robi rank.
-	 *
-	 * @return the robi rank
-	 */
-	public Integer getRobiRank() {
-		return this.robiRank;
-	}
-
-	public Integer getGmaxRank() {
-		return this.gmaxRank;
-	}
-
 	@Transient
 	@JsonIgnore
 	public String getRoundedBodyWeight() {
@@ -2177,6 +2269,11 @@ public class Athlete {
 			this.df = new DecimalFormat("#.##");
 		}
 		return this.df.format(getBodyWeight());
+	}
+
+	public String getSessionPattern() {
+		Group g = getGroup();
+		return (g != null ? Translator.translate("ChallengeCard.SessionPattern", g.getName()) : "");
 	}
 
 	/**
@@ -2248,25 +2345,6 @@ public class Athlete {
 	}
 
 	/**
-	 * Gets the sinclair factor.
-	 *
-	 * @return the sinclair factor
-	 */
-	@Transient
-	@JsonIgnore
-	public Double getCatSinclairFactor() {
-		if (this.gender == Gender.M) {
-			return sinclairFactor(this.getCategory().getMaximumWeight(), getSinclairProperties().menCoefficient(),
-			        getSinclairProperties().menMaxWeight());
-		} else if (getGender() == Gender.F) {
-			return sinclairFactor(this.getCategory().getMaximumWeight(), getSinclairProperties().womenCoefficient(),
-			        getSinclairProperties().womenMaxWeight());
-		} else {
-			return 0.0D;
-		}
-	}
-
-	/**
 	 * Gets the sinclair for delta.
 	 *
 	 * @return a Sinclair value even if c&j has not started
@@ -2291,6 +2369,16 @@ public class Athlete {
 		return this.sinclairRank;
 	}
 
+	@Transient
+	@JsonIgnore
+	public Float getSmfFactor() {
+		final Integer birthDate1 = getYearOfBirth();
+		if (birthDate1 == null) {
+			return 0.0F;
+		}
+		return sinclairProperties2020.getAgeGenderCoefficient(YEAR - birthDate1, getGender());
+	}
+
 	/**
 	 * Gets the smm.
 	 *
@@ -2302,16 +2390,6 @@ public class Athlete {
 		double d = getMastersSinclairForDelta()
 		        * getSmfFactor();
 		return d;
-	}
-
-	@Transient
-	@JsonIgnore
-	public Float getSmfFactor() {
-		final Integer birthDate1 = getYearOfBirth();
-		if (birthDate1 == null) {
-			return 0.0F;
-		}
-		return sinclairProperties2020.getAgeGenderCoefficient(YEAR - birthDate1, getGender());
 	}
 
 	/**
@@ -2605,17 +2683,8 @@ public class Athlete {
 		if (Config.getCurrent().featureSwitch("UseCustom2AsSubCategory")) {
 			return (this.getCustom2() != null && !this.getCustom2().isBlank()) ? this.getCustom2() : "";
 		} else {
-			return subCategory != null ? subCategory : "";
+			return this.subCategory != null ? this.subCategory : "";
 		}
-	}
-
-	public String getSessionPattern() {
-		Group g = getGroup();
-		return (g != null ? Translator.translate("ChallengeCard.SessionPattern", g.getName()) : "");
-	}
-
-	public void setSessionPattern(String ignored) {
-
 	}
 
 	/**
@@ -2634,7 +2703,7 @@ public class Athlete {
 		List<Participation> participations2 = getParticipations();
 		for (Participation p : participations2) {
 			if (p.getTeamMember()) {
-				s.add(p.getCategory().getTranslatedName());
+				s.add(p.getCategory().getNameWithAgeGroup());
 			}
 		}
 
@@ -2931,7 +3000,7 @@ public class Athlete {
 		        .append(" group=" + (group != null ? group.getName() : null)).append(" team=" + this.getTeam())
 		        .append(" gender=" + this.getGender()).append(" bodyWeight=" + this.getBodyWeight())
 		        .append(" birthDate=" + this.getYearOfBirth())
-		        .append(" category=" + (category != null ? category.getComputedName().toLowerCase() : null))
+		        .append(" category=" + (category != null ? category.getDisplayName().toLowerCase() : null))
 		        .append(" actualCategory=" + this.getLongCategory().toString().toLowerCase())
 		        .append(" snatch1ActualLift=" + this.getSnatch1ActualLift())
 		        .append(" snatch2=" + this.getSnatch2ActualLift()).append(" snatch3=" + this.getSnatch3ActualLift())
@@ -2981,7 +3050,6 @@ public class Athlete {
 		for (Participation p : participations2) {
 			p.setTeamMember(s.contains(p.getCategory().getAgeGroup().getDisplayName()));
 		}
-		return;
 	}
 
 	/**
@@ -3044,12 +3112,6 @@ public class Athlete {
 			// known
 			setPresumedBodyWeight(category.getMaximumWeight());
 		}
-		// the category is already from the eligible set
-		// this.addEligibleCategory(category);
-		// logger.trace("{}{} category {} {}", OwlcmsSession.getFopLoggingName(),
-		// System.identityHashCode(this),
-		// category != null ? category.getParticipations() : null,
-		// LoggerUtils./**/stackTrace());
 		this.category = category;
 	}
 
@@ -3439,10 +3501,8 @@ public class Athlete {
 
 		Set<String> membershipCategories = participations2.stream().filter(p -> p.getTeamMember())
 		        .map(p -> p.getCategory().getCode()).collect(Collectors.toSet());
-		logger.debug("athlete memberships {}", membershipCategories);
 
 		Set<Category> oldEligibles = getEligibleCategories();
-		logger.debug("setting eligible before:{} target:{}", oldEligibles, newEligibles);
 		if (oldEligibles != null) {
 			for (Category cat : oldEligibles) {
 				removeEligibleCategory(cat);
@@ -3451,7 +3511,6 @@ public class Athlete {
 		if (newEligibles != null) {
 			for (Category cat : newEligibles) {
 				boolean membership = membershipCategories.contains(cat.getCode());
-				logger.trace("cat {} {}", cat, membership);
 				addEligibleCategory(cat, membership); // creates new join table entry, links from category as well.
 			}
 		}
@@ -3517,6 +3576,10 @@ public class Athlete {
 	 */
 	public void setGender(Gender gender) {
 		this.gender = gender;
+	}
+
+	public void setGmaxRank(Integer rank) {
+		this.gmaxRank = rank;
 	}
 
 	/**
@@ -3647,8 +3710,8 @@ public class Athlete {
 		this.robiRank = robiRank;
 	}
 
-	public void setGmaxRank(Integer rank) {
-		this.gmaxRank = rank;
+	public void setSessionPattern(String ignored) {
+
 	}
 
 	/**
@@ -3975,6 +4038,13 @@ public class Athlete {
 	}
 
 	/**
+	 * @param s = A/B/C/D group -- we don't use the word group because of confusion with session.
+	 */
+	public void setSubCategory(String s) {
+		this.subCategory = s;
+	}
+
+	/**
 	 * Sets the team.
 	 *
 	 * @param club the new team
@@ -4174,7 +4244,6 @@ public class Athlete {
 		final boolean lastChangeTooLow = lastChange >= iAutomaticProgression;
 		final boolean liftedWeightOk = Math.abs(liftedWeight) == lastChange;
 		if (liftedWeightOk && lastChangeTooLow) {
-			return;
 		} else {
 			if (!lastChangeTooLow) {
 				throw new RuleViolationException.LastChangeTooLow(this, curLift, lastChange, iAutomaticProgression);
@@ -4183,7 +4252,6 @@ public class Athlete {
 				throw new RuleViolationException.LiftValueNotWhatWasRequested(this, curLift, actualLift, lastChange,
 				        liftedWeight);
 			}
-			return;
 		}
 	}
 
@@ -4317,20 +4385,6 @@ public class Athlete {
 		return true;
 	}
 
-	public boolean validateSnatch2Change2(String snatch2Change2) throws RuleViolationException {
-		validateChange2(1, getSnatch2AutomaticProgression(), this.snatch2Declaration, this.snatch2Change1,
-		        snatch2Change2,
-		        this.snatch2ActualLift, true);
-		return true;
-	}
-
-	public boolean validateSnatch2Declaration(String snatch2Declaration) throws RuleViolationException {
-		validateDeclaration(1, getSnatch2AutomaticProgression(), snatch2Declaration, this.snatch2Change1,
-		        this.snatch2Change2,
-		        this.snatch2ActualLift);
-		return true;
-	}
-
 	// @SuppressWarnings("unused")
 	// private Long getCopyId() {
 	// return copyId;
@@ -4352,12 +4406,37 @@ public class Athlete {
 	// return 0;
 	// }
 
+	public boolean validateSnatch2Change2(String snatch2Change2) throws RuleViolationException {
+		validateChange2(1, getSnatch2AutomaticProgression(), this.snatch2Declaration, this.snatch2Change1,
+		        snatch2Change2,
+		        this.snatch2ActualLift, true);
+		return true;
+	}
+
+	public boolean validateSnatch2Declaration(String snatch2Declaration) throws RuleViolationException {
+		validateDeclaration(1, getSnatch2AutomaticProgression(), snatch2Declaration, this.snatch2Change1,
+		        this.snatch2Change2,
+		        this.snatch2ActualLift);
+		return true;
+	}
+
 	public boolean validateSnatch3ActualLift(String snatch3ActualLift) throws RuleViolationException {
 		validateActualLift(2, getSnatch3AutomaticProgression(), this.snatch3Declaration, this.snatch3Change1,
 		        this.snatch3Change2,
 		        snatch3ActualLift);
 		return true;
 	}
+
+	// /**
+	// * Null-safe comparison for longs.
+	// *
+	// * @param o1
+	// * @param o2
+	// * @return
+	// */
+	// private boolean LongEquals(Long o1, Long o2) {
+	// return o1 == o2 || o1 != null && o2 != null && o1.longValue() == (o2.longValue());
+	// }
 
 	public boolean validateSnatch3Change1(String snatch3Change1) throws RuleViolationException {
 		validateChange1(2, getSnatch3AutomaticProgression(), this.snatch3Declaration, snatch3Change1,
@@ -4372,17 +4451,6 @@ public class Athlete {
 		        this.snatch3ActualLift, true);
 		return true;
 	}
-
-	// /**
-	// * Null-safe comparison for longs.
-	// *
-	// * @param o1
-	// * @param o2
-	// * @return
-	// */
-	// private boolean LongEquals(Long o1, Long o2) {
-	// return o1 == o2 || o1 != null && o2 != null && o1.longValue() == (o2.longValue());
-	// }
 
 	public boolean validateSnatch3Declaration(String snatch3Declaration) throws RuleViolationException {
 		validateDeclaration(2, getSnatch3AutomaticProgression(), snatch3Declaration, this.snatch3Change1,
@@ -4768,11 +4836,9 @@ public class Athlete {
 		        && (change2 == null || change2.isBlank())) {
 			logger.trace("{}{} declaration accepted (not owning clock)", OwlcmsSession.getFopLoggingName(),
 			        this.getShortName());
-			return;
 		} else {
 			logger.trace("{}{} change accepted (not owning clock)", OwlcmsSession.getFopLoggingName(),
 			        this.getShortName());
-			return;
 		}
 	}
 
@@ -4790,7 +4856,6 @@ public class Athlete {
 			}
 			logger.trace("{}{}valid declaration", OwlcmsSession.getFopLoggingName(), this.getShortName(),
 			        clock / 1000.0);
-			return;
 		} else {
 			if (clock < 30000) {
 				logger./**/warn("{}{} late change denied after final warning ({})", OwlcmsSession.getFopLoggingName(),
@@ -4798,7 +4863,6 @@ public class Athlete {
 				throw new RuleViolationException.MustChangeBeforeFinalWarning(this, clock);
 			}
 			logger.trace("{}change before final warning", OwlcmsSession.getFopLoggingName(), clock);
-			return;
 		}
 	}
 
@@ -5048,9 +5112,9 @@ public class Athlete {
 		if (cat != null) {
 			AgeGroup ag = cat.getAgeGroup();
 			if (ag != null) {
-				AgeDivision ad = ag.getAgeDivision();
+				Championship ad = ag.getChampionship();
 				if (ad != null) {
-					if (ad == AgeDivision.MASTERS) {
+					if (ad.getType() == ChampionshipType.MASTERS) {
 						double margin = 0.2D * entryTotal;
 						// we would round up the required total, so we round down the allowed margin
 						double floor = Math.floor(margin);
@@ -5323,23 +5387,6 @@ public class Athlete {
 		}
 		this.timingLogger.info("validateDeclaration {}ms {} {}", System.currentTimeMillis() - start, curLift,
 		        LoggerUtils.whereFrom());
-	}
-
-	/**
-	 * @param s = A/B/C/D group -- we don't use the word group because of confusion with session.
-	 */
-	public void setSubCategory(String s) {
-		subCategory = s;
-	}
-
-	@Transient
-	@JsonIgnore
-	public Double getGamx() {
-		if (!Config.getCurrent().featureSwitch("gamx")) {
-			return 0.0D;
-		}
-		Integer total = getBestCleanJerk() + getBestSnatch();
-		return (double) GAMX.getGamx(this, total);
 	}
 
 }

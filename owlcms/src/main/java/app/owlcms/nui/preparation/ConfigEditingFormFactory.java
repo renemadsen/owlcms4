@@ -116,12 +116,13 @@ public class ConfigEditingFormFactory
 	        ComponentEventListener<ClickEvent<Button>> updateButtonClickListener,
 	        ComponentEventListener<ClickEvent<Button>> deleteButtonClickListener, Button... buttons) {
 
-		binder = buildBinder(operation, config);
+		this.binder = buildBinder(operation, config);
 
 		FormLayout accessLayout = accessForm();
 		FormLayout tzLayout = tzForm();
 		FormLayout languageLayout = presentationForm();
 		FormLayout publicResultsLayout = publicResultsForm();
+		FormLayout videoDataLayout = videoDataForm();
 		FormLayout templateSelectionLayout = templateSelectionForm();
 		FormLayout localOverrideLayout = localOverrideForm();
 		FormLayout translationLayout = translationForm();
@@ -136,7 +137,7 @@ public class ConfigEditingFormFactory
 			        Locale defaultLocale = current.getDefaultLocale();
 			        Translator.reset();
 			        Translator.setForcedLocale(defaultLocale);
-			        logger.debug("config locale {} {} {}", current.getDefaultLocale(),
+			        this.logger.debug("config locale {} {} {}", current.getDefaultLocale(),
 			                defaultLocale, Translator.getForcedLocale());
 		        }, deleteButtonClickListener, false);
 
@@ -146,14 +147,16 @@ public class ConfigEditingFormFactory
 		                tzLayout, separator(), translationLayout));
 		ts.add(Translator.translate("Config.ConnexionsTab"),
 		        new VerticalLayout(
-		                new Div(), publicResultsLayout, separator(),
+		                new Div(), 
+		                publicResultsLayout, separator(),
+		                videoDataLayout, separator(),
 		                mqttLayout, separator()));
 		ts.add(Translator.translate("Config.AccessControlTab"),
 		        new VerticalLayout(
 		                new Div(), accessLayout));
 		ts.add(Translator.translate("Config.CustomizationTab"),
 		        new VerticalLayout(new Div(),
-		        		stylesLayout, separator(),
+		                stylesLayout, separator(),
 		                templateSelectionLayout, separator(),
 		                localOverrideLayout, separator(),
 		                featuresLayout));
@@ -165,7 +168,7 @@ public class ConfigEditingFormFactory
 		mainLayout.setPadding(false);
 
 		config.setSkipReading(false);
-		binder.readBean(config);
+		this.binder.readBean(config);
 		config.setSkipReading(true);
 		return mainLayout;
 	}
@@ -216,7 +219,7 @@ public class ConfigEditingFormFactory
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	protected void bindField(HasValue field, String property, Class<?> propertyType, CrudFormConfiguration c) {
-		binder.forField(field);
+		this.binder.forField(field);
 		super.bindField(field, property, propertyType, c);
 	}
 
@@ -229,7 +232,7 @@ public class ConfigEditingFormFactory
 		PasswordField passwordField = new PasswordField();
 		passwordField.setWidthFull();
 		configLayout.addFormItem(passwordField, Translator.translate("Config.PasswordOrPIN"));
-		binder.forField(passwordField)
+		this.binder.forField(passwordField)
 		        .withNullRepresentation("")
 		        .bind(Config::getPinForField, Config::setPinForField);
 
@@ -238,14 +241,14 @@ public class ConfigEditingFormFactory
 		TextField accessListField = new TextField();
 		accessListField.setWidthFull();
 		configLayout.addFormItem(accessListField, Translator.translate("Config.AccessList"));
-		binder.forField(accessListField)
+		this.binder.forField(accessListField)
 		        .withNullRepresentation("")
 		        .bind(Config::getIpAccessList, Config::setIpAccessList);
 
 		PasswordField displayPasswordField = new PasswordField();
 		displayPasswordField.setWidthFull();
 		configLayout.addFormItem(displayPasswordField, Translator.translate("Config.DisplayPIN"));
-		binder.forField(displayPasswordField)
+		this.binder.forField(displayPasswordField)
 		        .withNullRepresentation("")
 		        .bind(Config::getDisplayPinForField, Config::setDisplayPinForField);
 
@@ -254,14 +257,14 @@ public class ConfigEditingFormFactory
 		TextField displayListField = new TextField();
 		displayListField.setWidthFull();
 		configLayout.addFormItem(displayListField, Translator.translate("Config.DisplayAccessList"));
-		binder.forField(displayListField)
+		this.binder.forField(displayListField)
 		        .withNullRepresentation("")
 		        .bind(Config::getIpDisplayList, Config::setIpDisplayList);
 
 		TextField backdoorField = new TextField();
 		backdoorField.setWidthFull();
 		configLayout.addFormItem(backdoorField, Translator.translate("Config.Backdoor"));
-		binder.forField(backdoorField)
+		this.binder.forField(backdoorField)
 		        .withNullRepresentation("")
 		        .bind(Config::getIpBackdoorList, Config::setIpBackdoorList);
 
@@ -293,7 +296,7 @@ public class ConfigEditingFormFactory
 		featureSwitchesField.setWidthFull();
 		FormItem fi = layout.addFormItem(featureSwitchesField, Translator.translate("Config.FeatureSwitchesLabel"));
 		layout.setColspan(fi, 2);
-		binder.forField(featureSwitchesField)
+		this.binder.forField(featureSwitchesField)
 		        .withNullRepresentation("")
 		        .bind(Config::getFeatureSwitches, Config::setFeatureSwitches);
 
@@ -309,7 +312,7 @@ public class ConfigEditingFormFactory
 		ZipFileField accessListField = new ZipFileField();
 		accessListField.setWidthFull();
 		layout.addFormItem(accessListField, Translator.translate("Config.UploadLabel"));
-		binder.forField(accessListField)
+		this.binder.forField(accessListField)
 		        .bind(Config::getLocalZipBlob, Config::setLocalZipBlob);
 
 		byte[] localOverride = Config.getCurrent().getLocalZipBlob();
@@ -323,18 +326,18 @@ public class ConfigEditingFormFactory
 		Checkbox clearField = new Checkbox(Translator.translate("Config.ClearZip"));
 		clearField.setWidthFull();
 		layout.addFormItem(clearField, Translator.translate("Config.ClearZipLabel"));
-		binder.forField(clearField)
+		this.binder.forField(clearField)
 		        .bind(Config::isClearZip, Config::setClearZip);
-		
+
 		layout.addFormItem(new Div(), "");
-		
+
 		Div localDirZipDiv = null;
 		localDirZipDiv = DownloadButtonFactory.createDynamicZipDownloadButton("resourcesOverride",
 		        Translator.translate("Config.Download"), () -> ResourceWalker.zipPublicResultsConfig());
 		localDirZipDiv.setEnabled(ResourceWalker.existsLocalOverrideDirectory());
 		localDirZipDiv.setWidthFull();
 		layout.addFormItem(localDirZipDiv, Translator.translate("Config.DownloadLocalDirZipLabel"));
-		
+
 		Button uploadButton = new Button(Translator.translate("LocalOverride.DirUploadButton"));
 		MemoryBuffer receiver = new MemoryBuffer();
 		uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -347,25 +350,10 @@ public class ConfigEditingFormFactory
 				ZipUtils.deleteDirectoryRecursively(curDir);
 				ZipUtils.extractZip(receiver.getInputStream(), curDir);
 			} catch (IOException e1) {
-				LoggerUtils.logError(logger,e1);
+				LoggerUtils.logError(this.logger, e1);
 			}
 		});
 		layout.addFormItem(uploadZip, Translator.translate("LocalOverride.Title"));
-	
-		return layout;
-	}
-	
-	private FormLayout templateSelectionForm() {
-		FormLayout layout = createLayout();
-		Component title = createTitle("Config.TemplateSelection");
-		layout.add(title);
-		layout.setColspan(title, 2);
-		
-		Checkbox localTemplatesField = new Checkbox(Translator.translate("Config.LocalTemplate"));
-		localTemplatesField.setWidthFull();
-		layout.addFormItem(localTemplatesField, Translator.translate("Config.LocalTemplateLabel"));
-		binder.forField(localTemplatesField)
-		        .bind(Config::isLocalTemplatesOnly, Config::setLocalTemplatesOnly);
 
 		return layout;
 	}
@@ -389,14 +377,14 @@ public class ConfigEditingFormFactory
 		TextField mqttUserName = new TextField();
 		mqttUserName.setWidthFull();
 		layout.addFormItem(mqttUserName, Translator.translate("Config.MQTTUserName"));
-		binder.forField(mqttUserName)
+		this.binder.forField(mqttUserName)
 		        .withNullRepresentation("")
 		        .bind(Config::getMqttUserName, Config::setMqttUserName);
 
 		PasswordField mqttPassword = new PasswordField();
 		mqttPassword.setWidthFull();
 		layout.addFormItem(mqttPassword, Translator.translate("Config.MQTTPassword"));
-		binder.forField(mqttPassword)
+		this.binder.forField(mqttPassword)
 		        .withNullRepresentation("")
 		        .bind(Config::getMqttPasswordForField, Config::setMqttPasswordForField);
 
@@ -404,14 +392,14 @@ public class ConfigEditingFormFactory
 		mqttPort.setWidthFull();
 		mqttPort.setAllowedCharPattern("[0-9]");
 		layout.addFormItem(mqttPort, Translator.translate("Config.MQTTPort"));
-		binder.forField(mqttPort)
+		this.binder.forField(mqttPort)
 		        .withNullRepresentation("")
 		        .bind(Config::getMqttPort, Config::setMqttPort);
 
 		Checkbox clearField = new Checkbox(Translator.translate("Config.MQTTEnableInternalExplain"));
 		clearField.setWidthFull();
 		layout.addFormItem(clearField, Translator.translate("Config.MQTTEnableInternal"));
-		binder.forField(clearField)
+		this.binder.forField(clearField)
 		        .bind(Config::isMqttInternal, Config::setMqttInternal);
 
 		return layout;
@@ -427,7 +415,7 @@ public class ConfigEditingFormFactory
 		defaultLocaleField.setClearButtonVisible(true);
 		defaultLocaleField.setItems(new ListDataProvider<>(Translator.getAllAvailableLocales()));
 		defaultLocaleField.setItemLabelGenerator((locale) -> locale.getDisplayName(locale));
-		binder.forField(defaultLocaleField).bind(Config::getDefaultLocale, Config::setDefaultLocale);
+		this.binder.forField(defaultLocaleField).bind(Config::getDefaultLocale, Config::setDefaultLocale);
 		layout.addFormItem(defaultLocaleField, Translator.translate("Competition.defaultLocale"));
 
 		return layout;
@@ -439,23 +427,46 @@ public class ConfigEditingFormFactory
 		layout.add(title);
 		layout.setColspan(title, 2);
 
-		TextField federationField = new TextField();
-		federationField.setWidthFull();
-		layout.addFormItem(federationField, Translator.translate("Config.publicResultsURL"));
-		binder.forField(federationField)
+		TextField publicResultsField = new TextField();
+		publicResultsField.setWidthFull();
+		layout.addFormItem(publicResultsField, Translator.translate("Config.publicResultsURL"));
+		this.binder.forField(publicResultsField)
 		        .withNullRepresentation("")
 		        .bind(Config::getPublicResultsURL, Config::setPublicResultsURL);
 
 		PasswordField updateKey = new PasswordField();
 		updateKey.setWidthFull();
 		layout.addFormItem(updateKey, Translator.translate("Config.UpdateKey"));
-		binder.forField(updateKey)
+		this.binder.forField(updateKey)
 		        .withNullRepresentation("")
 		        .bind(Config::getUpdatekey, Config::setUpdatekey);
 
 		return layout;
 	}
 
+	private FormLayout videoDataForm() {
+		FormLayout layout = createLayout();
+		Component title = createTitle("Config.VideoDataTitle");
+		layout.add(title);
+		layout.setColspan(title, 2);
+
+		TextField videoDataField = new TextField();
+		videoDataField.setWidthFull();
+		layout.addFormItem(videoDataField, Translator.translate("Config.videoDataURL"));
+		this.binder.forField(videoDataField)
+		        .withNullRepresentation("")
+		        .bind(Config::getVideoDataURL, Config::setVideoDataURL);
+
+		PasswordField updateKey = new PasswordField();
+		updateKey.setWidthFull();
+		layout.addFormItem(updateKey, Translator.translate("Config.UpdateKey"));
+		this.binder.forField(updateKey)
+		        .withNullRepresentation("")
+		        .bind(Config::getVideoDataKey, Config::setVideoDataKey);
+
+		return layout;
+	}
+	
 	private Hr separator() {
 		Hr hr = new Hr();
 		hr.getStyle().set("margin-top", "0.5em");
@@ -474,16 +485,31 @@ public class ConfigEditingFormFactory
 		TextField stylesField = new TextField();
 		stylesField.setWidthFull();
 		layout.addFormItem(stylesField, Translator.translate("Config.stylesLabel"));
-		binder.forField(stylesField)
+		this.binder.forField(stylesField)
 		        .withNullRepresentation("")
 		        .bind(Config::getStylesDirBase, Config::setStylesDirectory);
 
 		TextField videoStylesField = new TextField();
 		videoStylesField.setWidthFull();
 		layout.addFormItem(videoStylesField, Translator.translate("Config.videoStylesLabel"));
-		binder.forField(videoStylesField)
+		this.binder.forField(videoStylesField)
 		        .withNullRepresentation("")
 		        .bind(Config::getVideoStylesDirBase, Config::setVideoStylesDirectory);
+
+		return layout;
+	}
+
+	private FormLayout templateSelectionForm() {
+		FormLayout layout = createLayout();
+		Component title = createTitle("Config.TemplateSelection");
+		layout.add(title);
+		layout.setColspan(title, 2);
+
+		Checkbox localTemplatesField = new Checkbox(Translator.translate("Config.LocalTemplate"));
+		localTemplatesField.setWidthFull();
+		layout.addFormItem(localTemplatesField, Translator.translate("Config.LocalTemplateLabel"));
+		this.binder.forField(localTemplatesField)
+		        .bind(Config::isLocalTemplatesOnly, Config::setLocalTemplatesOnly);
 
 		return layout;
 	}
@@ -516,7 +542,7 @@ public class ConfigEditingFormFactory
 		ListItem browserTZ = new ListItem();
 		Span browserTZText = new Span();
 		Button browserTZButton = new Button("", (e) -> {
-			tzCombo.setValue(browserZoneId != null ? TimeZone.getTimeZone(browserZoneId) : null);
+			tzCombo.setValue(this.browserZoneId != null ? TimeZone.getTimeZone(this.browserZoneId) : null);
 		});
 		browserTZ.add(browserTZText, browserTZButton);
 
@@ -536,14 +562,14 @@ public class ConfigEditingFormFactory
 		tzCombo.setItems(tzList);
 		tzCombo.setItemLabelGenerator((tzone) -> TimeZoneUtils.toIdWithOffsetString(tzone));
 		tzCombo.setClearButtonVisible(true);
-		binder.forField(tzCombo)
+		this.binder.forField(tzCombo)
 		        // .withNullRepresentation("Etc/GMT")
 		        .bind(Config::getTimeZone, Config::setTimeZone);
 
 		PendingJavaScriptResult pendingResult = UI.getCurrent().getPage()
 		        .executeJs("return Intl.DateTimeFormat().resolvedOptions().timeZone");
 		pendingResult.then(String.class, (res) -> {
-			browserZoneId = res;
+			this.browserZoneId = res;
 			String defZone = TimeZoneUtils.toIdWithOffsetString(TimeZone.getDefault());
 			String browserZoneText = TimeZoneUtils.toIdWithOffsetString(TimeZone.getTimeZone(res));
 			browserTZText.getElement().setProperty("innerHTML",

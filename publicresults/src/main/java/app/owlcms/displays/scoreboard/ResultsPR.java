@@ -100,6 +100,7 @@ public class ResultsPR extends LitTemplate
     private boolean defaultLeadersDisplay;
     private boolean liftingOrder;
     private boolean done;
+    private int lastHashCode;
 
     /**
      * Instantiates a new results board.
@@ -268,7 +269,7 @@ public class ResultsPR extends LitTemplate
      */
     @Override
     public void setShowInitialDialog(boolean b) {
-        //logger.debug("setShowInitialDialog {} {}",b, LoggerUtils.stackTrace());
+        // logger.debug("setShowInitialDialog {} {}",b, LoggerUtils.stackTrace());
         this.setInitializationNeeded(true);
     }
 
@@ -356,7 +357,13 @@ public class ResultsPR extends LitTemplate
     }
 
     @Subscribe
-    public void slaveGlobalRankingUpdated(UpdateEvent e) {
+    public void slaveUpdateEvent(UpdateEvent e) {
+        // ignore identical updates
+        if (e.getHashCode() == this.lastHashCode) {
+            return;
+        }
+        this.lastHashCode = e.getHashCode();
+
         if (StartupUtils.isDebugSetting()) {
             logger./**/warn("### {} received UpdateEvent {} {} {}", System.identityHashCode(this), getFopName(),
                     e.getFopName(), e);
@@ -375,12 +382,12 @@ public class ResultsPR extends LitTemplate
             setDone(e.isDone());
 
             setBoardMode(e.getMode());
-            String group = e.getGroupName();
+            String groupInfo = e.getGroupInfo();
             String description = null;
-            if (group != null) {
+            if (groupInfo != null) {
                 description = e.getGroupDescription();
                 if (description == null) {
-                    description = Translator.translate("Group_number", group);
+                    description = Translator.translate("Group_number", groupInfo);
                 }
             }
             this.getElement().setProperty("groupDescription", description != null ? description : "");
@@ -428,13 +435,19 @@ public class ResultsPR extends LitTemplate
             this.getElement().setPropertyJson("t",
                     translationMap != null ? jreJsonFactory.parse(translationMap) : Json.createNull());
 
-            getElement().setProperty("noLiftRanks", e.getNoLiftRanks());
-
+            // following two are fixed in owlcms
+            getElement().setProperty("showTotal", true);
+            getElement().setProperty("showBest", true);
+            
+            getElement().setProperty("showLiftRanks", e.isShowLiftRanks());
+            getElement().setProperty("showTotalRank",  e.isShowTotalRank());
+            getElement().setProperty("showSinclair", e.isShowSinclair());
+            getElement().setProperty("showSinclairRanks", e.isShowSinclairRank());
+            
             getElement().setProperty("competitionName", e.getCompetitionName());
             getElement().setProperty("attempt", e.getAttempt());
             getElement().setProperty("fullName", e.getFullName());
-            String groupName = e.getGroupName();
-            getElement().setProperty("groupName", groupName);
+            getElement().setProperty("groupInfo", e.getGroupInfo());
             getElement().setProperty("startNumber", e.getStartNumber());
             getElement().setProperty("teamName", e.getTeamName());
             getElement().setProperty("weight", e.getWeight() != null ? e.getWeight() : 0);
@@ -489,7 +502,6 @@ public class ResultsPR extends LitTemplate
             SoundUtils.enableAudioContextNotification(this.getElement());
         }
 
-
         this.ui = UI.getCurrent();
 
         eventBusRegister(this, TimerReceiverServlet.getEventBus());
@@ -499,11 +511,11 @@ public class ResultsPR extends LitTemplate
         // setDarkMode(this, isDarkMode(), false);
         UpdateEvent initEvent = UpdateReceiverServlet.sync(getFopName());
         if (initEvent != null) {
-            slaveGlobalRankingUpdated(initEvent);
+            slaveUpdateEvent(initEvent);
             this.timer.slaveOrderUpdated(initEvent);
         } else {
             getElement().setProperty("fulName", Translator.translate("WaitingForSite"));
-            getElement().setProperty("groupName", "");
+            getElement().setProperty("groupInfo", "");
         }
     }
 
@@ -555,6 +567,10 @@ public class ResultsPR extends LitTemplate
         }
     }
 
+    private boolean isInitializationNeeded() {
+        return this.initializationNeeded;
+    }
+
     private void setBoardMode(String mode) {
         // logger.debug("set board mode {} from {}", mode, LoggerUtils.whereFrom());
         this.getElement().setProperty("mode", mode);
@@ -564,15 +580,11 @@ public class ResultsPR extends LitTemplate
         this.done = done;
     }
 
-    private void setWideTeamNames(boolean wide) {
-        this.getElement().setProperty("teamWidthClass", (wide ? "wideTeams" : "narrowTeams"));
-    }
-
-    private boolean isInitializationNeeded() {
-        return initializationNeeded;
-    }
-
     private void setInitializationNeeded(boolean initializationNeeded) {
         this.initializationNeeded = initializationNeeded;
+    }
+
+    private void setWideTeamNames(boolean wide) {
+        this.getElement().setProperty("teamWidthClass", (wide ? "wideTeams" : "narrowTeams"));
     }
 }

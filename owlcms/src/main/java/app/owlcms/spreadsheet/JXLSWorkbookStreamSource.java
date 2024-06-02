@@ -46,8 +46,8 @@ import com.vaadin.flow.server.InputStreamFactory;
 import com.vaadin.flow.server.StreamResourceWriter;
 import com.vaadin.flow.server.VaadinSession;
 
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
@@ -77,7 +77,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		tagLogger.setLevel(Level.ERROR);
 	}
 	protected List<Athlete> sortedAthletes;
-	private AgeDivision ageDivision;
+	private Championship championship;
 	private String ageGroupPrefix;
 	private Category category;
 	private boolean excludeNotWeighed;
@@ -141,8 +141,8 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	/**
 	 * @return the ageDivision
 	 */
-	public AgeDivision getAgeDivision() {
-		return this.ageDivision;
+	public Championship getChampionship() {
+		return this.championship;
 	}
 
 	/**
@@ -204,12 +204,16 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return this.templateFileName;
 	}
 
+	public boolean isEmptyOk() {
+		return this.emptyOk;
+	}
+
 	public boolean isExcludeNotWeighed() {
 		return this.excludeNotWeighed;
 	}
 
-	public void setAgeDivision(AgeDivision ageDivision) {
-		this.ageDivision = ageDivision;
+	public void setChampionship(Championship championship) {
+		this.championship = championship;
 	}
 
 	/**
@@ -340,10 +344,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 
 	protected void init() {
 		setReportingBeans(new HashMap<>());
-	}
-
-	public boolean isEmptyOk() {
-		return this.emptyOk;
 	}
 
 	protected void postProcess(Workbook workbook) {

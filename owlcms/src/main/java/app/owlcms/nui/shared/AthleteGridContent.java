@@ -210,7 +210,7 @@ public abstract class AthleteGridContent extends BaseContent
 	protected BreakDialog breakDialog;
 	protected HorizontalLayout breaks;
 	protected HorizontalLayout buttons;
-	protected OwlcmsCrudGrid<Athlete> crudGrid;
+	private OwlcmsCrudGrid<Athlete> crudGrid;
 	protected OwlcmsGridLayout crudLayout;
 	protected JuryDisplayDecisionElement decisionDisplay;
 	protected HorizontalLayout decisions;
@@ -339,7 +339,7 @@ public abstract class AthleteGridContent extends BaseContent
 	@Override
 	public void closeDialog() {
 		this.crudLayout.hideForm();
-		this.crudGrid.getGrid().asSingleSelect().clear();
+		this.getCrudGrid().getGrid().asSingleSelect().clear();
 	}
 
 	/**
@@ -488,7 +488,7 @@ public abstract class AthleteGridContent extends BaseContent
 
 	@Override
 	public OwlcmsCrudGrid<?> getEditingGrid() {
-		return this.crudGrid;
+		return this.getCrudGrid();
 	}
 
 	public H3 getFirstNameWrapper() {
@@ -695,68 +695,67 @@ public abstract class AthleteGridContent extends BaseContent
 			String style = "warning";
 			int previousAttemptNo;
 
-
 			// logger.debug("slaveJuryNotification {} {} {}", et,
 			// e.getDeliberationEventType(), e.getTrace());
 			switch (et) {
-			case CALL_REFEREES:
-				text = Translator.translate("JuryNotification." + et.name());
-				if (!this.summonNotificationSent) {
-					doNotification(text, style);
-				}
-				this.summonNotificationSent = true;
-				return;
-			case START_DELIBERATION:
-				text = Translator.translate("JuryNotification." + et.name());
-				if (!this.deliberationNotificationSent) {
-					doNotification(text, style);
-				}
-				this.deliberationNotificationSent = true;
-				return;
-			case CHALLENGE:
-				text = Translator.translate("JuryNotification." + et.name());
-				if (!this.deliberationNotificationSent) {
-					doNotification(text, style);
-				}
-				this.deliberationNotificationSent = true;
-				return;
-			case END_CALL_REFEREES:
-			case END_DELIBERATION:
-			case END_TECHNICAL_PAUSE:
-			case END_CHALLENGE:
-				text = Translator.translate("JuryNotification." + et.name());
-				break;
-			case BAD_LIFT:
-				previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-				text = Translator.translate("JuryNotification.BadLift", reversalText, e.getAthlete().getFullName(),
-				        previousAttemptNo % 3 + 1);
-				style = "primary error";
-				break;
-			case CALL_TECHNICAL_CONTROLLER:
-				text = Translator.translate("JuryNotification.CallTechnicalController");
-				break;
-			case GOOD_LIFT:
-				previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-				text = Translator.translate("JuryNotification.GoodLift", reversalText, e.getAthlete().getFullName(),
-				        previousAttemptNo % 3 + 1);
-				style = "primary success";
-				break;
-			case LOADING_ERROR:
-				text = Translator.translate("JuryNotification.LoadingError");
-				break;
-			case END_JURY_BREAK:
-				this.summonNotificationSent = false;
-				this.deliberationNotificationSent = false;
-				text = Translator.translate("JuryNotification.END_JURY_BREAK");
-				break;
-			case TECHNICAL_PAUSE:
-				text = Translator.translate("BreakType.TECHNICAL");
-				break;
-			case MARSHALL:
-				text = Translator.translate("BreakType.MARSHAL");
-				break;
-			default:
-				break;
+				case CALL_REFEREES:
+					text = Translator.translate("JuryNotification." + et.name());
+					if (!this.summonNotificationSent) {
+						doNotification(text, style);
+					}
+					this.summonNotificationSent = true;
+					return;
+				case START_DELIBERATION:
+					text = Translator.translate("JuryNotification." + et.name());
+					if (!this.deliberationNotificationSent) {
+						doNotification(text, style);
+					}
+					this.deliberationNotificationSent = true;
+					return;
+				case CHALLENGE:
+					text = Translator.translate("JuryNotification." + et.name());
+					if (!this.deliberationNotificationSent) {
+						doNotification(text, style);
+					}
+					this.deliberationNotificationSent = true;
+					return;
+				case END_CALL_REFEREES:
+				case END_DELIBERATION:
+				case END_TECHNICAL_PAUSE:
+				case END_CHALLENGE:
+					text = Translator.translate("JuryNotification." + et.name());
+					break;
+				case BAD_LIFT:
+					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
+					text = Translator.translate("JuryNotification.BadLift", reversalText, e.getAthlete().getFullName(),
+					        previousAttemptNo % 3 + 1);
+					style = "primary error";
+					break;
+				case CALL_TECHNICAL_CONTROLLER:
+					text = Translator.translate("JuryNotification.CallTechnicalController");
+					break;
+				case GOOD_LIFT:
+					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
+					text = Translator.translate("JuryNotification.GoodLift", reversalText, e.getAthlete().getFullName(),
+					        previousAttemptNo % 3 + 1);
+					style = "primary success";
+					break;
+				case LOADING_ERROR:
+					text = Translator.translate("JuryNotification.LoadingError");
+					break;
+				case END_JURY_BREAK:
+					this.summonNotificationSent = false;
+					this.deliberationNotificationSent = false;
+					text = Translator.translate("JuryNotification.END_JURY_BREAK");
+					break;
+				case TECHNICAL_PAUSE:
+					text = Translator.translate("BreakType.TECHNICAL");
+					break;
+				case MARSHALL:
+					text = Translator.translate("BreakType.MARSHAL");
+					break;
+				default:
+					break;
 			}
 			doNotification(text, style);
 		});
@@ -850,12 +849,12 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	@Subscribe
 	public void slaveUpdateGrid(UIEvent.LiftingOrderUpdated e) {
-		if (this.crudGrid == null) {
+		if (this.getCrudGrid() == null) {
 			return;
 		}
 		logger.debug("{} {}", e.getOrigin(), LoggerUtils.whereFrom());
-		UIEventProcessor.uiAccess(this.crudGrid, this.uiEventBus, e, () -> {
-			this.crudGrid.refreshGrid();
+		UIEventProcessor.uiAccess(this.getCrudGrid(), this.uiEventBus, e, () -> {
+			this.getCrudGrid().refreshGrid();
 		});
 	}
 
@@ -979,6 +978,17 @@ public abstract class AthleteGridContent extends BaseContent
 		this.crudLayout.addToolbarComponent(getGroupFilter());
 
 		return crudGrid;
+	}
+
+	protected void createDecisionLights() {
+		this.decisionDisplay = new JuryDisplayDecisionElement();
+		this.decisionDisplay.setSilenced(isDownSilenced());
+		// Icon silenceIcon = AvIcons.MIC_OFF.create();
+		this.decisionLights = new HorizontalLayout(this.decisionDisplay);
+		this.decisionLights.addClassName("announcerLeft");
+		this.decisionLights.setWidth("12em");
+		this.decisionLights.getStyle().set("line-height", "2em");
+		this.decisionDisplay.getStyle().set("width", "9em");
 	}
 
 	/**
@@ -1220,6 +1230,14 @@ public abstract class AthleteGridContent extends BaseContent
 		horizontalLayout.getParent().get().getElement().setAttribute("style", "width: 100%");
 	}
 
+	protected void displayLiveDecisions() {
+		if (this.decisionLights == null) {
+			getTopBarLeft().removeAll();
+			createDecisionLights();
+			getTopBarLeft().add(this.decisionLights);
+		}
+	}
+
 	protected void do1Minute() {
 		OwlcmsSession.withFop(fop -> {
 			fop.fopEventPost(new FOPEvent.ForceTime(60000, this.getOrigin()));
@@ -1246,7 +1264,6 @@ public abstract class AthleteGridContent extends BaseContent
 		n.add(label);
 		n.open();
 		n.open();
-		return;
 	}
 
 	protected void doStartTime() {
@@ -1384,16 +1401,22 @@ public abstract class AthleteGridContent extends BaseContent
 		return this.topBarTitle;
 	}
 
+	protected void hideLiveDecisions() {
+		getTopBarLeft().removeAll();
+		fillTopBarLeft();
+		this.decisionLights = null;
+	}
+
 	/**
-	 * 
+	 *
 	 */
 	protected void init() {
 		this.id = IdUtils.getTimeBasedId();
 		OwlcmsCrudFormFactory<Athlete> crudFormFactory = createFormFactory();
-		this.crudGrid = createCrudGrid(crudFormFactory);
-		this.crudLayout = (OwlcmsGridLayout) this.crudGrid.getCrudLayout();
-		defineFilters(this.crudGrid);
-		fillHW(this.crudGrid, this);
+		this.setCrudGrid(createCrudGrid(crudFormFactory));
+		this.crudLayout = (OwlcmsGridLayout) this.getCrudGrid().getCrudLayout();
+		defineFilters(this.getCrudGrid());
+		fillHW(this.getCrudGrid(), this);
 		setDownSilenced(true);
 	}
 
@@ -1450,9 +1473,9 @@ public abstract class AthleteGridContent extends BaseContent
 
 			if (refreshGrid) {
 				// ** this.setValue(fopGroup);
-				if (this.crudGrid != null) {
-					this.crudGrid.sort(null);
-					this.crudGrid.refreshGrid();
+				if (this.getCrudGrid() != null) {
+					this.getCrudGrid().sort(null);
+					this.getCrudGrid().refreshGrid();
 				}
 			}
 
@@ -1641,29 +1664,20 @@ public abstract class AthleteGridContent extends BaseContent
 		}
 	}
 
-	protected void createDecisionLights() {
-		this.decisionDisplay = new JuryDisplayDecisionElement();
-		this.decisionDisplay.setSilenced(isDownSilenced());
-		// Icon silenceIcon = AvIcons.MIC_OFF.create();
-		this.decisionLights = new HorizontalLayout(this.decisionDisplay);
-		this.decisionLights.addClassName("announcerLeft");
-		this.decisionLights.setWidth("12em");
-		this.decisionLights.getStyle().set("line-height", "2em");
-		this.decisionDisplay.getStyle().set("width", "9em");
+	protected OwlcmsCrudGrid<Athlete> getCrudGrid() {
+		return crudGrid;
 	}
 
-	protected void displayLiveDecisions() {
-		if (this.decisionLights == null) {
-			getTopBarLeft().removeAll();
-			createDecisionLights();
-			getTopBarLeft().add(this.decisionLights);
-		}
+	protected void setCrudGrid(OwlcmsCrudGrid<Athlete> crudGrid) {
+		this.crudGrid = crudGrid;
 	}
 
-	protected void hideLiveDecisions() {
-		getTopBarLeft().removeAll();
-		fillTopBarLeft();
-		this.decisionLights = null;
+	protected ComboBox<Gender> getGenderFilter() {
+		return genderFilter;
+	}
+
+	protected void setGenderFilter(ComboBox<Gender> genderFilter) {
+		this.genderFilter = genderFilter;
 	}
 
 }
