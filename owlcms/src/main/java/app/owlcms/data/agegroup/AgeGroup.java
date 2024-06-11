@@ -191,6 +191,9 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		}
 		int compare = 0;
 
+		if (a == null) {
+			return 0; // we are equal
+		}
 		compare = ObjectUtils.compare(a.getGender(), b.getGender());
 		if (compare != 0) {
 			//logger.debug("agegroup gender {} {} {} ", a.getGender(), compare > 0 ? ">" : "<",  b.getGender());
@@ -301,7 +304,11 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	}
 
 	public Gender getGender() {
-		return this.gender;
+		if (this.gender == null) {
+			return Gender.I;
+		} else {
+			return this.gender;
+		}
 	}
 
 	public Long getId() {

@@ -575,8 +575,10 @@ public class CurrentAthlete extends Results {
 	}
 
 	private String formatKg(String total) {
+//		return (total == null || total.trim().isEmpty()) ? "-"
+//		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ?  total.substring(1) : total);
 	}
 
 	private Object getOrigin() {

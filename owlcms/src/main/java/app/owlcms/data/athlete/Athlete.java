@@ -1727,7 +1727,11 @@ public class Athlete {
 	 * @return the gender
 	 */
 	public Gender getGender() {
-		return this.gender;
+		if (this.gender == null) {
+			return Gender.I;
+		} else {
+			return this.gender;
+		}
 	}
 
 	public Integer getGmaxRank() {
