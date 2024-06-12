@@ -75,8 +75,8 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
     border-radius: 5px 5px 5px 5px;
     margin-left: 4px;
     padding-left: 4px;
-    padding-right: 15px;
-    width: 1112px;
+    /*padding-right: 15px;*/
+    width: 1122px;
 }
 
 .attemptBar .bg tbody tr td {
@@ -101,26 +101,30 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 .attemptBar .bg .fullName {
     /*font-size: 110%;*/
     justify-self: left;
-    width: 429px;
+    width: 690px;
     padding-left: 4px;
 }
 
-.attemptBar .bg .club {
-    width: var(--club-width);
+.attemptBar .bg .clubName {
+    /*width: var(--club-width);
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
+    text-overflow: ellipsis;*/
+    text-align: right;
+    font-weight: 300;
 }
 
 .attemptBar .bg .attempt {
 }
 
 .attemptBar .bg .weight {
-    color: #ffffff;
+    color: white;
+    text-align: center;
 }
 
 .attemptBar .bg .timer {
     font-weight: bold;
+    text-align: right;
 }
 
 .attemptBar .decisionBox {

@@ -32,16 +32,10 @@ class CurrentAthlete extends LitElement {
               <div>${this.fullName}</div>
             </td>
             <td class="clubName">
-              <div>${this.teamName}</div>
-            </td>
-            <td class="attempt">
-              <div>${this.attempt}</div>
+              (${this.teamName})
             </td>
             <td class="weight">
-              <span >${this.weight}<span style="font-size: 100%" >&nbsp;${this.t?.KgSymbol}</span></span>
-            </td>
-            <td class="timer athleteTimer">
-              <timer-element id="timer"></timer-element>
+              <span >${this.weight}<span style="font-size: 100%" >${this.t?.KgSymbol}</span></span>
             </td>
             <td class="decisionBox">
               <decision-element id="decisions" style="padding:1ex"></decision-element>
