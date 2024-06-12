@@ -29,10 +29,10 @@ class CurrentAthlete extends LitElement {
               <div>${this.startNumber}</div>
             </td>
             <td class="fullName">
-              <div>${this.fullName}</div>
-            </td>
-            <td class="clubName">
-              (${this.teamName})
+              <span>${this.fullName}</span>
+              <span class="clubName">
+                (${this.teamName})
+              </span>
             </td>
             <td class="weight">
               <span >${this.weight}<span style="font-size: 100%" >${this.t?.KgSymbol}</span></span>

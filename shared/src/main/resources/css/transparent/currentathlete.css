@@ -101,7 +101,7 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 .attemptBar .bg .fullName {
     /*font-size: 110%;*/
     justify-self: left;
-    width: 690px;
+    width: 890px;
     padding-left: 4px;
 }
 
@@ -112,6 +112,7 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
     text-overflow: ellipsis;*/
     text-align: right;
     font-weight: 300;
+    font-size: 18px;
 }
 
 .attemptBar .bg .attempt {
