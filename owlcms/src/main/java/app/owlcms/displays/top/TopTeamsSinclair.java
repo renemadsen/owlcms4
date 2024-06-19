@@ -59,7 +59,7 @@ import elemental.json.JsonValue;
 public class TopTeamsSinclair extends AbstractTop {
 
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(TopTeamsSinclair.class);
-	private static final int SHOWN_ON_BOARD = 5;
+	private static final int SHOWN_ON_BOARD = 6;
 	final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
 
 	static {
@@ -93,13 +93,12 @@ public class TopTeamsSinclair extends AbstractTop {
 	}
 
 	public void doUpdate(Competition competition) {
-		this.getElement().setProperty("competitionName", competition.getCurrent().getCompetitionName());
 		FieldOfPlay fop = OwlcmsSession.getFop();
 		setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 
 		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
-		        (Gender) null,
-				competition.getCurrent().getScoringSystem(), true);
+				(Gender) null,
+				Competition.getCurrent().getScoringSystem(), true);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamResultsTreeData.getTeamItemsByGender();
 
 		this.mensTeams = teamsByGender.get(Gender.M);
@@ -117,6 +116,9 @@ public class TopTeamsSinclair extends AbstractTop {
 		updateBottom();
 	}
 
+//	@Override
+//	public void setVideo(boolean video) {
+//	}
 
 	@Override
 	@Subscribe
@@ -156,7 +158,7 @@ public class TopTeamsSinclair extends AbstractTop {
 			uiEventLogger.debug("### {} {}", this.getClass().getSimpleName(), LoggerUtils.whereFrom());
 		} else {
 			uiEventLogger.debug("### {} {} {}", this.getClass().getSimpleName(), e.getClass().getSimpleName(),
-			        LoggerUtils.whereFrom());
+					LoggerUtils.whereFrom());
 		}
 	}
 
@@ -210,10 +212,9 @@ public class TopTeamsSinclair extends AbstractTop {
 
 	private String computeAgeGroupSuffix() {
 		String suffix = null;
-//		if (getAgeGroupPrefix() != null) {
-//			suffix = getAgeGroupPrefix();
-//		}
-// TODO change so we don't have this always.
+		if (getAgeGroupPrefix() != null) {
+			suffix = getAgeGroupPrefix();
+		}
 		return (suffix != null ? " &ndash; " + suffix : "");
 	}
 
@@ -245,8 +246,8 @@ public class TopTeamsSinclair extends AbstractTop {
 		JsonArray jath = Json.createArray();
 		int athx = 0;
 		List<Team> list3 = teamItems != null
-		        ? teamItems.stream().map(TeamTreeItem::getTeam).collect(Collectors.toList())
-		        : Collections.emptyList();
+				? teamItems.stream().map(TeamTreeItem::getTeam).collect(Collectors.toList())
+				: Collections.emptyList();
 		if (overrideTeamWidth) {
 			// when we are called for the second time, and there was a wide team in the top
 			// section.
@@ -288,15 +289,17 @@ public class TopTeamsSinclair extends AbstractTop {
 		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
 		String ssText = Ranking.getScoringTitle(scoringSystem);
 		this.getElement().setProperty("topTeamsMen",
-		        this.mensTeams != null && this.mensTeams.size() > 0
-		                ? Translator.translate("Scoreboard.TopTeamsScoreMen", ssText) + computeAgeGroupSuffix()
-		                : "");
+				this.mensTeams != null && this.mensTeams.size() > 0
+						//? Translator.translate("Scoreboard.TopTeamsScoreMen", ssText) + computeAgeGroupSuffix()
+						? Translator.translate("Scoreboard.TopTeamsScoreMen", ssText)
+						: "");
 		this.getElement().setPropertyJson("mensTeams", getTeamsJson(this.mensTeams, true));
 
 		this.getElement().setProperty("topTeamsWomen",
-		        this.womensTeams != null && this.womensTeams.size() > 0
-		                ? Translator.translate("Scoreboard.TopTeamsScoreWomen", ssText) + computeAgeGroupSuffix()
-		                : "");
+				this.womensTeams != null && this.womensTeams.size() > 0
+						//? Translator.translate("Scoreboard.TopTeamsScoreWomen", ssText) + computeAgeGroupSuffix()
+						? Translator.translate("Scoreboard.TopTeamsScoreWomen", ssText)
+						: "");
 		this.getElement().setPropertyJson("womensTeams", getTeamsJson(this.womensTeams, false));
 	}
 
