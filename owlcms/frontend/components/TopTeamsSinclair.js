@@ -21,14 +21,6 @@ class TopTeamsSinclair extends LitElement {
         <decision-element id="decisions"></decision-element>
       </div>
      <div id="resultBoardDiv" class="${this.activeClasses()}">
-       <div class="video" style="${this.videoHeaderStyles()}">
-         <div class="eventlogo"></div>
-         <div class="videoheader">
-           <div class="groupName">${this.competitionName}</div>
-           <div>${this.groupDescription}</div>
-         </div>
-         <div class="federationlogo"></div>
-       </div>
         ${this.topTeamsWomen
           ? html`
               <h2 class="fullName" id="fullNameDivWomen" .innerHTML="${this.topTeamsWomen}" ></h2>

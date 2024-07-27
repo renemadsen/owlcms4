@@ -152,6 +152,9 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		// no age division
 		String ageDivisionName = (ageDivisionParams != null && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0)
 		        : null);
+		if (ageDivisionName == null) {
+			ageDivisionName = Championship.DEFAULT;
+		}
 		try {
 			setChampionship(Championship.of(ageDivisionName));
 		} catch (Exception e) {

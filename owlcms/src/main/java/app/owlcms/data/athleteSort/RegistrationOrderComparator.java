@@ -35,6 +35,10 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		if (category2 == null) {
 			return -1; // category1 is smaller than null -- null goes to the end;
 		}
+
+		if (category1 == null) {
+			return 1; // null is smaller than category2
+		}
 		
 		int compare;
 		
@@ -80,7 +84,11 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 	public static Comparator<Athlete> athleteRegistrationOrderComparator = (lifter1, lifter2) -> {
 		int compare;
 		if (!Competition.getCurrent().isDisplayByAgeGroup()) {
-			compare = ageGroupRegistrationComparator.compare(lifter1.getAgeGroup(), lifter2.getAgeGroup());
+			var lifter1AgeGroup = lifter1.getAgeGroup();
+			var lifter2AgeGroup = lifter2.getAgeGroup();
+
+			//compare = ageGroupRegistrationComparator.compare(lifter1.getAgeGroup(), lifter2.getAgeGroup());
+			compare = ageGroupRegistrationComparator.compare(lifter1AgeGroup, lifter2AgeGroup);
 			if (compare != 0) {
 				traceComparison("RegistrationOrderComparator ageGroup", lifter1, lifter1.getAgeGroup(), lifter2,
 				        lifter2.getAgeGroup(), compare);

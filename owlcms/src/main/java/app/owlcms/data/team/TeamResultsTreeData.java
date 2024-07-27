@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import app.owlcms.data.agegroup.ChampionshipType;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.data.provider.hierarchy.TreeData;
@@ -66,6 +67,7 @@ public class TeamResultsTreeData extends TreeData<TeamTreeItem> {
 	        boolean includeNotDone) {
 		this.doneGroups = null; // force recompute.
 		if (ageDivision == null) {
+			//ageDivision = new Championship(ChampionshipType.DEFAULT);
 			return;
 		}
 		for (Gender gender : Gender.mfValues()) {
@@ -241,9 +243,9 @@ public class TeamResultsTreeData extends TreeData<TeamTreeItem> {
 		// logger.debug("init tree {} {}", ageGroupPrefix, ageDivision);
 		this.reportingBeans = Competition.getCurrent().computeReportingInfo(ageGroupPrefix, ageDivision);
 		buildTeamItemTree(this.reportingBeans, ageGroupPrefix, ageDivision, includeNotDone);
-		if (this.debug) {
+		//if (this.debug) {
 			dumpTeams();
-		}
+		//}
 
 		for (Gender g : Gender.values()) {
 			List<TeamTreeItem> teams = getTeamItemsByGender().get(g);

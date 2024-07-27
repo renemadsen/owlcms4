@@ -330,7 +330,8 @@ public class CurrentAthlete extends Results {
 				Group group = fop.getGroup();
 				if (!group.isDone()) {
 					logger.debug("updating top {} {} {}", a.getFullName(), group, System.identityHashCode(group));
-					getElement().setProperty("fullName", a.getFullName());
+					//getElement().setProperty("fullName", a.getFullName());
+					getElement().setProperty("fullName", a.getFirstName() + " " + a.getLastName());
 					getElement().setProperty("teamName", a.getTeam());
 					getElement().setProperty("startNumber", a.getStartNumber());
 					String formattedAttempt = formatAttempt(a.getAttemptsDone());
@@ -362,7 +363,8 @@ public class CurrentAthlete extends Results {
 	protected void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank, FieldOfPlay fop) {
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
-		ja.put("fullName", a.getFullName() != null ? a.getFullName() : "");
+		//ja.put("fullName", a.getFullName() != null ? a.getFullName() : "");
+		ja.put("fullName", a.getFirstName() + " " + a.getLastName());
 		ja.put("teamName", a.getTeam() != null ? a.getTeam() : "");
 		ja.put("yearOfBirth", a.getYearOfBirth() != null ? a.getYearOfBirth().toString() : "");
 		Integer startNumber = a.getStartNumber();
@@ -575,8 +577,10 @@ public class CurrentAthlete extends Results {
 	}
 
 	private String formatKg(String total) {
+//		return (total == null || total.trim().isEmpty()) ? "-"
+//		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ?  total.substring(1) : total);
 	}
 
 	private Object getOrigin() {
