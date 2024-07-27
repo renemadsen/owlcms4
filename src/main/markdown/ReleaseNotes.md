@@ -1,12 +1,14 @@
-**Version 48.0**
+**Version 48.0.5**
 
-> [!IMPORTANT]
+> [!CAUTION]
 >
 > - You should test all releases, with your own data, several days before a competition.
 
-- (rc18) publicresults: Fix processing of "." files that macOS (.DS_store) or Linux can produce
-- (rc17) Database connections were not being released when creating documents. Fixed by disabling auto-commit on both the database connection pool and in the persistence abstraction layer.
-- (rc17) Medal documents cleaned up
+- 48.0.5 Fix: backport of a version 49 fix for registration, document pages or weigh-in page not loading in rare cases.
+- 48.0.4: Feature: Backport of version 49  new and improved implementation of the athlete and break timers.  To activate, use the `serverTimers` [feature toggle](https://${env.REPO_OWNER}.github.io/${env.O_REPO_NAME}/#/FeatureToggles).  Use this if you occasionally observe delayed or random timer sounds in your setup.
+- Options for scoreboard ordering
+  - If the "Display categories ordered by age group" checkbox selected in the competition rules, the younger age groups are shown first on the scoreboard (lower start numbers and earlier weigh-in order).
+  - If this checkbox is *not* selected, then the athletes are grouped first by bodyweight category and then by lot number (strict TCRR interpretation).  A feature toggle `bwClassThenAgeGroup` is available to group the athletes by age group *within* the bodyweight category.
 - Championships and Final Results Package
   - The second column, previously empty, of the AgeGroups file is now used for a Championship Name. The third column is the championship type (IWF, MASTERS, etc.) 
   - You can name the Championship in your local language. For example: Youth, Junior, Senior, Masters, U13, U15, Junior High, Senior High, whatever you need.
@@ -40,7 +42,6 @@
   - Style sheets: improvements made for handling narrow (vertical) devices.  Ellipsis ("...") should now work correctly.
 - Attempt Board:
   - Very long family names (over 18 characters) are split over two lines; they will now split in a balanced way (except on Safari and iPad/iPhone browsers)
-
 - Publicresults and Video Event Forwarding:
   - The publicresults scoreboard now reflects the owlcms coach scoreboard faithfully (all the data is sent over)
   - The information sent for publicresults can now be sent to a second URL for interfacing with video production software. A web server at that URL can extract the information published by owlcms, and transform it for use by video software such as vMix.  See https://github.com/nemikor-solutions/wise-eyes for an example.
@@ -55,6 +56,8 @@
   - Fix: in v47 the SBDE reader was inverting the declarations and personal best values.
 - If the Feature Toggle `AthleteCardEntryTotal` is enabled, the Entry Total is shown in the title of the Athlete Card.
 - Jury Sheet texts and labels are now all in the translation file and can therefore be in the local language.
+- Other fixes:
+  - If a weight change occurred when the down signal or decision lights were on, there was an extremely small probability that the display would not reset and switch to the next athlete.
 
 ###### AgeGroups Conversion Instructions
 
