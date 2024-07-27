@@ -10,6 +10,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
@@ -18,6 +20,7 @@ import javax.persistence.Query;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.agegroup.AgeGroup;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.jpa.JPAService;
@@ -32,6 +35,8 @@ import ch.qos.logback.classic.Logger;
 public class CategoryRepository {
 
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(CategoryRepository.class);
+	private static Map<String, Category> allCategories = new TreeMap<>();
+
 	static {
 		logger.setLevel(Level.INFO);
 	}
@@ -44,7 +49,8 @@ public class CategoryRepository {
 	 * @param active      active category
 	 * @return the int
 	 */
-	public static int countFiltered(String name, AgeDivision ageDivision, AgeGroup ageGroup, Gender gender, Integer age,
+	public static int countFiltered(String name, Championship ageDivision, AgeGroup ageGroup, Gender gender,
+	        Integer age,
 	        Double bodyWeight, Boolean active) {
 		return JPAService.runInTransaction(em -> {
 			return doCountFiltered(name, gender, ageDivision, ageGroup, age, bodyWeight, active, em);
@@ -72,7 +78,7 @@ public class CategoryRepository {
 		});
 	}
 
-	public static Integer doCountFiltered(String name, Gender gender, AgeDivision ageDivision, AgeGroup ageGroup,
+	public static Integer doCountFiltered(String name, Gender gender, Championship ageDivision, AgeGroup ageGroup,
 	        Integer age, Double bodyWeight, Boolean active, EntityManager em) {
 		String selection = filteringSelection(name, gender, ageDivision, ageGroup, age, bodyWeight, active);
 		String qlString = "select count(c.id) from Category c " + selection;
@@ -102,7 +108,49 @@ public class CategoryRepository {
 		return (Category) query.getResultList().stream().findFirst().orElse(null);
 	}
 
-	public static List<Category> doFindFiltered(EntityManager em, String name, Gender gender, AgeDivision ageDivision,
+	public static List<Category> doFindEligibleCategories(Athlete a, Gender gender, Integer ageFromFields, Double bw,
+	        int qualifyingTotal) {
+		List<Category> allEligible = CategoryRepository.findByGenderAgeBW(gender, ageFromFields, null);
+		if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Molnar")) {
+			logger.trace("allEligible bw={} {} -- {}", bw, allEligible.size(), LoggerUtils.whereFrom());
+		}
+
+		// if youth F >81, athlete may be jr87 or jr>87;
+		allEligible = checkMultipleBWClasses(gender, ageFromFields, bw, allEligible);
+		allEligible.sort(new RegistrationPreferenceComparator());
+
+		allEligible = allEligible.stream()
+		        .filter(c -> (qualifyingTotal >= c.getQualifyingTotal()))
+		        .peek(c -> {
+			        if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Molnar"))
+				        logger.trace("{} {} bw {}  c.getMinimumWeight {} c.getMaximumWeight {} ---> {}",
+				                a, c, bw, c.getMinimumWeight(), c.getMaximumWeight(),
+				                (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())));
+		        })
+		        .filter(c -> (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())))
+		        .collect(Collectors.toList());
+		return allEligible;
+	}
+
+	private static List<Category> checkMultipleBWClasses(Gender gender, Integer ageFromFields, Double bw,
+	        List<Category> allEligible) {
+		// > 998 is our signal for max weight in category
+		if ((bw != null && bw > 998) && !allEligible.isEmpty()) {
+			double bodyWeight = allEligible.get(0).getMinimumWeight() + 1;
+			List<Category> otherEligibles = CategoryRepository.findByGenderAgeBW(gender, ageFromFields, bodyWeight);
+			HashSet<Category> allEligibleSet = new HashSet<>(allEligible);
+			for (Category otherEligible : otherEligibles) {
+				if (!otherEligible.sameAsAny(allEligibleSet)) {
+					allEligible.add(otherEligible);
+				}
+			}
+			allEligible = allEligible.stream()
+			        .collect(Collectors.toList());
+		}
+		return allEligible;
+	}
+
+	public static List<Category> doFindFiltered(EntityManager em, String name, Gender gender, Championship ageDivision,
 	        AgeGroup ageGroup, Integer age, Double bodyWeight, Boolean active, int offset, int limit) {
 		String qlString = "select c from Category c"
 		        + filteringSelection(name, gender, ageDivision, ageGroup, age, bodyWeight, active)
@@ -119,6 +167,7 @@ public class CategoryRepository {
 		}
 		@SuppressWarnings("unchecked")
 		List<Category> resultList = query.getResultList();
+		logger.debug("resultList {}", resultList);
 		return resultList;
 	}
 
@@ -126,7 +175,7 @@ public class CategoryRepository {
 	 * @return active categories
 	 */
 	public static List<Category> findActive() {
-		List<Category> findFiltered = findFiltered((String) null, (Gender) null, (AgeDivision) null, (AgeGroup) null,
+		List<Category> findFiltered = findFiltered((String) null, (Gender) null, (Championship) null, (AgeGroup) null,
 		        (Integer) null, (Double) null,
 		        true, -1, -1);
 		findFiltered.sort(new RegistrationPreferenceComparator());
@@ -134,7 +183,7 @@ public class CategoryRepository {
 	}
 
 	public static Collection<Category> findActive(Gender gender, Double bodyWeight) {
-		List<Category> findFiltered = findFiltered((String) null, gender, (AgeDivision) null, (AgeGroup) null,
+		List<Category> findFiltered = findFiltered((String) null, gender, (Championship) null, (AgeGroup) null,
 		        (Integer) null,
 		        bodyWeight, true, -1, -1);
 		// sort comparison to put more specific category age before. M30 before O21, O21
@@ -169,21 +218,23 @@ public class CategoryRepository {
 
 	public static List<Category> findByGenderAgeBW(Gender gender, Integer age, Double bodyWeight) {
 		Boolean active = true;
-		List<Category> findFiltered = findFiltered((String) null, gender, (AgeDivision) null, (AgeGroup) null, age,
+		List<Category> findFiltered = findFiltered((String) null, gender, (Championship) null, (AgeGroup) null, age,
 		        bodyWeight, active, -1, -1);
 		// sort comparison to put more specific category age before. M30 before O21, O21
 		// also before SR (MASTERS, then
 		// U, then IWF/other)
-		findFiltered.sort(new RegistrationPreferenceComparator());
+		findFiltered = findFiltered.stream().filter(c -> c.getAgeGroup().isActive())
+		        .sorted(new RegistrationPreferenceComparator()).collect(Collectors.toList());
 		return findFiltered;
 	}
 
-	public static List<Category> findByGenderDivisionAgeBW(Gender gender, AgeDivision ageDivision, Integer age,
+	public static List<Category> findByGenderDivisionAgeBW(Gender gender, Championship ageDivision, Integer age,
 	        Double bodyWeight) {
 		Boolean active = true;
 		List<Category> findFiltered = findFiltered((String) null, gender, ageDivision, (AgeGroup) null, age, bodyWeight,
 		        active, -1, -1);
-		findFiltered.sort(new RegistrationPreferenceComparator());
+		findFiltered = findFiltered.stream().filter(c -> c.getAgeGroup().isActive())
+		        .sorted(new RegistrationPreferenceComparator()).collect(Collectors.toList());
 		return findFiltered;
 	}
 
@@ -193,11 +244,12 @@ public class CategoryRepository {
 	 * @param string the string
 	 * @return the category
 	 */
-	public static Category findByName(String string) {
-		return JPAService.runInTransaction(em -> {
-			return doFindByName(string, em);
-		});
-	}
+	// @Deprecated
+	// public static Category findByName(String string) {
+	// return JPAService.runInTransaction(em -> {
+	// return doFindByName(string, em);
+	// });
+	// }
 
 	/**
 	 * Find filtered.
@@ -209,7 +261,7 @@ public class CategoryRepository {
 	 * @param limit       the limit
 	 * @return the list
 	 */
-	public static List<Category> findFiltered(String name, Gender gender, AgeDivision ageDivision, AgeGroup ageGroup,
+	public static List<Category> findFiltered(String name, Gender gender, Championship ageDivision, AgeGroup ageGroup,
 	        Integer age, Double bodyWeight, Boolean active, int offset, int limit) {
 		return JPAService.runInTransaction(em -> {
 			List<Category> doFindFiltered = doFindFiltered(em, name, gender, ageDivision, ageGroup, age, bodyWeight,
@@ -236,12 +288,8 @@ public class CategoryRepository {
 	public static void fixNullCodes(List<Category> nullCodeCategories) {
 		JPAService.runInTransaction(em -> {
 			for (Category c : nullCodeCategories) {
-				c.setCode(c.getComputedCode());
-				if (c.getName() == null) {
-					c.setName(c.getComputedName());
-				}
-				logger.info("correcting code: {} {}", c.getCode(), c.getName());
-				em.merge(c);
+				// recomputes the code and the name
+				save(c);
 			}
 			em.flush();
 			return null;
@@ -274,6 +322,7 @@ public class CategoryRepository {
 		return JPAService.runInTransaction(em -> {
 			// code must match inside info for string-based matches in db.
 			category.setCode(category.getComputedCode());
+			category.setName(category.getDisplayName());
 			return em.merge(category);
 		});
 	}
@@ -290,7 +339,7 @@ public class CategoryRepository {
 		}
 	}
 
-	private static String filteringSelection(String name, Gender gender, AgeDivision ageDivision, AgeGroup ageGroup,
+	private static String filteringSelection(String name, Gender gender, Championship ageDivision, AgeGroup ageGroup,
 	        Integer age, Double bodyWeight, Boolean active) {
 		String joins = filteringJoins(ageGroup, age);
 		String where = filteringWhere(name, ageDivision, ageGroup, age, bodyWeight, gender, active);
@@ -298,11 +347,11 @@ public class CategoryRepository {
 		return selection;
 	}
 
-	private static String filteringWhere(String name, AgeDivision ageDivision, AgeGroup ageGroup, Integer age,
+	private static String filteringWhere(String name, Championship ageDivision, AgeGroup ageGroup, Integer age,
 	        Double bodyWeight, Gender gender, Boolean active) {
 		List<String> whereList = new LinkedList<>();
 		if (ageDivision != null) {
-			whereList.add("c.ageGroup.ageDivision = :division");
+			whereList.add("((ag.ageDivision = :championshipName) or (ag.championshipName = :championshipName))");
 		}
 		if (name != null && name.trim().length() > 0) {
 			whereList.add("lower(c.name) like :name");
@@ -331,11 +380,12 @@ public class CategoryRepository {
 		if (whereList.size() == 0) {
 			return null;
 		} else {
-			return String.join(" and ", whereList);
+			String join = String.join(" and ", whereList);
+			return join;
 		}
 	}
 
-	private static void setFilteringParameters(String name, Gender gender, AgeDivision ageDivision, AgeGroup ageGroup,
+	private static void setFilteringParameters(String name, Gender gender, Championship championship, AgeGroup ageGroup,
 	        Integer age, Double bodyWeight, Boolean active, Query query) {
 		if (name != null && name.trim().length() > 0) {
 			// starts with
@@ -354,39 +404,28 @@ public class CategoryRepository {
 		if (bodyWeight != null) {
 			query.setParameter("bodyWeight", bodyWeight);
 		}
-		if (ageDivision != null) {
-			query.setParameter("division", ageDivision); // ageDivision is a string
+		if (championship != null) {
+			query.setParameter("championshipName", championship.getName()); // ageDivision is a string
 		}
 		if (gender != null) {
 			query.setParameter("gender", gender);
 		}
 	}
 
-	public static List<Category> doFindEligibleCategories(Athlete a, Gender gender, Integer ageFromFields, Double bw,
-	        int qualifyingTotal) {
-		List<Category> allEligible = CategoryRepository.findByGenderAgeBW(gender, ageFromFields, null);
-		logger.debug/*edit*/("allEligible bw={} {} -- {}", bw, allEligible.size(), LoggerUtils.whereFrom());
-
-		// if youth F >81, athlete may be jr87 or jr>87
-		if ((bw != null && bw > 998) && !allEligible.isEmpty()) {
-			double bodyWeight = allEligible.get(0).getMinimumWeight() + 1;
-			List<Category> otherEligibles = CategoryRepository.findByGenderAgeBW(gender, ageFromFields, bodyWeight);
-			HashSet<Category> allEligibleSet = new HashSet<Category>(allEligible);
-			for (Category otherEligible : otherEligibles) {
-				if (!otherEligible.sameAsAny(allEligibleSet)) {
-					allEligible.add(otherEligible);
-				}
-			}
-			allEligible.sort(new RegistrationPreferenceComparator());
+	public static void resetCodeMap() {
+		synchronized (allCategories) {
+			findActive().stream()
+			//.peek(c -> logger.warn/**/("adding {} + {}", c.getComputedName(), c.getTranslatedName()))
+			.forEach(c -> {
+				allCategories.put(c.getDisplayName(), c);
+				allCategories.put(c.getNameWithAgeGroup(), c);
+			});
 		}
+	}
 
-		allEligible = allEligible.stream()
-		        .filter(c -> (qualifyingTotal >= c.getQualifyingTotal()))
-		        .peek(c -> logger.debug/*edit*/("bw {}  c.getMinimumWeight {} c.getMaximumWeight {} ---> {}",
-		                bw, c.getMinimumWeight(), c.getMaximumWeight(),
-		                (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight()))))
-		        .filter(c -> (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())))
-		        .collect(Collectors.toList());
-		return allEligible;
+	public static Category codeFromName(String catName) {
+		synchronized (allCategories) {
+			return allCategories.get(catName);
+		}
 	}
 }

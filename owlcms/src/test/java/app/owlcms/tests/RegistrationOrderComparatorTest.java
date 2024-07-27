@@ -20,9 +20,9 @@ import org.junit.Test;
 
 import app.owlcms.Main;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.Gender;
-import app.owlcms.data.category.AgeDivision;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
@@ -38,9 +38,14 @@ public class RegistrationOrderComparatorTest {
         Main.injectSuppliers();
         JPAService.init(true, true);
         Config.initConfig();
+        //TestData.insertInitialData(5, true);
         JPAService.runInTransaction(em -> {
             Competition.setCurrent(new Competition());
-            AgeGroupRepository.insertAgeGroups(em, EnumSet.of(AgeDivision.IWF, AgeDivision.MASTERS, AgeDivision.U));
+            AgeGroupRepository.insertAgeGroups(em, EnumSet.of(
+            		ChampionshipType.IWF,
+            		ChampionshipType.MASTERS,
+            		ChampionshipType.U),
+            		"/agegroups/AgeGroups_Tests.xlsx");
             return null;
         });
     }

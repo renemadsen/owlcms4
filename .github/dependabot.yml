@@ -37,3 +37,7 @@ updates:
     directory: "/installtools" # Location of package manifests
     schedule:
       interval: "daily"
+  - package-ecosystem: "devcontainers"
+    directory: "/"
+    schedule:
+      interval: weekly

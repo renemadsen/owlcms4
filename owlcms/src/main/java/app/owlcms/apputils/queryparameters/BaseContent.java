@@ -3,6 +3,8 @@ package app.owlcms.apputils.queryparameters;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.LoggerFactory;
+
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.Location;
@@ -10,10 +12,13 @@ import com.vaadin.flow.router.QueryParameters;
 
 import app.owlcms.data.group.Group;
 import app.owlcms.fieldofplay.FieldOfPlay;
+import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
 public class BaseContent extends VerticalLayout implements FOPParametersReader, SoundParameters {
 
+	final static Logger logger = (Logger) LoggerFactory.getLogger(BaseContent.class);
+	
 	private FieldOfPlay fop;
 	private Group group;
 	private Location location;

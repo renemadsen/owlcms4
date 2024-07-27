@@ -33,7 +33,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @WebServlet("/update")
-public class UpdateReceiverServlet extends HttpServlet {
+public class UpdateReceiverServlet extends HttpServlet implements Traceable {
 
     private static String defaultFopName;
     static EventBus eventBus = new AsyncEventBus(UpdateReceiverServlet.class.getSimpleName(),
@@ -64,9 +64,13 @@ public class UpdateReceiverServlet extends HttpServlet {
         return null;
     }
 
-    Logger logger = (Logger) LoggerFactory.getLogger(UpdateReceiverServlet.class);
+    private Logger logger = (Logger) LoggerFactory.getLogger(UpdateReceiverServlet.class);
 
     private String secret = StartupUtils.getStringParam("updateKey");
+
+    public UpdateReceiverServlet() {
+        this.getLogger().setLevel(Level.DEBUG);
+    }
 
     /**
      * @see jakarta.servlet.http.HttpServlet#doGet(jakarta.servlet.http.HttpServletRequest,
@@ -75,7 +79,8 @@ public class UpdateReceiverServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        // get makes no sense on this URL. Standard says there shouldn't be a 405 on a get. Sue me.
+        // get makes no sense on this URL. Standard says there shouldn't be a 405 on a
+        // get. Sue me.
         resp.sendError(405);
     }
 
@@ -85,30 +90,31 @@ public class UpdateReceiverServlet extends HttpServlet {
      */
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
+        // TODO create timer and decision events
+        // TODO compute checksum of update, timer, decision, issue bus events if changed
         try {
             String updateKey = req.getParameter("updateKey");
-            if (updateKey == null || !updateKey.equals(secret)) {
-                logger.error("denying access from {} expected {} got {} ", req.getRemoteHost(), secret, updateKey);
+            if (updateKey == null || !updateKey.equals(this.secret)) {
+                this.getLogger().error("denying access from {} expected {} got {} ", req.getRemoteHost(), this.secret,
+                        updateKey);
                 resp.sendError(401, "Denied, wrong credentials");
                 return;
             }
-            
+
             if (ResourceWalker.getLocalDirPath() == null) {
                 String message = "Local override directory not present: requesting remote configuration files.";
-                logger.info(message);
-                logger.info("requesting customization");
+                this.getLogger().info(message);
+                this.getLogger().info("requesting customization");
                 resp.sendError(412, "Missing configuration files.");
                 return;
             }
 
             if (StartupUtils.isDebugSetting()) {
-                logger.setLevel(Level.DEBUG);
+                this.getLogger().setLevel(Level.TRACE);
                 Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
-                logger./**/debug("update received from {}", ProxyUtils.getClientIp(req));
                 if (StartupUtils.isTraceSetting()) {
-                    for (Entry<String, String[]> pair : pairs) {
-                        logger./**/debug("    {} = {}", pair.getKey(), pair.getValue()[0]);
-                    }
+                    this.getLogger()./**/trace("update received from {}", ProxyUtils.getClientIp(req));
+                    tracePairs(pairs);
                 }
             }
 
@@ -123,6 +129,7 @@ public class UpdateReceiverServlet extends HttpServlet {
             updateEvent.setCategoryName(req.getParameter("categoryName"));
             updateEvent.setFullName(req.getParameter("fullName"));
             updateEvent.setGroupName(req.getParameter("groupName"));
+            updateEvent.setGroupInfo(req.getParameter("groupInfo"));
 
             updateEvent.setHidden(Boolean.valueOf(req.getParameter("hidden")));
             String startNumber = req.getParameter("startNumber");
@@ -130,10 +137,12 @@ public class UpdateReceiverServlet extends HttpServlet {
             updateEvent.setTeamName(req.getParameter("teamName"));
             String weight = req.getParameter("weight");
             updateEvent.setWeight(weight != null ? Integer.parseInt(weight) : null);
-            
-            updateEvent.setMode(req.getParameter("mode"));
 
-            updateEvent.setNoLiftRanks(req.getParameter("noLiftRanks"));
+            updateEvent.setShowLiftRanks(Boolean.parseBoolean(req.getParameter("showLiftRanks")));
+            updateEvent.setShowTotalRank(Boolean.parseBoolean(req.getParameter("showTotalRank")));
+            updateEvent.setShowSinclair(Boolean.parseBoolean(req.getParameter("showSinclair")));
+            updateEvent.setShowSinclairRank(Boolean.parseBoolean(req.getParameter("showSinclairRank")));
+            
             updateEvent.setAthletes(req.getParameter("groupAthletes"));
             updateEvent.setLiftingOrderAthletes(req.getParameter("liftingOrderAthletes"));
             updateEvent.setLeaders(req.getParameter("leaders"));
@@ -149,35 +158,38 @@ public class UpdateReceiverServlet extends HttpServlet {
 
             updateEvent.setTranslationMap(req.getParameter("translationMap"));
 
-            String breakString = req.getParameter("break");
-            String breakTypeString = req.getParameter("breakType");
-            String breakRemainingString = req.getParameter("breakRemaining");
-            String breakIsIndefiniteString = req.getParameter("breakIsIndefinite");
-            updateEvent.setBreak(breakString != null ? Boolean.valueOf(breakString) : null);
-            BreakType bt = breakTypeString != null ? BreakType.valueOf(breakTypeString) : null;
-            updateEvent.setBreakType(bt);
-            updateEvent.setBreakRemaining(breakRemainingString != null ? Integer.parseInt(breakRemainingString) : null);
-            updateEvent.setIndefinite(Boolean.parseBoolean(breakIsIndefiniteString));
+            String mode = req.getParameter("mode");
+            updateEvent.setMode(mode);
             
-            String sinclairMeetString = req.getParameter("sinclairMeet");
-            updateEvent.setSinclairMeet(Boolean.parseBoolean(sinclairMeetString));
+            TimerReceiverServlet.processTimerReq(req, null, getLogger());
 
-            if (bt == BreakType.GROUP_DONE) {
+            String breakTypeString = req.getParameter("breakType");
+            updateEvent.setBreak("true".equalsIgnoreCase(req.getParameter("break")));
+            if (breakTypeString == BreakType.GROUP_DONE.name()) {
                 updateEvent.setRecords(null);
                 updateEvent.setRecordKind("none");
                 updateEvent.setRecordMessage("");
                 updateEvent.setDone(true);
             }
+            updateEvent.setCeremonyType(req.getParameter("ceremonyType"));
+            updateEvent.setBreakType(req.getParameter("breakType"));
+            
+            String sinclairMeetString = req.getParameter("sinclairMeet");
+            updateEvent.setSinclairMeet(Boolean.parseBoolean(sinclairMeetString));
 
             String fopName = updateEvent.getFopName();
             // put in the cache first so events can know which FOPs are active;
 
             long now = System.currentTimeMillis();
+
+            // the computed hashcode is not included in the hashcode
+            // this avoids every servlet recomputing it.
+            updateEvent.setHashCode(updateEvent.hashCode());
             if (now - lastUpdate < 500) {
                 // short time range, is this a duplicate?
                 UpdateEvent prevUpdate = updateCache.get(fopName);
-                if (prevUpdate != null && updateEvent.hashCode() == prevUpdate.hashCode()) {
-                    logger./**/warn("duplicate event ignored");
+                if (prevUpdate != null && updateEvent.getHashCode() == prevUpdate.getHashCode()) {
+                    this.getLogger()./**/warn("duplicate event ignored");
                 } else {
                     updateCache.put(fopName, updateEvent);
                     eventBus.post(updateEvent);
@@ -190,10 +202,21 @@ public class UpdateReceiverServlet extends HttpServlet {
             if (defaultFopName == null) {
                 defaultFopName = fopName;
             }
+
+            // TODO create timer and decision objects as well.
             resp.sendError(200);
         } catch (Exception e) {
-            logger.error(LoggerUtils.stackTrace(e));
+            this.getLogger().error(LoggerUtils.stackTrace(e));
         }
     }
 
+    @Override
+    public Logger getLogger() {
+        return logger;
+    }
+
+    void setLogger(Logger logger) {
+        this.logger = logger;
+    }
+    
 }

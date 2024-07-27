@@ -40,9 +40,10 @@ import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.components.ConfirmationDialog;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
-import app.owlcms.data.category.AgeDivision;
+import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.i18n.Translator;
@@ -75,7 +76,7 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 		logger.setLevel(Level.INFO);
 	}
 	private Checkbox activeFilter = new Checkbox();
-	private ComboBox<AgeDivision> ageDivisionFilter = new ComboBox<>();
+	private ComboBox<Championship> championshipFilter = new ComboBox<>();
 	private ComboBox<Resource> ageGroupDefinitionSelect;
 	private OwlcmsCrudFormFactory<AgeGroup> ageGroupEditingFormFactory;
 	private GridCrud<AgeGroup> crud;
@@ -92,9 +93,9 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 		OwlcmsFactory.waitDBInitialized();
 		OwlcmsCrudFormFactory<AgeGroup> editingFormFactory = new AgeGroupEditingFormFactory(AgeGroup.class, this);
 		setAgeGroupEditingFormFactory(editingFormFactory);
-		crud = createGrid(getAgeGroupEditingFormFactory());
-		defineFilters(crud);
-		fillHW(crud, this);
+		this.crud = createGrid(getAgeGroupEditingFormFactory());
+		defineFilters(this.crud);
+		fillHW(this.crud, this);
 	}
 
 	@Override
@@ -107,8 +108,8 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 	 */
 	@Override
 	public FlexLayout createMenuArea() {
-		topBar = new FlexLayout();
-		resetCats = new Button(getTranslation("ResetCategories.ResetAthletes"), (e) -> {
+		this.topBar = new FlexLayout();
+		this.resetCats = new Button(getTranslation("ResetCategories.ResetAthletes"), (e) -> {
 			new ConfirmationDialog(
 			        getTranslation("ResetCategories.ResetCategories"),
 			        getTranslation("ResetCategories.Warning_ResetCategories"),
@@ -116,27 +117,27 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 				        resetCategories();
 			        }).open();
 		});
-		resetCats.getElement().setAttribute("title", getTranslation("ResetCategories.ResetCategoriesMouseOver"));
-		HorizontalLayout resetButton = new HorizontalLayout(resetCats);
+		this.resetCats.getElement().setAttribute("title", getTranslation("ResetCategories.ResetCategoriesMouseOver"));
+		HorizontalLayout resetButton = new HorizontalLayout(this.resetCats);
 		resetButton.setMargin(false);
 
-		ageGroupDefinitionSelect = new ComboBox<>();
-		ageGroupDefinitionSelect.setPlaceholder(getTranslation("ResetCategories.AvailableDefinitions"));
-		
+		this.ageGroupDefinitionSelect = new ComboBox<>();
+		this.ageGroupDefinitionSelect.setPlaceholder(getTranslation("ResetCategories.AvailableDefinitions"));
+
 		Locale locale = OwlcmsSession.getLocale();
-		//locale = new Locale("fr","FR");
+		// locale = new Locale("fr","FR");
 
 		List<Resource> resourceList = new ResourceWalker().getResourceList("/agegroups", ResourceWalker::relativeName,
 		        null, locale);
 		resourceList.sort((a, b) -> a.compareTo(b));
-		ageGroupDefinitionSelect.setItems(resourceList);
-		ageGroupDefinitionSelect.setValue(null);
-		ageGroupDefinitionSelect.setWidth("15em");
-		ageGroupDefinitionSelect.getStyle().set("margin-left", "1em");
+		this.ageGroupDefinitionSelect.setItems(resourceList);
+		this.ageGroupDefinitionSelect.setValue(null);
+		this.ageGroupDefinitionSelect.setWidth("15em");
+		this.ageGroupDefinitionSelect.getStyle().set("margin-left", "1em");
 		setAgeGroupsSelectionListener(resourceList);
 
 		Button loadPredefined = new Button(getTranslation("AgeGroups.LoadPredefined"), (e) -> {
-			Resource definitions = ageGroupDefinitionSelect.getValue();
+			Resource definitions = this.ageGroupDefinitionSelect.getValue();
 			if (definitions == null) {
 				String labelText = getTranslation("ResetCategories.PleaseSelectDefinitionFile");
 				NotificationUtils.errorNotification(labelText);
@@ -149,19 +150,20 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 				        }).open();
 			}
 		});
-		Button uploadCustom = new Button(Translator.translate("AgeGroups.UploadCustom"), new Icon(VaadinIcon.UPLOAD_ALT),
+		Button uploadCustom = new Button(Translator.translate("AgeGroups.UploadCustom"),
+		        new Icon(VaadinIcon.UPLOAD_ALT),
 		        buttonClickEvent -> {
-		        	AgeGroupsFileUploadDialog ageGroupsFileUploadDialog = new AgeGroupsFileUploadDialog();
-		        	ageGroupsFileUploadDialog.setCallback(() -> resetCategories());
-					ageGroupsFileUploadDialog.open();
+			        AgeGroupsFileUploadDialog ageGroupsFileUploadDialog = new AgeGroupsFileUploadDialog();
+			        ageGroupsFileUploadDialog.setCallback(() -> resetCategories());
+			        ageGroupsFileUploadDialog.open();
 		        });
 
-		HorizontalLayout reloadDefinition = new HorizontalLayout(ageGroupDefinitionSelect, loadPredefined);
+		HorizontalLayout reloadDefinition = new HorizontalLayout(this.ageGroupDefinitionSelect, loadPredefined);
 		reloadDefinition.setAlignItems(FlexComponent.Alignment.BASELINE);
 		reloadDefinition.setMargin(false);
 		reloadDefinition.setPadding(false);
 		reloadDefinition.setSpacing(false);
-		
+
 		Div exportAgeGroups = DownloadButtonFactory.createDynamicXLSXDownloadButton("AgeGroups",
 		        Translator.translate("AgeGroups.ExportDefinitions"), new XLSXAgeGroupsExport());
 		exportAgeGroups.getStyle().set("margin-left", "1em");
@@ -171,7 +173,7 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 		        reloadDefinition,
 		        hr(),
 		        new NativeLabel(Translator.translate("AgeGroups.Custom")),
-		        exportAgeGroups,uploadCustom,
+		        exportAgeGroups, uploadCustom,
 		        hr(),
 		        new NativeLabel(Translator.translate("AgeGroups.Reassign")),
 		        resetButton);
@@ -180,20 +182,12 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 		buttons.getStyle().set("margin-left", "5em");
 		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
 
-		topBar.getStyle().set("flex", "100 1");
-		topBar.add(buttons);
-		topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
-		topBar.setAlignItems(FlexComponent.Alignment.CENTER);
+		this.topBar.getStyle().set("flex", "100 1");
+		this.topBar.add(buttons);
+		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
+		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 
-		return topBar;
-	}
-
-	private Hr hr() {
-		Hr hr = new Hr();
-		hr.setWidthFull();
-		hr.getStyle().set("margin", "0");
-		hr.getStyle().set("padding", "0");
-		return hr;
+		return this.topBar;
 	}
 
 	@Override
@@ -208,14 +202,14 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 	 */
 	@Override
 	public Collection<AgeGroup> findAll() {
-		List<AgeGroup> all = AgeGroupRepository.findFiltered(nameFilter.getValue(), (Gender) null,
-		        ageDivisionFilter.getValue(),
-		        (Integer) null, activeFilter.getValue(), -1, -1);
+		List<AgeGroup> all = AgeGroupRepository.findFiltered(this.nameFilter.getValue(), (Gender) null,
+		        this.championshipFilter.getValue(),
+		        (Integer) null, this.activeFilter.getValue(), -1, -1);
 		all.sort((ag1, ag2) -> {
 			int compare = 0;
-			compare = ObjectUtils.compare(ag1.getAgeDivision(), ag2.getAgeDivision());
+			compare = ObjectUtils.compare(ag1.getChampionship(), ag2.getChampionship());
 			if (compare != 0) {
-				return -compare; // DEFAULT first.
+				return -compare; // reverse order for DEFAULT first.
 			}
 			compare = ObjectUtils.compare(ag1.getGender(), ag2.getGender());
 			if (compare != 0) {
@@ -231,6 +225,7 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 			}
 			return 0;
 		});
+		CategoryRepository.resetCodeMap();
 		return all;
 	}
 
@@ -249,11 +244,11 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 
 	@Override
 	public OwlcmsLayout getRouterLayout() {
-		return routerLayout;
+		return this.routerLayout;
 	}
 
 	public void highlightResetButton() {
-		resetCats.setThemeName("primary error");
+		this.resetCats.setThemeName("primary error");
 	}
 
 	@Override
@@ -297,19 +292,20 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 				grid.getDataProvider().refreshItem(cat);
 			});
 			// prevent getting the row selection involved.
-			activeBox.getElement().addEventListener("click", ignore -> {}).addEventData("event.stopPropagation()");
+			activeBox.getElement().addEventListener("click", ignore -> {
+			}).addEventData("event.stopPropagation()");
 			return activeBox;
 		})).setHeader(getTranslation("Active")).setWidth("0");
 		grid.addColumn(AgeGroup::getDisplayName).setHeader(getTranslation("Name"));
-		grid.addColumn(new TextRenderer<AgeGroup>(
+		grid.addColumn(new TextRenderer<>(
 		        item -> {
-			        AgeDivision ageDivision = item.getAgeDivision();
-			        logger.trace("createGrid age division {}", ageDivision);
-			        String tr = getTranslation("Division." + (ageDivision != null ? ageDivision.name() : "?"));
+			        Championship championship = item.getChampionship();
+			        logger.trace("createGrid age division {}", championship);
+			        String tr = (championship != null ? championship.translate() : "?");
 			        return tr;
 		        }))
-		        .setHeader(getTranslation("AgeDivision"));
-		grid.addColumn(new TextRenderer<AgeGroup>(
+		        .setHeader(getTranslation("Championship"));
+		grid.addColumn(new TextRenderer<>(
 		        item -> {
 			        return item.getGender().asGenderName();
 		        }))
@@ -319,11 +315,11 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 		grid.addColumn(AgeGroup::getCategoriesAsString).setAutoWidth(true)
 		        .setHeader(getTranslation("BodyWeightCategories"));
 
-		crud = new OwlcmsCrudGrid<>(AgeGroup.class, new OwlcmsGridLayout(AgeGroup.class),
+		this.crud = new OwlcmsCrudGrid<>(AgeGroup.class, new OwlcmsGridLayout(AgeGroup.class),
 		        crudFormFactory, grid);
-		crud.setCrudListener(this);
-		crud.setClickRowToUpdate(true);
-		return crud;
+		this.crud.setCrudListener(this);
+		this.crud.setClickRowToUpdate(true);
+		return this.crud;
 	}
 
 	/**
@@ -332,36 +328,36 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 	 * @param crudGrid the crudGrid that will be filtered.
 	 */
 	protected void defineFilters(GridCrud<AgeGroup> crud) {
-		nameFilter.setPlaceholder(getTranslation("Name"));
-		nameFilter.setClearButtonVisible(true);
-		nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
-		nameFilter.addValueChangeListener(e -> {
+		this.nameFilter.setPlaceholder(getTranslation("Name"));
+		this.nameFilter.setClearButtonVisible(true);
+		this.nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
+		this.nameFilter.addValueChangeListener(e -> {
 			crud.refreshGrid();
 		});
-		crud.getCrudLayout().addFilterComponent(nameFilter);
+		crud.getCrudLayout().addFilterComponent(this.nameFilter);
 
-		ageDivisionFilter.setPlaceholder(getTranslation("AgeDivision"));
-		ageDivisionFilter.setItems(AgeDivision.findAll());
-		ageDivisionFilter.setItemLabelGenerator((ad) -> getTranslation("Division." + ad.name()));
-		ageDivisionFilter.setClearButtonVisible(true);
-		ageDivisionFilter.addValueChangeListener(e -> {
+		this.championshipFilter.setPlaceholder(getTranslation("Championship"));
+		this.championshipFilter.setItems(Championship.findAllUsed(false));
+		this.championshipFilter.setItemLabelGenerator((ad) -> ad.translate());
+		this.championshipFilter.setClearButtonVisible(true);
+		this.championshipFilter.addValueChangeListener(e -> {
 			crud.refreshGrid();
 		});
-		crud.getCrudLayout().addFilterComponent(ageDivisionFilter);
+		crud.getCrudLayout().addFilterComponent(this.championshipFilter);
 		crud.getCrudLayout().addToolbarComponent(new NativeLabel(""));
 
-		activeFilter.addValueChangeListener(e -> {
+		this.activeFilter.addValueChangeListener(e -> {
 			crud.refreshGrid();
 		});
-		activeFilter.setLabel(getTranslation("Active"));
-		activeFilter.setAriaLabel(getTranslation("ActiveCategoriesOnly"));
-		crud.getCrudLayout().addFilterComponent(activeFilter);
+		this.activeFilter.setLabel(getTranslation("Active"));
+		this.activeFilter.setAriaLabel(getTranslation("ActiveCategoriesOnly"));
+		crud.getCrudLayout().addFilterComponent(this.activeFilter);
 
 		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
 		clearFilters.addClickListener(event -> {
-			nameFilter.clear();
-			activeFilter.clear();
-			ageDivisionFilter.clear();
+			this.nameFilter.clear();
+			this.activeFilter.clear();
+			this.championshipFilter.clear();
 		});
 		crud.getCrudLayout().addFilterComponent(clearFilters);
 	}
@@ -376,17 +372,25 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 	}
 
 	void closeDialog() {
-		crud.getCrudLayout().hideForm();
-		crud.getGrid().asSingleSelect().clear();
+		this.crud.getCrudLayout().hideForm();
+		this.crud.getGrid().asSingleSelect().clear();
 	}
 
 	private OwlcmsCrudFormFactory<AgeGroup> getAgeGroupEditingFormFactory() {
-		return ageGroupEditingFormFactory;
+		return this.ageGroupEditingFormFactory;
+	}
+
+	private Hr hr() {
+		Hr hr = new Hr();
+		hr.setWidthFull();
+		hr.getStyle().set("margin", "0");
+		hr.getStyle().set("padding", "0");
+		return hr;
 	}
 
 	private void resetCategories() {
 		AthleteRepository.resetParticipations();
-		crud.refreshGrid();
+		this.crud.refreshGrid();
 		unHighlightResetButton();
 	}
 
@@ -409,16 +413,16 @@ public class AgeGroupContent extends BaseContent implements CrudListener<AgeGrou
 	private void setAgeGroupsSelectionListener(List<Resource> resourceList) {
 		String curTemplateName = Competition.getCurrent().getAgeGroupsFileName();
 		Resource found = searchMatch(resourceList, curTemplateName);
-		ageGroupDefinitionSelect.addValueChangeListener((e) -> {
+		this.ageGroupDefinitionSelect.addValueChangeListener((e) -> {
 			logger.debug("setTemplateSelectionListener {}", found);
 			Competition.getCurrent().setAgeGroupsFileName(e.getValue().getFileName());
 			CompetitionRepository.save(Competition.getCurrent());
 		});
-		ageGroupDefinitionSelect.setValue(found);
+		this.ageGroupDefinitionSelect.setValue(found);
 	}
 
 	private void unHighlightResetButton() {
-		resetCats.setThemeName("");
+		this.resetCats.setThemeName("");
 	}
 
 }

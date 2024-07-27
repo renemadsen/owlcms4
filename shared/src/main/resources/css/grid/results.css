@@ -232,7 +232,8 @@ table.results tr td.club div.clubName div.ellipsis {
 }
 
 /* snatch and c&j ranks */
-:host table.results tr td.rank {
+:host table.results tr td.rank,
+:host table.results tr th.rank {
     background-color: var(--RankBackgroundColor);
     color: var(--RankTextColor);
     visibility: var(--rankVisibility);
@@ -559,6 +560,7 @@ td {
 
 .attemptBar .athleteInfo {
     display: flex;
+    gap: 0.5rem;
     font-size: var(--athleteNameFontSize);
     justify-content: space-between;
     align-items: baseline;
@@ -580,6 +582,7 @@ td {
 
 .athleteInfo .attempt {
     color: var(--athleteAttemptColor);
+    white-space: nowrap;
 }
 
 .athleteInfo .weight {
@@ -587,6 +590,7 @@ td {
     display: flex;
     justify-content: center;
     align-items: baseline;
+    white-space: nowrap;
 }
 
 .athleteInfo .timer {

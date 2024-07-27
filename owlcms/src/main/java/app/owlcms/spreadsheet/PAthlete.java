@@ -31,9 +31,8 @@ import ch.qos.logback.classic.Logger;
 /**
  * Fake athlete that belongs to a single category.
  *
- * Used to produce results and team rankings for a given eligibility category.
- * Use athlete as a basis, and a copy of the participation to the eligible
- * category to recover ranks and points.
+ * Used to produce results and team rankings for a given eligibility category. Use athlete as a basis, and a copy of the
+ * participation to the eligible category to recover ranks and points.
  *
  * @author Jean-François Lamy
  *
@@ -53,6 +52,13 @@ public class PAthlete extends Athlete implements IRankHolder {
 		this.a = p.getAthlete();
 		this.c = p.getCategory();
 		this.p = new Participation(p, this.a, this.c);
+		this.originalParticipation = p;
+	}
+
+	public PAthlete(Athlete a2) {
+		this.a = a2;
+		this.c = a2.getCategory();
+		this.p = a2.getMainRankings();
 		this.originalParticipation = p;
 	}
 
@@ -174,7 +180,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public Category getCategory() {
-		return this.p.getCategory();
+		return this.p != null ? this.p.getCategory() : null;
 	}
 
 	@Override
@@ -384,7 +390,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public String getDisplayCategory() {
-		return this.p.getCategory().getTranslatedName();
+		return this.p.getCategory().getDisplayName();
 	}
 
 	@Override
@@ -583,9 +589,9 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public Double getRobi() {
 		// we want the participation to be used (different robi depending on age group)
 		Double robi = super.getRobi();
-		
+
 		// this gives a single robi according to lowest age group
-		//Double robi = this._getAthlete().getRobi();
+		// Double robi = this._getAthlete().getRobi();
 		return robi;
 	}
 
