@@ -141,4 +141,21 @@ public class DateTimeUtils {
 		pattern = pattern.replaceFirst("\\byy\\b", "yyyy");
 		return pattern;
 	}
+	
+    public static double localDateTimeToExcelDate(LocalDateTime localDateTime) {
+        // Specify the epoch reference date used by Excel (December 30, 1899)
+        LocalDateTime excelEpochReference = LocalDateTime.of(1899, Month.DECEMBER, 30, 0, 0);
+
+        // Calculate the number of days between the two dates
+        long daysSinceExcelEpoch = localDateTime.toLocalDate().toEpochDay() - excelEpochReference.toLocalDate().toEpochDay();
+
+        // Calculate the fraction of the day (in minutes)
+        double fractionOfDay = (double) localDateTime.toLocalTime().toSecondOfDay() / (24 * 60 * 60);
+
+        // Combine the days and fraction to get the Excel numeric date value
+        double excelNumericDate = daysSinceExcelEpoch + fractionOfDay;
+        
+        return excelNumericDate;
+
+    }
 }

@@ -77,6 +77,7 @@ public class Competition {
 	private static Competition competition;
 	@Transient
 	final static private Logger logger = (Logger) LoggerFactory.getLogger(Competition.class);
+	private static final boolean SCORING_SYSTEM_ONLY = true;
 
 	public static void debugRanks(String label, Athlete a) {
 		logger./**/warn("{} {} {} {} {} {}", label, System.identityHashCode(a), a.getId(), a.getShortName(),
@@ -186,6 +187,7 @@ public class Competition {
 	@Transient
 	@JsonIgnore
 	private HashMap<Group, TreeMap<String, TreeSet<Athlete>>> medalsByGroup;
+	private String medalScheduleTemplateFileName;
 	private String medalsTemplateFileName;
 
 	/* this is really "keep best n results", backward compatibility with database exports */
@@ -197,6 +199,7 @@ public class Competition {
 	@Column(columnDefinition = "integer default 2")
 	private Integer maxPerCategory = 2;
 	private String protocolTemplateFileName;
+	private String resultsTemplateFileName;
 	@Transient
 	@JsonIgnore
 	private boolean rankingsInvalid = true;
@@ -286,20 +289,18 @@ public class Competition {
 	 */
 	public TreeMap<String, TreeSet<Athlete>> computeMedals(Group g) {
 		List<Athlete> rankedAthletes = AthleteRepository.findAthletesForGlobalRanking(g, false);
-		//logger.debug("*** all athletes for all categories in group {} {}",g,rankedAthletes.stream().map(a->a.getLastName()).toList());
+		// logger.debug("*** ranked athletes for group {} {}",g,rankedAthletes.stream().map(a->a.getLastName()).toList());
 		return computeMedals(g, rankedAthletes);
 	}
 
 	/**
 	 * @param g
-	 * @param rankedAthletes athletes participating in the group, plus athletes in the same category that have yet to
-	 *                       compete
+	 * @param rankedAthletes athletes participating in the group, plus athletes in the same category that have yet to compete
 	 * @return for each category, medal-winnning athletes in snatch, clean & jerk and total.
 	 */
 	public TreeMap<String, TreeSet<Athlete>> computeMedals(Group g, List<Athlete> rankedAthletes
 	// , boolean onlyFinished
 	) {
- //FIXME: should be able to compute medals for all sessions by iterating
 		if (g == null) {
 			return new TreeMap<>();
 		}
@@ -308,9 +309,9 @@ public class Competition {
 			this.medalsByGroup = new HashMap<>();
 		}
 		if (rankedAthletes == null || rankedAthletes.size() == 0) {
-			TreeMap<String, TreeSet<Athlete>> treeMap = new TreeMap<>();
-			this.medalsByGroup.put(g, treeMap);
-			return treeMap;
+			TreeMap<String, TreeSet<Athlete>> medalsPerCategory = new TreeMap<>();
+			this.medalsByGroup.put(g, medalsPerCategory);
+			return medalsPerCategory;
 		}
 
 		TreeMap<String, TreeSet<Athlete>> medals = computeMedalsByCategory(rankedAthletes);
@@ -402,12 +403,24 @@ public class Competition {
 	}
 
 	synchronized public HashMap<String, Object> computeReportingInfo(String ageGroupPrefix, Championship ad) {
-		List<Athlete> athletes = AgeGroupRepository.allWeighedInPAthletesForAgeGroupAgeDivision(ageGroupPrefix, ad);
-		doComputeReportingInfo(true, athletes, ageGroupPrefix, ad);
+		// this is where we will look for the athletes that have not lifted yet when computing medals
+		List<Athlete> allPAthletes = AgeGroupRepository.allPAthletesForAgeGroupAgeDivision(ageGroupPrefix, ad);
+		// remove people not in a session, they withdrew, possibly after weighing in.
+		allPAthletes = allPAthletes.stream().filter(a -> a.getGroup() != null).collect(Collectors.toList());
+
+		// these are all the weighed in athletes that will be potentially earning a a medal.
+		// we filter the big list so we don't hit the database again.
+		List<Athlete> weighedInAthletes = allPAthletes.stream()
+		        .filter(a -> a.getBodyWeight() != null && a.getBodyWeight() > 0.1).collect(Collectors.toList());
+
+		doComputeReportingInfo(true, weighedInAthletes, ageGroupPrefix, ad);
+		AthleteSorter.resultsOrder(allPAthletes, Ranking.TOTAL, false);
+		this.reportingBeans.put("allPAthletes", allPAthletes);
 		return this.reportingBeans;
 	}
 
-	public void doGlobalRankings(List<Athlete> athletes) {
+	public void doGlobalRankings(List<Athlete> athletes, Boolean scoringSystemOnly) {
+		// long beforeDedup = System.currentTimeMillis();
 		TreeSet<Athlete> noDup = new TreeSet<>(Comparator.comparing(Athlete::getFullId));
 		for (Athlete pAthlete : athletes) {
 			Athlete athlete;
@@ -419,12 +432,25 @@ public class Competition {
 			}
 		}
 		ArrayList<Athlete> nodupAthletes = new ArrayList<>(noDup);
+		// long afterDedup = System.currentTimeMillis();
+		// logger.debug("------------------------- dedup {}ms {}", afterDedup - beforeDedup, LoggerUtils.whereFrom(5));
 
-		doReporting(nodupAthletes, Ranking.BW_SINCLAIR, true);
-		doReporting(nodupAthletes, Ranking.SMM, true);
-		doReporting(nodupAthletes, Ranking.QPOINTS, true);
-		doReporting(nodupAthletes, Ranking.CAT_SINCLAIR, false);
-		doReporting(nodupAthletes, Ranking.GAMX, true);
+		if (scoringSystemOnly) {
+			// long beforeReporting = System.currentTimeMillis();
+			doReporting(nodupAthletes, getScoringSystem(), true);
+			// long afterReporting = System.currentTimeMillis();
+			// logger.debug("------------------------- scoringSystem reporting {}ms", afterReporting - beforeReporting);
+		} else {
+			// long beforeReporting = System.currentTimeMillis();
+			doReporting(nodupAthletes, Ranking.BW_SINCLAIR, true);
+			doReporting(nodupAthletes, Ranking.SMM, true);
+			doReporting(nodupAthletes, Ranking.QPOINTS, true);
+			doReporting(nodupAthletes, Ranking.QAGE, true);
+			doReporting(nodupAthletes, Ranking.CAT_SINCLAIR, true);
+			doReporting(nodupAthletes, Ranking.GAMX, true);
+			// long afterReporting = System.currentTimeMillis();
+			// logger.debug("------------------------- full reporting {}ms", afterReporting - beforeReporting);
+		}
 	}
 
 	@Override
@@ -554,6 +580,15 @@ public class Competition {
 		return this.juryTemplateFileName;
 	}
 
+	@Transient
+	@JsonIgnore
+	public String getComputedMedalScheduleTemplateFileName() {
+		if (this.medalScheduleTemplateFileName == null) {
+			return "MedalSchedule-A4.xls";
+		}
+		return this.medalScheduleTemplateFileName;
+	}
+
 	/**
 	 * Gets the protocol file name.
 	 *
@@ -592,6 +627,22 @@ public class Competition {
 			return "Protocol-A4.xls";
 		} else {
 			return getProtocolTemplateFileName();
+		}
+	}
+
+	/**
+	 * Gets the protocol file name.
+	 *
+	 * @return the protocol file name
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	@Transient
+	@JsonIgnore
+	public String getComputedResultsTemplateFileName() {
+		if (getResultsTemplateFileName() == null) {
+			return "Results-A4.xls";
+		} else {
+			return getResultsTemplateFileName();
 		}
 	}
 
@@ -783,11 +834,11 @@ public class Competition {
 
 	public TreeMap<String, TreeSet<Athlete>> getMedals(Group g, boolean onlyFinished) {
 		TreeMap<String, TreeSet<Athlete>> medals;
-		if (this.medalsByGroup == null || (medals = this.medalsByGroup.get(g)) == null) {
+		if (this.medalsByGroup == null || (medals = this.medalsByGroup.get(g)) == null || g == null) {
 			medals = computeMedals(g);
 		}
 		final TreeMap<String, TreeSet<Athlete>> m = new TreeMap<>(medals);
-		logger./**/warn("medals keyset {}",medals.keySet());
+		logger.debug("medals categories keyset {}", medals.keySet());
 		if (onlyFinished) {
 			List<String> toRemove = medals.keySet().stream()
 			        .filter(k -> {
@@ -795,16 +846,16 @@ public class Competition {
 				        if (athletes.isEmpty()) {
 					        return true; // remove from list.
 				        }
-				        // logger.debug("athletes {} {}",k, athletes);
+				        logger.debug("athletes {} {}", k, athletes);
 				        // category includes an athlete that has not finished, mark it as "to be
 				        // removed"
-				        boolean anyMatch = athletes.stream()
-				                .anyMatch(a -> a.getSnatch3AsInteger() == null || a.getCleanJerk3AsInteger() == null);
-				        logger.info("category {} has finished {}", k, !anyMatch);
+				        boolean anyMatch = athletes.stream().anyMatch(a -> !a.isDone(g));
+				        logger.debug("category {} has finished {}", k, !anyMatch);
+				        // return those that have not finished
 				        return anyMatch;
 			        })
 			        .collect(Collectors.toList());
-			logger.info("notFinished {}",toRemove);
+			logger.info("notFinished {}", toRemove);
 			for (String notFinished : toRemove) {
 				m.remove(notFinished);
 			}
@@ -855,6 +906,11 @@ public class Competition {
 		return this.scoringSystem;
 	}
 
+	public String getTranslatedScoringSystemName() {
+		String translate = Translator.translateOrElseNull("Ranking." + getScoringSystem(), OwlcmsSession.getLocale());
+		return translate != null ? translate : Translator.translate("Score");
+	}
+
 	public Integer getShorterBreakDuration() {
 		return this.shorterBreakDuration;
 	}
@@ -895,14 +951,17 @@ public class Competition {
 		return this.womensBestN;
 	}
 
-	public void globalRankings() {
-		List<Athlete> athletes = AthleteRepository.findAllByGroupAndWeighIn(null, true);
-		doGlobalRankings(athletes);
-	}
+	// public void globalRankings() {
+	// List<Athlete> athletes = AthleteRepository.findAllByGroupAndWeighIn(null, true);
+	// doGlobalRankings(athletes);
+	// }
 
-	public void globalRankings(EntityManager em) {
+	public void scoringSystemRankings(EntityManager em) {
+		// long beforeFindAll = System.currentTimeMillis();
 		List<Athlete> athletes = AthleteRepository.doFindAllByGroupAndWeighIn(em, null, true, null);
-		doGlobalRankings(athletes);
+		// long afterFindAll = System.currentTimeMillis();
+		// logger.debug("------------------------- scoringSystemRankings doFindAllByGroupAndWeighIn {}ms", afterFindAll - beforeFindAll);
+		doGlobalRankings(athletes, SCORING_SYSTEM_ONLY);
 	}
 
 	@Override
@@ -1245,6 +1304,10 @@ public class Competition {
 		this.maxTeamSize = maxTeamSize;
 	}
 
+	public void setMedalScheduleTemplateFileName(String medalScheduleTemplateFileName) {
+		this.medalScheduleTemplateFileName = medalScheduleTemplateFileName;
+	}
+
 	public void setMedalsTemplateFileName(String medalsTemplateFileName) {
 		this.medalsTemplateFileName = medalsTemplateFileName;
 	}
@@ -1335,8 +1398,7 @@ public class Competition {
 	}
 
 	/**
-	 * Sets the use registration category. No longer used. We always use the category. Only kept for backward
-	 * compatibility.
+	 * Sets the use registration category. No longer used. We always use the category. Only kept for backward compatibility.
 	 *
 	 * @param useRegistrationCategory the useRegistrationCategory to set
 	 */
@@ -1412,6 +1474,7 @@ public class Competition {
 	private void doComputeReportingInfo(boolean full, List<Athlete> athletes, String ageGroupPrefix,
 	        Championship ad) {
 		// reporting does many database queries. fork a low-priority thread.
+		// logger.debug("------------------------- doComputeReportingInfo {}",LoggerUtils.whereFrom());
 		runInThread(() -> {
 			if (athletes.isEmpty()) {
 				// prevent outputting silliness.
@@ -1427,16 +1490,16 @@ public class Competition {
 			// splitResultsByGroups(athletes);
 			if (full) {
 				this.reportingBeans.put("athletes", athletes);
-				// logger.debug("ad={} ageGroupPrefix={}", ad, ageGroupPrefix);
+				// logger.debug("championship={} ageGroupPrefix={}", ad, ageGroupPrefix);
 				if (ad != null && (ageGroupPrefix == null || ageGroupPrefix.isBlank())) {
-					// iterate over all age groups present in age division ad
+					// iterate over all age groups present in championship ad
 					teamRankingsForAgeDivision(ad);
 				} else {
 					teamRankings(athletes, ageGroupPrefix);
 				}
 			}
 
-			doGlobalRankings(athletes);
+			doGlobalRankings(athletes, false);
 			// globalRankings();
 		}, Thread.MIN_PRIORITY);
 	}
@@ -1485,13 +1548,19 @@ public class Competition {
 		this.reportingBeans.put(wBeanName, sortedWomen);
 		logger.debug("{} {}", mBeanName, sortedMen);
 		logger.debug("{} {}", wBeanName, sortedWomen);
+		if (ranking == Competition.getCurrent().getScoringSystem()) {
+			// additional entry in the map so we can have a simple book with
+			// just the global score.
+			this.reportingBeans.put("mBest", sortedMen);
+			this.reportingBeans.put("wBest", sortedWomen);
+		}
 	}
 
 	/**
 	 * Compute a team-ranking for the specified PAthletes.
 	 *
-	 * PAthletes have a single participation, which is the one that will be used for ranking. Caller is responsible for
-	 * putting several age groups together (e.g. for Masters), or using a single age group (e.g. SR)
+	 * PAthletes have a single participation, which is the one that will be used for ranking. Caller is responsible for putting several age groups together
+	 * (e.g. for Masters), or using a single age group (e.g. SR)
 	 *
 	 * Reporting beans are modified. Caller must clear them beforehand if needed.
 	 *
@@ -1515,6 +1584,7 @@ public class Competition {
 		athletes.addAll(sortedMen);
 		athletes.addAll(sortedWomen);
 
+		suffix = suffix != null ? suffix : "";
 		sortedAthletes = AthleteSorter.teamPointsOrderCopy(athletes, Ranking.TOTAL);
 		sortedMen = AthleteSorter.teamPointsOrderCopy(sortedMen, Ranking.TOTAL);
 		sortedWomen = AthleteSorter.teamPointsOrderCopy(sortedWomen, Ranking.TOTAL);
@@ -1535,6 +1605,7 @@ public class Competition {
 			reportCombined(sortedAthletes, sortedMen, sortedWomen);
 		}
 
+		// this is per age group ranking
 		sortedAthletes = AthleteSorter.teamPointsOrderCopy(athletes, Ranking.CUSTOM);
 		sortedMen = AthleteSorter.teamPointsOrderCopy(sortedMen, Ranking.CUSTOM);
 		sortedWomen = AthleteSorter.teamPointsOrderCopy(sortedWomen, Ranking.CUSTOM);
@@ -1545,6 +1616,7 @@ public class Competition {
 			reportCustom(sortedAthletes, sortedMen, sortedWomen);
 		}
 
+		// this is most likely obsolete
 		sortedMen = getOrCreateBean("mTeamSinclair" + suffix);
 		sortedWomen = getOrCreateBean("wTeamSinclair" + suffix);
 		AthleteSorter.teamPointsOrder(sortedMen, Ranking.BW_SINCLAIR);
@@ -1575,6 +1647,7 @@ public class Competition {
 	}
 
 	private void reportCustom(List<Athlete> sortedAthletes, List<Athlete> sortedMen, List<Athlete> sortedWomen) {
+		// these are the per-age-group values
 		getOrCreateBean("mCustom");
 		this.reportingBeans.put("mCustom", sortedMen);
 		getOrCreateBean("wCustom");
@@ -1743,6 +1816,14 @@ public class Competition {
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.SMM);
 
 		reportSMF(sortedMen, sortedWomen);
+	}
+
+	public String getResultsTemplateFileName() {
+		return this.resultsTemplateFileName;
+	}
+
+	public void setResultsTemplateFileName(String resultsTemplateFileName) {
+		this.resultsTemplateFileName = resultsTemplateFileName;
 	}
 
 }

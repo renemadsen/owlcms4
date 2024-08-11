@@ -36,6 +36,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.data.renderer.NumberRenderer;
+import com.vaadin.flow.data.renderer.TextRenderer;
 import com.vaadin.flow.dom.ThemeList;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
@@ -66,6 +67,7 @@ import app.owlcms.nui.shared.AthleteGridContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSMedalsSheet;
 import app.owlcms.spreadsheet.JXLSResultSheet;
+import app.owlcms.spreadsheet.JXLSWinningSheet;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.NaturalOrderComparator;
 import app.owlcms.utils.URLUtils;
@@ -89,6 +91,8 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	}
 
 	public static Grid<Athlete> createResultGrid() {
+		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+
 		Grid<Athlete> grid = new Grid<>(Athlete.class, false);
 		grid.getThemeNames().add("row-stripes");
 		ThemeList themes = grid.getThemeNames();
@@ -100,7 +104,8 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		grid.addColumn("total").setHeader(Translator.translate("Total"))
 		        .setComparator(new WinningOrderComparator(Ranking.TOTAL, true));
 		grid.addColumn("totalRank").setHeader(Translator.translate("TotalRank"))
-		        .setComparator(new WinningOrderComparator(Ranking.TOTAL, false));
+		        .setComparator(new WinningOrderComparator(Ranking.TOTAL, false))
+		        .setRenderer(new TextRenderer<>((a) -> Ranking.formatScoreboardRank(a.getTotalRank())));
 
 		grid.addColumn("lastName").setHeader(Translator.translate("LastName"));
 		grid.addColumn("firstName").setHeader(Translator.translate("FirstName"));
@@ -108,10 +113,12 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		grid.addColumn("group").setHeader(Translator.translate("Group"));
 		grid.addColumn("bestSnatch").setHeader(Translator.translate("Snatch"));
 		grid.addColumn("snatchRank").setHeader(Translator.translate("SnatchRank"))
-		        .setComparator(new WinningOrderComparator(Ranking.SNATCH, false));
+		        .setComparator(new WinningOrderComparator(Ranking.SNATCH, false))
+		        .setRenderer(new TextRenderer<>((a) -> Ranking.formatScoreboardRank(a.getSnatchRank())));
 		grid.addColumn("bestCleanJerk").setHeader(Translator.translate("Clean_and_Jerk"));
 		grid.addColumn("cleanJerkRank").setHeader(Translator.translate("Clean_and_Jerk_Rank"))
-		        .setComparator(new WinningOrderComparator(Ranking.CLEANJERK, false));
+		        .setComparator(new WinningOrderComparator(Ranking.CLEANJERK, false))
+		        .setRenderer(new TextRenderer<>((a) -> Ranking.formatScoreboardRank(a.getCleanJerkRank())));
 
 		String protocolFileName = Competition.getCurrent().getProtocolTemplateFileName();
 		if (protocolFileName != null && (protocolFileName.toLowerCase().contains("fhq"))) {
@@ -122,21 +129,31 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 			        .setComparator(new WinningOrderComparator(Ranking.CAT_SINCLAIR, true));
 		}
 
-		grid.addColumn(new NumberRenderer<>(Athlete::getSinclairForDelta, "%.3f", OwlcmsSession.getLocale(), "0.000"))
-		        .setSortProperty("sinclair").setHeader(Translator.translate("sinclair"))
-		        .setComparator(new WinningOrderComparator(Ranking.BW_SINCLAIR, true));
-		// FIXME Use the selected scoring system
-		grid.addColumn(new NumberRenderer<>(Athlete::getqPoints, "%.2f", OwlcmsSession.getLocale(), "0.00"))
-		        .setSortProperty("qPoints").setHeader(Translator.translate("Qpoints"))
+		grid.addColumn(new NumberRenderer<>(a -> Ranking.getRankingValue(a, scoringSystem), "%.2f",
+		        OwlcmsSession.getLocale(), "0.00"))
+		        .setSortProperty("score").setHeader(Translator.translate("Ranking." + scoringSystem))
 		        .setComparator(new WinningOrderComparator(Ranking.QPOINTS, true));
-		grid.addColumn(new NumberRenderer<>(Athlete::getSmfForDelta, "%.3f", OwlcmsSession.getLocale(), "-"))
-		        .setHeader(Translator.translate("smm"))
-		        .setSortProperty("smm")
-		        .setComparator(new WinningOrderComparator(Ranking.SMM, true));
 
-		grid.addColumn(new NumberRenderer<>(Athlete::getRobi, "%.3f", OwlcmsSession.getLocale(), "-"))
-		        .setSortProperty("robi")
-		        .setHeader(Translator.translate("robi")).setComparator(new WinningOrderComparator(Ranking.ROBI, true));
+		if (scoringSystem != Ranking.BW_SINCLAIR) {
+			grid.addColumn(
+			        new NumberRenderer<>(Athlete::getSinclairForDelta, "%.3f", OwlcmsSession.getLocale(), "0.000"))
+			        .setSortProperty("sinclair").setHeader(Translator.translate("sinclair"))
+			        .setComparator(new WinningOrderComparator(Ranking.BW_SINCLAIR, true));
+		}
+
+		if (scoringSystem != Ranking.SMM) {
+			grid.addColumn(new NumberRenderer<>(Athlete::getSmhfForDelta, "%.3f", OwlcmsSession.getLocale(), "-"))
+			        .setHeader(Translator.translate("smhf"))
+			        .setSortProperty("smm")
+			        .setComparator(new WinningOrderComparator(Ranking.SMM, true));
+		}
+
+		if (scoringSystem != Ranking.ROBI) {
+			grid.addColumn(new NumberRenderer<>(Athlete::getRobi, "%.3f", OwlcmsSession.getLocale(), "-"))
+			        .setSortProperty("robi")
+			        .setHeader(Translator.translate("robi"))
+			        .setComparator(new WinningOrderComparator(Ranking.ROBI, true));
+		}
 		return grid;
 	}
 
@@ -283,7 +300,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("GroupResults");
+		return Translator.translate("GroupResults");
 	}
 
 	@Override
@@ -382,13 +399,13 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	protected Component createReset() {
-		this.reset = new Button(getTranslation("RecomputeRanks"), new Icon(VaadinIcon.REFRESH),
+		this.reset = new Button(Translator.translate("RecomputeRanks"), new Icon(VaadinIcon.REFRESH),
 		        (e) -> OwlcmsSession.withFop((fop) -> {
 			        AthleteRepository.assignCategoryRanks();
 			        refresh();
 		        }));
 
-		this.reset.getElement().setAttribute("title", getTranslation("RecomputeRanks"));
+		this.reset.getElement().setAttribute("title", Translator.translate("RecomputeRanks"));
 		this.reset.getElement().setAttribute("theme", "secondary contrast small icon");
 		return this.reset;
 	}
@@ -400,7 +417,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		// filter.
 
 		List<Group> groups = GroupRepository.findAll();
-		groups.sort(new NaturalOrderComparator<>());
+		groups.sort(Group.groupSelectionComparator.reversed());
 
 		OwlcmsSession.withFop(fop -> {
 			logger.trace("initial setting group to {} {}", this.currentGroup, LoggerUtils.whereFrom());
@@ -411,7 +428,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 			        (g1) -> doSwitchGroup(g1),
 			        (g1) -> doSwitchGroup(new Group("*")),
 			        null,
-			        Translator.translate("AllGroups"));
+			        Translator.translate("AllGroups"), true);
 		});
 	}
 
@@ -426,7 +443,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 			return;
 		}
 
-		getGroupFilter().setPlaceholder(getTranslation("Group"));
+		getGroupFilter().setPlaceholder(Translator.translate("Group"));
 		List<Group> groups = GroupRepository.findAll();
 		groups.sort(new NaturalOrderComparator<>());
 		getGroupFilter().setItems(groups);
@@ -442,7 +459,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		crud.getCrudLayout().addFilterComponent(getGroupFilter());
 
 		this.medalsOnly = new Checkbox();
-		this.medalsOnly.setLabel(getTranslation("MedalsOnly"));
+		this.medalsOnly.setLabel(Translator.translate("MedalsOnly"));
 		this.medalsOnly.setValue(false);
 		this.medalsOnly.addValueChangeListener(e -> {
 			this.getCrudGrid().getGrid().getElement().getClassList().set("medals", Boolean.TRUE.equals(e.getValue()));
@@ -450,10 +467,10 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		});
 		crud.getCrudLayout().addFilterComponent(this.medalsOnly);
 
-		this.getGenderFilter().setPlaceholder(getTranslation("Gender"));
+		this.getGenderFilter().setPlaceholder(Translator.translate("Gender"));
 		this.getGenderFilter().setItems(Gender.M, Gender.F);
 		this.getGenderFilter().setItemLabelGenerator((i) -> {
-			return i == Gender.M ? getTranslation("Gender.Men") : getTranslation("Gender.Women");
+			return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
 		});
 		this.getGenderFilter().setClearButtonVisible(true);
 		this.getGenderFilter().addValueChangeListener(e -> {
@@ -486,12 +503,13 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		}
 		if (liftingFop != null) {
 			Notification.show(
-			        getTranslation("Warning_GroupLifting") + liftingFop.getName() + getTranslation("CannotEditResults"),
+			        Translator.translate("Warning_GroupLifting") + liftingFop.getName()
+			                + Translator.translate("CannotEditResults"),
 			        3000, Position.MIDDLE);
-			logger.debug(getTranslation("CannotEditResults_logging"), this.currentGroup, liftingFop);
+			logger.debug(Translator.translate("CannotEditResults_logging"), this.currentGroup, liftingFop);
 			// subscribeIfLifting(currentGroup);
 		} else {
-			logger.debug(getTranslation("EditingResults_logging"), this.currentGroup, liftingFop);
+			logger.debug(Translator.translate("EditingResults_logging"), this.currentGroup, liftingFop);
 		}
 		return liftingFop != null;
 	}
@@ -499,14 +517,14 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	private Button createEligibilityResultsDownloadButton() {
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
-			        JXLSResultSheet rs = new JXLSResultSheet();
+		        	JXLSWinningSheet rs = new JXLSWinningSheet();
 			        // group may have been edited since the page was loaded
 			        rs.setGroup(this.currentGroup != null ? GroupRepository.getById(this.currentGroup.getId()) : null);
 			        return rs;
 		        },
-		        "/templates/protocol",
-		        Competition::getComputedProtocolTemplateFileName,
-		        Competition::setProtocolTemplateFileName,
+		        "/templates/competitionResults",
+		        Competition::getComputedResultsTemplateFileName,
+		        Competition::setResultsTemplateFileName,
 		        Translator.translate("EligibilityCategoryResults"),
 		        Translator.translate("Download"));
 		Button resultsButton = this.downloadDialog.createDownloadButton();
@@ -567,4 +585,27 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	private void highlight(Button button) {
 		button.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
 	}
+	
+	public static String formatBlankRank(Integer total) {
+		if (total == null || total == 0) {
+			return "&nbsp;";
+		} else if (total == -1) {
+			// invited lifter, not eligible.
+			return Translator.translate("Results.Extra/Invited"); 
+		} else {
+			return total.toString();
+		}
+	}
+	
+	public static String formatScoreboardRank(Integer total) {
+		if (total == null || total == 0) {
+			return "-";
+		} else if (total == -1) {
+			// invited lifter, not eligible.
+			return Translator.translate("Results.Extra/Invited"); 
+		} else {
+			return total.toString();
+		}
+	}
+
 }

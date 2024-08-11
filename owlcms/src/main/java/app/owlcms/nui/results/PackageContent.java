@@ -13,6 +13,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,6 +27,7 @@ import com.vaadin.flow.component.HasElement;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.icon.Icon;
@@ -63,7 +65,7 @@ import app.owlcms.nui.shared.AthleteCrudGrid;
 import app.owlcms.nui.shared.AthleteGridContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSCompetitionBook;
-import app.owlcms.spreadsheet.JXLSResultSheet;
+import app.owlcms.spreadsheet.JXLSWinningSheet;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -98,6 +100,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	private AgeGroup ageGroup;
 	private Category category;
 	private Gender gender;
+	private Checkbox includeUnfinishedCategories;
 
 	/**
 	 * Instantiates a new announcer content. Does nothing. Content is created in
@@ -125,7 +128,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		// StreamResource hrefC = new StreamResource("catResults.xls", catXlsWriter);
 		// catResultsAnchor = new Anchor(hrefC, "");
 		// catResultsAnchor.getStyle().set("margin-left", "1em");
-		// catDownloadButton = new Button(getTranslation(TITLE), new Icon(VaadinIcon.DOWNLOAD_ALT));
+		// catDownloadButton = new Button(Translator.translate(TITLE), new Icon(VaadinIcon.DOWNLOAD_ALT));
 		// catResultsAnchor.add(catDownloadButton);
 
 		Button finalPackageDownloadButton = createFinalPackageDownloadButton();
@@ -157,25 +160,46 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	public Collection<Athlete> findAll() {
 		Competition competition = Competition.getCurrent();
 		HashMap<String, Object> beans = competition.computeReportingInfo(this.ageGroupPrefix, this.championship);
+
 		String key = "mwTot";
 		@SuppressWarnings("unchecked")
 		List<Athlete> ranked = (List<Athlete>) beans.get(key);
+		boolean allCategories = Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue());
+
+		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
+		@SuppressWarnings("unchecked")
+		List<Athlete> allRelevant = (List<Athlete>) beans.get("allPAthletes");
+		Set<String> unfinishedCategories = AthleteRepository.unfinishedCategories(allRelevant);
+		//logger.debug("unfinished categories {}", unfinishedCategories);
+
 		if (ranked == null || ranked.isEmpty()) {
 			return new ArrayList<>();
 		}
+
 		Category catFilterValue = getCategoryValue();
 		Stream<Athlete> stream = ranked.stream()
 		        .filter(a -> {
 			        Gender genderFilterValue = this.getGender();
 			        Gender athleteGender = a.getGender();
 			        boolean catOk = (catFilterValue == null
-			                || catFilterValue.toString().equals(a.getCategory().toString()))
-			                && (genderFilterValue == null || genderFilterValue == athleteGender);
-			        // logger.debug("filter {} : {} {} {} | {} {}", catOk, catFilterValue,
-			        // a.getCategory(),
-			        // genderFilterValue, athleteGender);
+			                || (a.getCategory() != null && catFilterValue.getCode().equals(a.getCategory().getCode())))
+			                && (genderFilterValue == null || genderFilterValue == athleteGender)
+			                && (allCategories || !unfinishedCategories.contains(a.getCategory().getCode()))
+			                ;
+
 			        return catOk;
-		        });
+		        })
+				.map(a -> {
+					if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+						a.setCategoryDone(false);
+					} else {
+						a.setCategoryDone(true);
+					}
+
+					return a;
+				})
+		        //.peek(r -> logger.debug("including {} {}",r, r.getCategory().getCode()))
+		        ;
 		List<Athlete> found = stream.collect(Collectors.toList());
 		updateURLLocations();
 		return found;
@@ -270,7 +294,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation(TITLE);
+		return Translator.translate(TITLE);
 	}
 
 	@Override
@@ -433,13 +457,13 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	protected Component createReset() {
-		this.reset = new Button(getTranslation("RecomputeRanks"), new Icon(VaadinIcon.REFRESH),
+		this.reset = new Button(Translator.translate("RecomputeRanks"), new Icon(VaadinIcon.REFRESH),
 		        (e) -> OwlcmsSession.withFop((fop) -> {
 			        AthleteRepository.assignCategoryRanks();
 			        refresh();
 		        }));
 
-		this.reset.getElement().setAttribute("title", getTranslation("RecomputeRanks"));
+		this.reset.getElement().setAttribute("title", Translator.translate("RecomputeRanks"));
 		this.reset.getElement().setAttribute("theme", "secondary contrast small icon");
 		return this.reset;
 	}
@@ -447,12 +471,16 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	@Override
 	protected void defineFilters(GridCrud<Athlete> crud) {
 		defineFilterCascade(crud);
+		includeUnfinishedCategories = new Checkbox(Translator.translate("Video.includeNotCompleted"));
+		getCrudLayout(crud).addFilterComponent(includeUnfinishedCategories);
 		defineSelectionListeners();
+		this.includeUnfinishedCategories.addValueChangeListener(e -> crud.refreshGrid());
 		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
 		clearFilters.addClickListener(event -> {
 			clearFilters();
+			this.includeUnfinishedCategories.setValue(false);
 		});
-		
+
 		getCrudLayout(crud).addFilterComponent(clearFilters);
 	}
 
@@ -499,11 +527,11 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		}
 		if (liftingFop != null) {
 			Notification.show(
-			        getTranslation("Warning_GroupLifting") + liftingFop.getName() + getTranslation("CannotEditResults"),
+			        Translator.translate("Warning_GroupLifting") + liftingFop.getName() + Translator.translate("CannotEditResults"),
 			        3000, Position.MIDDLE);
-			logger.debug(getTranslation("CannotEditResults_logging"), this.currentGroup, liftingFop);
+			logger.debug(Translator.translate("CannotEditResults_logging"), this.currentGroup, liftingFop);
 		} else {
-			logger.debug(getTranslation("EditingResults_logging"), this.currentGroup, liftingFop);
+			logger.debug(Translator.translate("EditingResults_logging"), this.currentGroup, liftingFop);
 		}
 		return liftingFop != null;
 	}
@@ -511,7 +539,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	private Button createCategoryResultsDownloadButton() {
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
-			        JXLSResultSheet rs = new JXLSResultSheet();
+			        JXLSWinningSheet rs = new JXLSWinningSheet();
 			        rs.setChampionship(this.championship);
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
 			        rs.setCategory(getCategoryValue());
@@ -520,11 +548,12 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setSortedAthletes((List<Athlete>) findAll());
 			        return rs;
 		        },
-		        "/templates/protocol",
-		        Competition::getComputedProtocolTemplateFileName,
-		        Competition::setProtocolTemplateFileName,
+		        "/templates/competitionResults",
+		        Competition::getComputedResultsTemplateFileName,
+		        Competition::setResultsTemplateFileName,
 		        Translator.translate("EligibilityCategoryResults"),
 		        Translator.translate("Download"));
+		this.downloadDialog.setProcessingMessage(Translator.translate("LongProcessing"));
 		Button resultsButton = this.downloadDialog.createDownloadButton();
 		return resultsButton;
 	}
@@ -538,6 +567,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setChampionship(this.championship);
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
 			        rs.setCategory(this.categoryValue);
+			        rs.setIncludeUnfinished(Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue()));
 			        return rs;
 		        },
 		        "/templates/competitionBook",
@@ -554,7 +584,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	private Button createRegistrationResultsDownloadButton() {
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
-			        JXLSResultSheet rs = new JXLSResultSheet(false);
+			        JXLSWinningSheet rs = new JXLSWinningSheet(false);
 			        rs.setChampionship(this.championship);
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
 			        rs.setCategory(getCategoryValue());
@@ -563,11 +593,12 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setSortedAthletes((List<Athlete>) findAll());
 			        return rs;
 		        },
-		        "/templates/protocol",
-		        Competition::getComputedProtocolTemplateFileName,
-		        Competition::setProtocolTemplateFileName,
+		        "/templates/competitionResults",
+		        Competition::getComputedResultsTemplateFileName,
+		        Competition::setResultsTemplateFileName,
 		        Translator.translate("RegistrationCategoryResults"),
 		        Translator.translate("Download"));
+		this.downloadDialog.setProcessingMessage(Translator.translate("LongProcessing"));
 		Button resultsButton = this.downloadDialog.createDownloadButton();
 		return resultsButton;
 	}

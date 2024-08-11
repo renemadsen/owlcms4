@@ -147,13 +147,13 @@
 		<dependency>
 			<groupId>org.jxls</groupId>
 			<artifactId>jxls</artifactId>
-			<version>3.0.0-beta1</version>
+			<version>3.0.0</version>
 		</dependency>
 		<!-- https://mvnrepository.com/artifact/org.jxls/jxls-poi -->
 		<dependency>
 			<groupId>org.jxls</groupId>
 			<artifactId>jxls-poi</artifactId>
-			<version>3.0.0-beta1</version>
+			<version>3.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.poi</groupId>
@@ -220,7 +220,6 @@
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>log4j-over-slf4j</artifactId>
-			<version>${slf4j.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -229,6 +228,14 @@
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>jul-to-slf4j</artifactId>
+		</dependency>
+
+		<!--
+		https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-annotations</artifactId>
+			<version>2.17.1</version>
 		</dependency>
 
 		<!-- testing -->
@@ -277,27 +284,6 @@
 			<artifactId>httpmime</artifactId>
 			<version>4.5.13</version>
 		</dependency>
-
-		<!-- xml export -->
-		<dependency>
-			<groupId>com.fasterxml.jackson.dataformat</groupId>
-			<artifactId>jackson-dataformat-xml</artifactId>
-			<version>2.17.1</version>
-		</dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.datatype</groupId>
-			<artifactId>jackson-datatype-jsr310</artifactId>
-			<version>2.13.0</version>
-		</dependency>
-
-		<!--
-		https://mvnrepository.com/artifact/org.glassfish.external/opendmk_jmxremote_optional_jar
-		<dependency>
-			<groupId>org.glassfish.external</groupId>
-			<artifactId>opendmk_jmxremote_optional_jar</artifactId>
-			<version>1.0-b01-ea</version>
-		</dependency>
-		-->
 
 		<!--
 		https://mvnrepository.com/artifact/org.eclipse.paho/org.eclipse.paho.client.mqttv3 -->
@@ -688,9 +674,25 @@
 												<exclude>META-INF/*.DSA</exclude>
 												<exclude>META-INF/*.RSA</exclude>
 												<exclude>META-INF/*.md</exclude>
+												<exclude>META-INF/AL2.0</exclude>
+												<exclude>META-INF/LGPL2.1</exclude>
 												<exclude>com.vaadin:vaadin-dev</exclude>
 												<exclude>
 													com.vaadin:vaadin-dev-server</exclude>
+												<exclude>
+													com.vaadin:vaadin-board-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-charts-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-cookie-consent-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-crud-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-grid-pro-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-map-flow</exclude>
+												<exclude>
+													com.vaadin:vaadin-rich-text-editor-flow</exclude>
 											</excludes>
 										</filter>
 									</filters>
@@ -712,6 +714,13 @@
 									${project.basedir}/src/main/resources/logback-console.xml</logback.configurationFile>
 								<org.slf4j.simpleLogger.defaultLogLevel>DEBUG</org.slf4j.simpleLogger.defaultLogLevel>
 							</systemPropertyVariables>
+							<includes>
+								<include>AllTests.java</include>
+							</includes>
+							<excludes>
+								<exclude>**/*Test.java</exclude>
+								<exclude>*Test.java</exclude>
+							</excludes>
 						</configuration>
 					</plugin>
 					<plugin>
@@ -771,7 +780,7 @@
 									<file>
 										target/${project.artifactId}-${project.version}.jar</file>
 									<repositoryId>owlcms-maven-repo</repositoryId>
-									<url>https://maven.lerta.ca/releases</url>
+									<url>https://maven.jflamy.dev/releases</url>
 									<groupId>${project.groupId}</groupId>
 									<artifactId>${project.artifactId}</artifactId>
 									<version>${project.version}</version>

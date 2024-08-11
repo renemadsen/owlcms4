@@ -45,6 +45,7 @@ import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.components.elements.JuryDisplayDecisionElement;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.fieldofplay.CountdownType;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FOPState;
@@ -97,12 +98,17 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		// we don't actually inherit behaviour from the superclass because
 		// all this does is call init() -- which we override.
 		// when navigating to the page, Vaadin will call setParameter+readParameters
-		// these parameters will be applied.
+		// these parameters will be applied
+		
 		setDefaultParameters(QueryParameters.simple(Map.of(
 		        SoundParameters.SILENT, "true",
 		        SoundParameters.DOWNSILENT, "true",
 		        SoundParameters.IMMEDIATE, "true",
-		        SoundParameters.SINGLEREF, "false")));
+		        SoundParameters.SINGLEREF, "false",
+		        SoundParameters.LIVE_LIGHTS, "true",
+		        SoundParameters.SHOW_DECLARATIONS, "false",
+		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
+		        SoundParameters.START_ORDER, "false")));
 	}
 
 	/**
@@ -137,7 +143,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Jury") + OwlcmsSession.getFopNameIfMultiple();
+		return Translator.translate("Jury") + OwlcmsSession.getFopNameIfMultiple();
 	}
 
 	@Override
@@ -179,7 +185,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			// juryDeliberationButton.setEnabled(true);
 			int d = e.decision ? 1 : 0;
-			String text = getTranslation("NoLift_GoodLift", d, e.getAthlete().getFullName());
+			String text = Translator.translate("NoLift_GoodLift", d, e.getAthlete().getFullName());
 			// logger.debug("setting athleteUnderReview2 {}", e.getAthlete());
 			setAthleteUnderReview(e.getAthlete());
 
@@ -206,7 +212,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 
 	@Subscribe
 	public void slaveResetOnNewClock(UIEvent.ResetOnNewClock e) {
-		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> syncWithFOP(true));
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> syncWithFop(true, getFop()));
 	}
 
 	/**
@@ -326,7 +332,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	}
 
 	protected void doSync() {
-		syncWithFOP(false);
+		syncWithFop(false, getFop());
 		this.decisions.slaveDecisionReset(null);
 
 		// OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(this));
@@ -352,37 +358,35 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	}
 
 	@Override
-	protected void syncWithFOP(boolean refreshGrid) {
-		super.syncWithFOP(refreshGrid);
-		OwlcmsSession.withFop(fop -> {
-			setAthleteUnderReview(fop.getAthleteUnderReview());
-			Boolean[] curDecisions = fop.getJuryMemberDecision();
-			if (curDecisions != null) {
-				for (int i = 0; i < getNbJurors(); i++) {
-					Boolean goodBad = curDecisions[i];
-					// logger.debug("existing jury {} {}", i, goodBad);
-					juryVote(i, goodBad, false);
-				}
+	protected void syncWithFop(boolean refreshGrid, FieldOfPlay fop) {
+		super.syncWithFop(refreshGrid, fop);
+		setAthleteUnderReview(fop.getAthleteUnderReview());
+		Boolean[] curDecisions = fop.getJuryMemberDecision();
+		if (curDecisions != null) {
+			for (int i = 0; i < getNbJurors(); i++) {
+				Boolean goodBad = curDecisions[i];
+				// logger.debug("existing jury {} {}", i, goodBad);
+				juryVote(i, goodBad, false);
 			}
-			Boolean[] curRefDecisions = fop.getRefereeDecision();
-			Long[] curRefTimes = fop.getRefereeTime();
-			this.decisions.doReset();
-			if (curRefDecisions != null) {
-				// for (int i = 0; i < 3; i++) {
-				// Boolean goodBad = curRefDecisions[i];
-				// logger.debug("existing ref {} {}", i, goodBad);
-				// }
-				if (fop.isRefereeForcedDecision()) {
-					this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview, null,
-					        curRefDecisions[1], null, null, curRefTimes[1], null, this));
-				} else {
-					this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview,
-					        curRefDecisions[0],
-					        curRefDecisions[1], curRefDecisions[2], curRefTimes[0], curRefTimes[1], curRefTimes[2],
-					        this));
-				}
+		}
+		Boolean[] curRefDecisions = fop.getRefereeDecision();
+		Long[] curRefTimes = fop.getRefereeTime();
+		this.decisions.doReset();
+		if (curRefDecisions != null) {
+			// for (int i = 0; i < 3; i++) {
+			// Boolean goodBad = curRefDecisions[i];
+			// logger.debug("existing ref {} {}", i, goodBad);
+			// }
+			if (fop.isRefereeForcedDecision()) {
+				this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview, null,
+				        curRefDecisions[1], null, null, curRefTimes[1], null, this, fop));
+			} else {
+				this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview,
+				        curRefDecisions[0],
+				        curRefDecisions[1], curRefDecisions[2], curRefTimes[0], curRefTimes[1], curRefTimes[2],
+				        this, fop));
 			}
-		});
+		}
 	}
 
 	private Icon bigIcon(VaadinIcon iconDef, String color) {
@@ -395,7 +399,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	private void buildJuryBox(VerticalLayout juryContainer) {
 		// logger.trace("buildJuryBox {}", LoggerUtils.whereFrom());
 		HorizontalLayout topRow = new HorizontalLayout();
-		this.juryLabel = new NativeLabel(getTranslation("JuryDecisions"));
+		this.juryLabel = new NativeLabel(Translator.translate("JuryDecisions"));
 		H3 labelWrapper = new H3(this.juryLabel);
 		labelWrapper.setWidth("15em");
 		NativeLabel spacer = new NativeLabel();
@@ -492,11 +496,14 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	}
 
 	private Component createRefereeLabel(Athlete athlete) {
-		Html refereeLabel = new Html("<span>" +
-		        getTranslation("RefereeDecisions")
+		Html refereeLabel = new Html("<span style='font-size: 110%'>" +
+		        Translator.translate("RefereeDecisions")
 		        + (athlete != null
 		                ? "&nbsp;&nbsp;&nbsp;" + athleteFullId(athlete) + "&nbsp;&nbsp;&nbsp;"
-		                        + formatAttempt(athlete.getAttemptsDone() - 1)
+		                        + (formatAttempt(athlete.getAttemptsDone() - 1))
+		                        + "&nbsp;&nbsp;&nbsp;" +
+		                        athlete.getRequestedWeightForAttempt(athlete.getAttemptsDone() - 1)
+		                        + Translator.translate("KgSymbol")
 		                : "")
 		        + "</span>");
 		H3 refereeLabelWrapper = new H3(refereeLabel);
@@ -566,13 +573,13 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 				                new UIEvent.Notification(null, this,
 				                        UIEvent.Notification.Level.ERROR,
 				                        "BreakButton.cannotInterruptBreak",
-				                        3000));
+				                        3000, fop));
 			        } else {
 				        openJuryDialog(JuryDeliberationEventType.START_DELIBERATION);
 			        }
 		        });
 		juryDeliberationButton.getElement().setAttribute("theme", "primary");
-		juryDeliberationButton.setText(getTranslation("BreakButton.JuryDeliberation"));
+		juryDeliberationButton.setText(Translator.translate("BreakButton.JuryDeliberation"));
 
 		Button challengeButton = new Button(
 		        new Icon(VaadinIcon.TIMER),
@@ -583,15 +590,15 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 				                new UIEvent.Notification(null, this,
 				                        UIEvent.Notification.Level.ERROR,
 				                        "BreakButton.cannotInterruptBreak",
-				                        3000));
+				                        3000, fop));
 			        } else {
 				        openJuryDialog(JuryDeliberationEventType.CHALLENGE);
 			        }
 		        });
 		challengeButton.getElement().setAttribute("theme", "primary");
-		challengeButton.setText(getTranslation("BreakButton.CHALLENGE"));
+		challengeButton.setText(Translator.translate("BreakButton.CHALLENGE"));
 		// juryDeliberationButton.getElement().setAttribute("title",
-		// getTranslation("BreakButton.JuryDeliberation"));
+		// Translator.translate("BreakButton.JuryDeliberation"));
 
 		Button technicalPauseButton = new Button(
 		        new Icon(VaadinIcon.TIMER),
@@ -602,13 +609,13 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 				                new UIEvent.Notification(null, this,
 				                        UIEvent.Notification.Level.ERROR,
 				                        "BreakButton.cannotInterruptBreak",
-				                        3000));
+				                        3000, fop));
 			        } else {
 				        openJuryDialog(JuryDeliberationEventType.TECHNICAL_PAUSE);
 			        }
 		        });
 		technicalPauseButton.getElement().setAttribute("theme", "primary");
-		technicalPauseButton.setText(getTranslation("BreakType.TECHNICAL"));
+		technicalPauseButton.setText(Translator.translate("BreakType.TECHNICAL"));
 
 		HorizontalLayout buttons = new HorizontalLayout(juryDeliberationButton, challengeButton, technicalPauseButton);
 
@@ -619,7 +626,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 				        openJuryDialog(JuryDeliberationEventType.CALL_REFEREES);
 			        });
 			summonRefereesButton.getElement().setAttribute("theme", "primary");
-			summonRefereesButton.setText(getTranslation("BreakButton.SummonReferees"));
+			summonRefereesButton.setText(Translator.translate("BreakButton.SummonReferees"));
 			buttons.add(summonRefereesButton);
 		}
 
@@ -745,7 +752,6 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			});
 		}
 	}
-
 
 	private void swapRefereeLabel(Athlete athlete) {
 		Component nc = createRefereeLabel(athlete);

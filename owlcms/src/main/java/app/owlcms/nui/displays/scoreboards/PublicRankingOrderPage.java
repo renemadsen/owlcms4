@@ -3,10 +3,13 @@ package app.owlcms.nui.displays.scoreboards;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.slf4j.LoggerFactory;
 
 import com.google.common.eventbus.Subscribe;
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
@@ -17,6 +20,7 @@ import app.owlcms.data.config.Config;
 import app.owlcms.displays.scoreboard.Results;
 import app.owlcms.displays.scoreboard.ResultsMedals;
 import app.owlcms.displays.scoreboard.ResultsRankingOrder;
+import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.uievents.CeremonyType;
 import app.owlcms.uievents.UIEvent;
@@ -41,7 +45,7 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Scoreboard.RankingOrder") + OwlcmsSession.getFopNameIfMultiple();
+		return Translator.translate("Scoreboard.RankingOrder") + OwlcmsSession.getFopNameIfMultiple();
 	}
 
 	public final Results getResultsBoard() {
@@ -66,15 +70,15 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 		}
 		this.ui.access(() -> {
 			/* copy current parameters from results board to medals board */
-			this.medalsBoard.setDownSilenced(true);
-			this.medalsBoard.setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
-			this.medalsBoard.setVideo(((DisplayParameters) getBoard()).isVideo());
-			this.medalsBoard.setPublicDisplay(((DisplayParameters) getBoard()).isPublicDisplay());
-			this.medalsBoard.setSingleReferee(((SoundParameters) getBoard()).isSingleReferee());
-			this.medalsBoard.setAbbreviatedName(((DisplayParameters) getBoard()).isAbbreviatedName());
-			this.medalsBoard.setTeamWidth(((DisplayParameters) getBoard()).getTeamWidth());
-			this.medalsBoard.setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
-			checkVideo(this.medalsBoard);
+			this.getMedalsBoard().setDownSilenced(true);
+			this.getMedalsBoard().setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
+			this.getMedalsBoard().setVideo(((DisplayParameters) getBoard()).isVideo());
+			this.getMedalsBoard().setPublicDisplay(((DisplayParameters) getBoard()).isPublicDisplay());
+			this.getMedalsBoard().setSingleReferee(((SoundParameters) getBoard()).isSingleReferee());
+			this.getMedalsBoard().setAbbreviatedName(((DisplayParameters) getBoard()).isAbbreviatedName());
+			this.getMedalsBoard().setTeamWidth(((DisplayParameters) getBoard()).getTeamWidth());
+			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
+			checkVideo(this.getMedalsBoard());
 			getMedalsBoard().getStyle().set("display", "block");
 
 			getResultsBoard().getStyle().set("display", "none");
@@ -83,26 +87,35 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 
 	protected void createComponents() {
 		var board = new ResultsRankingOrder();
-		var medalsBoard = new ResultsMedals();
-
+		setMedalsBoard(new ResultsMedals());
 		this.setBoard(board);
-		this.setResultsBoard(board);
-		this.setMedalsBoard(medalsBoard);
-		this.addComponent(board);
-		this.addComponent(medalsBoard);
 
-		medalsBoard.setDownSilenced(true);
-		medalsBoard.setDarkMode(board.isDarkMode());
-		medalsBoard.setVideo(board.isVideo());
-		medalsBoard.setPublicDisplay(board.isPublicDisplay());
-		medalsBoard.setSingleReferee(board.isSingleReferee());
-		medalsBoard.setAbbreviatedName(board.isAbbreviatedName());
-		medalsBoard.setTeamWidth(board.getTeamWidth());
-		medalsBoard.setEmFontSize(board.getEmFontSize());
-		checkVideo(medalsBoard);
+		getMedalsBoard().setDownSilenced(true);
+		getMedalsBoard().setDarkMode(board.isDarkMode());
+		getMedalsBoard().setVideo(board.isVideo());
+		getMedalsBoard().setPublicDisplay(board.isPublicDisplay());
+		getMedalsBoard().setSingleReferee(board.isSingleReferee());
+		getMedalsBoard().setAbbreviatedName(board.isAbbreviatedName());
+		getMedalsBoard().setTeamWidth(board.getTeamWidth());
+		getMedalsBoard().setEmFontSize(board.getEmFontSize());
+		checkVideo(getMedalsBoard());
 
-		medalsBoard.getStyle().set("display", "none");
+		getMedalsBoard().getStyle().set("display", "none");
 		this.ui = UI.getCurrent();
+	}
+	
+	@Override
+	protected void onAttach(AttachEvent attachEvent) {
+		DisplayParameters board = (DisplayParameters) this.getBoard();
+		board.setFop(getFop());
+		getMedalsBoard().setFop(getFop());
+		
+		this.setResultsBoard((Results) board);
+		this.setMedalsBoard(getMedalsBoard());
+		
+		this.addComponent((Component) board);
+		getMedalsBoard().setVisible(false);
+		this.addComponent(getMedalsBoard());
 	}
 
 	@Override
@@ -116,20 +129,28 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 	protected void setDefaultParameters() {
 		// when navigating to the page, Vaadin will call setParameter+readParameters
 		// these parameters will be applied.
-		setDefaultParameters(QueryParameters.simple(Map.of(
+		var initialMap = Map.of(
 		        SoundParameters.SILENT, "true",
 		        SoundParameters.DOWNSILENT, "true",
 		        DisplayParameters.DARK, "true",
 		        DisplayParameters.LEADERS, "true",
 		        DisplayParameters.RECORDS, "true",
 		        DisplayParameters.VIDEO, "false",
-		        DisplayParameters.PUBLIC, "true",
+		        DisplayParameters.PUBLIC, "false",
 		        SoundParameters.SINGLEREF, "false",
-		        DisplayParameters.ABBREVIATED,
-		        Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")))));
+		        DisplayParameters.ABBREVIATED, Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")));
+		var additionalMap = Map.of(
+		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
+		        SoundParameters.SHOW_DECLARATIONS, "false",
+		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
+		        SoundParameters.START_ORDER, "false");
+		Map<String, String> fullMap = new TreeMap<>();
+		fullMap.putAll(initialMap);
+		fullMap.putAll(additionalMap);
+		setDefaultParameters(QueryParameters.simple(fullMap));
 	}
 
-	protected void setMedalsBoard(ResultsMedals medalsBoard) {
+	private void setMedalsBoard(ResultsMedals medalsBoard) {
 		this.medalsBoard = medalsBoard;
 	}
 

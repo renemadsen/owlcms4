@@ -90,8 +90,6 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
      */
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
-        // TODO create timer and decision events
-        // TODO compute checksum of update, timer, decision, issue bus events if changed
         try {
             String updateKey = req.getParameter("updateKey");
             if (updateKey == null || !updateKey.equals(this.secret)) {
@@ -110,7 +108,7 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
             }
 
             if (StartupUtils.isDebugSetting()) {
-                this.getLogger().setLevel(Level.TRACE);
+                this.getLogger().setLevel(Level.DEBUG);
                 Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
                 if (StartupUtils.isTraceSetting()) {
                     this.getLogger()./**/trace("update received from {}", ProxyUtils.getClientIp(req));
@@ -161,7 +159,12 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
             String mode = req.getParameter("mode");
             updateEvent.setMode(mode);
             
-            TimerReceiverServlet.processTimerReq(req, null, getLogger());
+            String breakTimerEventTypeString = req.getParameter("breakTimerEventType");
+            // we only process the break timer events. athlete timers wait until next FOP events.
+            if (breakTimerEventTypeString != null) {
+                logger.debug("processing break keepalive");
+                TimerReceiverServlet.processTimerReq(req, null, getLogger());
+            }
 
             String breakTypeString = req.getParameter("breakType");
             updateEvent.setBreak("true".equalsIgnoreCase(req.getParameter("break")));
@@ -203,7 +206,6 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
                 defaultFopName = fopName;
             }
 
-            // TODO create timer and decision objects as well.
             resp.sendError(200);
         } catch (Exception e) {
             this.getLogger().error(LoggerUtils.stackTrace(e));

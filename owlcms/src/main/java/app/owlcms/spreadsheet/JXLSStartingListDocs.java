@@ -9,6 +9,7 @@ package app.owlcms.spreadsheet;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.CellType;
@@ -103,8 +104,8 @@ public class JXLSStartingListDocs extends JXLSWorkbookStreamSource {
 							int cellnum = listColumn - 1 - prefixes.size() + prefixOffset;
 							if (cellnum >= 0) {
 								CellStyle tstyle = r.getCell(cellnum).getCellStyle();
-								r.getCell(listColumn - 1 + prefixOffset).setCellStyle(tstyle);
-							}
+							r.getCell(listColumn - 1 + prefixOffset).setCellStyle(tstyle);
+						}
 						}
 						r.createCell(listColumn - 1 + prefixes.size());
 						r.getCell(listColumn - 1 + prefixes.size()).setCellStyle(estyle);
@@ -224,8 +225,65 @@ public class JXLSStartingListDocs extends JXLSWorkbookStreamSource {
 
 	@Override
 	protected void postProcess(Workbook workbook) {
+        createStandardFooter(workbook);
 		if (this.postProcessor != null) {
 			this.postProcessor.accept(workbook);
+		}
+		//fixMergeError(workbook);
+	}
+	
+	@SuppressWarnings("unused")
+	/*
+	 * merged cells in a loop come out wrong.  This code is from
+	 * the jxls forum and claimed to be a fix.
+	 * Kept only as an example of how to iterate on merged cells.
+	 * The conditions for cloning the style are wrong.
+	 */
+	private void fixMergeError(Workbook workbook) {
+		try {
+			// Get all the merged regions. And reset the cell style
+			for (int t = 0; t < workbook.getNumberOfSheets(); t++) {
+				Sheet sheet = workbook.getSheetAt(t);
+				int sheetMergeCount = sheet.getNumMergedRegions();
+				for (int cc = 0; cc < sheetMergeCount; cc++) {
+					CellRangeAddress region = sheet.getMergedRegion(cc);
+					boolean symbol = false;
+					CellStyle ccs = null;
+					for (int i = region.getFirstRow(); i <= region.getLastRow(); i++) {
+						Row row = sheet.getRow(i);
+						if (row == null) {
+							continue;
+						}
+						for (int j = region.getFirstColumn(); j <= region.getLastColumn(); j++) {
+							Cell cell = row.getCell(j);
+							if (cell == null) {
+								continue;
+							}
+							if (symbol) {
+								CellStyle style = workbook.createCellStyle();
+								style.cloneStyleFrom(ccs);
+								ccs = style;
+								logger.debug("applying reference to {}", cell.getAddress());
+								cell.setCellStyle(style);
+								continue;
+							}
+							ccs = cell.getCellStyle();
+							logger.debug("style reference: {}",cell.getAddress());
+							if (ccs != null) {
+								BorderStyle borderLeft = ccs.getBorderLeft();
+								BorderStyle borderTop = ccs.getBorderTop();
+								if (i == region.getFirstRow() && j == region.getFirstColumn()
+								        && borderLeft != BorderStyle.NONE && borderTop != BorderStyle.NONE) {
+									symbol = true;
+								}
+							}
+						}
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
 		}
 	}
 }

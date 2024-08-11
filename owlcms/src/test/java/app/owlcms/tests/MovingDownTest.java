@@ -522,7 +522,8 @@ public class MovingDownTest {
         final Athlete sc = schneiderF;
         testChange(() -> change1(sc, "65", fopState), logger, RuleViolationException.LiftedEarlier.class);
 
-        // but allisonR can move down because he lifted after
+        // but allisonR can move down because he lifted initially simpsonR simpson, so if he takes same weight
+        // he still goes after simpsonR
         final Athlete al = allisonR;
         testChange(() -> change1(al, "65", fopState), logger, null);
     }
@@ -708,6 +709,7 @@ public class MovingDownTest {
         Athlete simpsonR = athletes.get(1);
         Athlete allisonR = athletes.get(2);
 
+        //logger.debug("schneider start {} simpson start {}",schneiderF.getStartNumber(), simpsonR.getStartNumber());
         // competition start
         schneiderF = change1(schneiderF, "64", fopState);
         allisonR = change1(allisonR, "64", fopState);

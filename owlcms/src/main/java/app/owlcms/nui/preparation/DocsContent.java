@@ -12,6 +12,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.poi.ss.usermodel.BorderStyle;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.AttachEvent;
@@ -22,6 +30,9 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.Notification.Position;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.router.BeforeEvent;
@@ -39,6 +50,7 @@ import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.platform.Platform;
@@ -196,7 +208,7 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Preparation.PrecompDocsTitle");
+		return Translator.translate("Preparation.PrecompDocsTitle");
 	}
 
 	@Override
@@ -213,70 +225,70 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location,
 	 *      java.util.Map)
 	 */
-//	@Override
-//	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
-//		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
-//
-//		List<String> ageDivisionParams = params1.get("ad");
-//		try {
-//			String ageDivisionName = (ageDivisionParams != null
-//			        && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
-//			Championship valueOf = Championship.of(ageDivisionName);
-//			if (valueOf != null) {
-//				setChampionship(valueOf);
-//				this.getChampionshipFilter().setValue(valueOf);
-//			}
-//		} catch (Exception e) {
-//			setChampionship(null);
-//			this.getChampionshipFilter().setValue(null);
-//		}
-//		// remove if now null
-//		String value = getChampionship() != null ? getChampionship().getName() : null;
-//		updateParam(params1, "ad", value);
-//
-//		List<String> ageGroupParams = params1.get("ag");
-//		// no age group is the default
-//		String ageGroupPrefix = (ageGroupParams != null && !ageGroupParams.isEmpty() ? ageGroupParams.get(0) : null);
-//		setAgeGroupPrefix(ageGroupPrefix);
-//		this.getAgeGroupFilter().setValue(ageGroupPrefix);
-//		String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
-//		updateParam(params1, "ag", value2);
-//
-//		List<String> groupParams = params1.get("group");
-//		// no age group is the default
-//		String groupString = (groupParams != null && !groupParams.isEmpty() ? groupParams.get(0) : null);
-//		Group groupValue = groupString != null ? GroupRepository.findByName(groupString) : null;
-//		setGroup(groupValue);
-//		getGroupFilter().setValue(groupValue);
-//		updateParam(params1, "group", groupString);
-//
-//		List<String> genderParams = params1.get("gender");
-//		// no age group is the default
-//		String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
-//		Gender genderValue = genderString != null ? Gender.valueOf(genderString) : null;
-//		setGender(genderValue);
-//		this.getGenderFilter().setValue(genderValue);
-//		updateParam(params1, "gender", genderString);
-//
-//		List<String> catParams = params1.get("cat");
-//		String catParam = (catParams != null && !catParams.isEmpty() ? catParams.get(0) : null);
-//		catParam = catParam != null ? URLDecoder.decode(catParam, StandardCharsets.UTF_8) : null;
-//		this.setCategory(CategoryRepository.findByCode(catParam));
-//		String catValue = getCategoryValue() != null ? getCategoryValue().toString() : null;
-//		updateParam(params1, "cat", catValue);
-//
-//		List<String> platformParams = params1.get("platform");
-//		String platformParam = (platformParams != null && !platformParams.isEmpty() ? platformParams.get(0) : null);
-//		platformParam = platformParam != null ? URLDecoder.decode(platformParam, StandardCharsets.UTF_8) : null;
-//		this.setPlatform(platformParam != null ? PlatformRepository.findByName(platformParam) : null);
-//		// logger.debug("reading param platform {}", platformParam);
-//		this.getPlatformFilter().setValue(this.getPlatform());
-//		updateParam(params1, "platform", platformParam != null ? platformParam : null);
-//
-//		// logger.debug("params {}", params1);
-//		setUrlParameterMap(params1);
-//		return params1;
-//	}
+	// @Override
+	// public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
+	// HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
+	//
+	// List<String> ageDivisionParams = params1.get("ad");
+	// try {
+	// String ageDivisionName = (ageDivisionParams != null
+	// && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
+	// Championship valueOf = Championship.of(ageDivisionName);
+	// if (valueOf != null) {
+	// setChampionship(valueOf);
+	// this.getChampionshipFilter().setValue(valueOf);
+	// }
+	// } catch (Exception e) {
+	// setChampionship(null);
+	// this.getChampionshipFilter().setValue(null);
+	// }
+	// // remove if now null
+	// String value = getChampionship() != null ? getChampionship().getName() : null;
+	// updateParam(params1, "ad", value);
+	//
+	// List<String> ageGroupParams = params1.get("ag");
+	// // no age group is the default
+	// String ageGroupPrefix = (ageGroupParams != null && !ageGroupParams.isEmpty() ? ageGroupParams.get(0) : null);
+	// setAgeGroupPrefix(ageGroupPrefix);
+	// this.getAgeGroupFilter().setValue(ageGroupPrefix);
+	// String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
+	// updateParam(params1, "ag", value2);
+	//
+	// List<String> groupParams = params1.get("group");
+	// // no age group is the default
+	// String groupString = (groupParams != null && !groupParams.isEmpty() ? groupParams.get(0) : null);
+	// Group groupValue = groupString != null ? GroupRepository.findByName(groupString) : null;
+	// setGroup(groupValue);
+	// getGroupFilter().setValue(groupValue);
+	// updateParam(params1, "group", groupString);
+	//
+	// List<String> genderParams = params1.get("gender");
+	// // no age group is the default
+	// String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
+	// Gender genderValue = genderString != null ? Gender.valueOf(genderString) : null;
+	// setGender(genderValue);
+	// this.getGenderFilter().setValue(genderValue);
+	// updateParam(params1, "gender", genderString);
+	//
+	// List<String> catParams = params1.get("cat");
+	// String catParam = (catParams != null && !catParams.isEmpty() ? catParams.get(0) : null);
+	// catParam = catParam != null ? URLDecoder.decode(catParam, StandardCharsets.UTF_8) : null;
+	// this.setCategory(CategoryRepository.findByCode(catParam));
+	// String catValue = getCategoryValue() != null ? getCategoryValue().toString() : null;
+	// updateParam(params1, "cat", catValue);
+	//
+	// List<String> platformParams = params1.get("platform");
+	// String platformParam = (platformParams != null && !platformParams.isEmpty() ? platformParams.get(0) : null);
+	// platformParam = platformParam != null ? URLDecoder.decode(platformParam, StandardCharsets.UTF_8) : null;
+	// this.setPlatform(platformParam != null ? PlatformRepository.findByName(platformParam) : null);
+	// // logger.debug("reading param platform {}", platformParam);
+	// this.getPlatformFilter().setValue(this.getPlatform());
+	// updateParam(params1, "platform", platformParam != null ? platformParam : null);
+	//
+	// // logger.debug("params {}", params1);
+	// setUrlParameterMap(params1);
+	// return params1;
+	// }
 
 	@Override
 	public Category getCategoryValue() {
@@ -393,7 +405,28 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
 			        List<Athlete> athletesFindAll = athletesFindAll(true);
-			        cardsXlsWriter.setSortedAthletes(athletesFindAll);
+			        String message = null;
+			        if (athletesFindAll.size() > cardsXlsWriter.getSizeLimit()) {
+				        message = Translator.translate("TooManyAthletes", cardsXlsWriter.getSizeLimit());
+				        logger./**/warn("too many athletes : no report");
+			        } else if (athletesFindAll.size() == 0) {
+				        message = Translator.translate("NoAthletes");
+				        logger./**/warn("no athletes: empty report.");
+			        }
+			        final String m = message;
+			        if (message != null) {
+				        this.getUI().get().access(() -> {
+					        Notification notif = new Notification();
+					        notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
+					        notif.setPosition(Position.TOP_STRETCH);
+					        notif.setDuration(3000);
+					        notif.setText(m);
+					        notif.open();
+				        });
+				        return null;
+			        } else {
+				        cardsXlsWriter.setSortedAthletes(athletesFindAll);
+			        }
 			        return cardsXlsWriter;
 		        },
 		        resourceDirectoryLocation,
@@ -460,9 +493,16 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 			        startingXlsWriter.setGroup(
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
-			        startingXlsWriter.setPostProcessor(null);
 			        List<Athlete> athletesFindAll = athletesFindAll(true);
 			        startingXlsWriter.setSortedAthletes(athletesFindAll);
+
+			        String tn = Competition.getCurrent().getComputedStartListTemplateFileName();
+			        if (Config.getCurrent().featureSwitch("usaw") && tn.equals("Schedule.xlsx")) {
+				        startingXlsWriter.setPostProcessor((w) -> fixMerges(w, 4, List.of(1, 2)));
+			        } else {
+				        startingXlsWriter.setPostProcessor(null);
+			        }
+
 			        return startingXlsWriter;
 		        },
 		        resourceDirectoryLocation,
@@ -471,6 +511,65 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		        title,
 		        Translator.translate("Download"));
 		return startingListFactory.createDownloadButton();
+	}
+
+	private void fixMerges(Workbook workbook, Integer startRowNum, List<Integer> columns) {
+		Sheet sheet = workbook.getSheetAt(0);
+		int firstRow = 0;
+		boolean isMerging = false;
+		CellStyle style = null;
+
+		for (int colA : columns) {
+			isMerging = false;
+			firstRow = 0;
+			style = null;
+
+			int col = colA - 1;
+			for (Row row : sheet) {
+				Cell cell = row.getCell(col);
+				// logger.debug("cell {}{} {}", (char)('A'+col), row.getRowNum()+1, firstRow);
+				if (row.getRowNum() + 1 < startRowNum) {
+					// logger.debug("cellB {}{}",(char)('A'+col), row.getRowNum()+1);
+					continue;
+				}
+
+				if (cell != null && cell.getCellType() != CellType.BLANK) {
+					if (isMerging) {
+						logger.debug("**** {}{}: merging from {}{}", (char) ('A' + col), row.getRowNum() + 1,
+						        (char) ('A' + col), firstRow + 1);
+						CellRangeAddress region = new CellRangeAddress(firstRow, row.getRowNum() - 1, col, col);
+						sheet.addMergedRegion(region);
+						// Apply the captured style to the first cell of the merged region
+						Cell cell2 = sheet.getRow(firstRow).getCell(col);
+						style.setBorderBottom(BorderStyle.HAIR);
+						cell2.setCellStyle(style);
+						isMerging = false;
+
+						// start a new merge
+						logger.debug("**** {}{}: capturing style", (char) ('A' + col), row.getRowNum() + 1, isMerging);
+						firstRow = row.getRowNum();
+						style = cell.getCellStyle(); // capture the style
+						isMerging = true;
+					} else {
+						logger.debug("**** {}{}: capturing style", (char) ('A' + col), row.getRowNum() + 1, isMerging);
+						firstRow = row.getRowNum();
+						style = cell.getCellStyle(); // capture the style
+						isMerging = true;
+					}
+				}
+			}
+			// Merge the last region if the last cell(s) is/are non-empty
+			if (isMerging) {
+				logger.debug("**** {}{}: merging bottom from {}{}", (char) ('A' + col), sheet.getLastRowNum() + 1,
+				        (char) ('A' + col), firstRow + 1);
+				CellRangeAddress region = new CellRangeAddress(firstRow, sheet.getLastRowNum(), col, col);
+				sheet.addMergedRegion(region);
+				Cell cell22 = sheet.getRow(firstRow).getCell(col);
+				style.setBorderBottom(BorderStyle.HAIR);
+				cell22.setCellStyle(style);
+			}
+		}
+		return;
 	}
 
 	@Override
@@ -540,7 +639,7 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		if (this.getPlatformFilter() == null) {
 			this.setPlatformFilter(new ComboBox<>());
 		}
-		this.getPlatformFilter().setPlaceholder(getTranslation("Platform"));
+		this.getPlatformFilter().setPlaceholder(Translator.translate("Platform"));
 		List<Platform> agItems1 = PlatformRepository.findAll();
 		this.getPlatformFilter().setItems(agItems1);
 		// platformFilter.setItemLabelGenerator((ad) -> Translator.translate("Division."

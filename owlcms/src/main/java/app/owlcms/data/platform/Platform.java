@@ -38,10 +38,9 @@ import ch.qos.logback.classic.Logger;
  * Groups are associated with a lifting platformName.
  * </p>
  * <p>
- * Projectors and officials are associated with a lifting platformName so there is no need to refresh their setup during
- * a competition. The name of the platformName is used as a key in the ServletContext so other sessions and other kinds
- * of pages (such as JSP) can locate the information about that platformName. See in particular the
- * {@link LiftList#updateTable()} method
+ * Projectors and officials are associated with a lifting platformName so there is no need to refresh their setup during a competition. The name of the
+ * platformName is used as a key in the ServletContext so other sessions and other kinds of pages (such as JSP) can locate the information about that
+ * platformName. See in particular the {@link LiftList#updateTable()} method
  * </p>
  *
  * @author jflamy
@@ -107,7 +106,6 @@ public class Platform implements Serializable, Comparable<Platform> {
 	// @GeneratedValue(strategy = GenerationType.AUTO)
 	// @JsonIgnore
 	Long id;
-	private Integer lightBar = 0;
 	/**
 	 * If mixer is not null, emit sound on the associated device
 	 */
@@ -124,12 +122,13 @@ public class Platform implements Serializable, Comparable<Platform> {
 	// large plates
 	private Integer nbL_10 = 1;
 	private Integer nbL_15 = 1;
+	private Integer nbL_20 = 1;
+	private Integer nbL_25 = 3;
 
 	// kid plates
 	private Integer nbL_2_5 = 0;
-	private Integer nbL_20 = 1;
-	private Integer nbL_25 = 1;
 	private Integer nbL_5 = 0;
+
 	// small plates
 	private Integer nbS_0_5 = 1;
 	private Integer nbS_1 = 1;
@@ -137,12 +136,17 @@ public class Platform implements Serializable, Comparable<Platform> {
 	private Integer nbS_2 = 1;
 	private Integer nbS_2_5 = 1;
 	private Integer nbS_5 = 1;
+
+	// bars
 	private boolean nonStandardBar;
-	// bar
-	private Integer officialBar = 0;
+	private Integer nonStandardBarWeight = 0;
+//	private Integer officialBar = 0;
+	private Integer nbB_5 = 0;
+	private Integer nbB_10 = 0;
+	private Integer nbB_15 = 1;
+	private Integer nbB_20 = 1;
 	/**
-	 * true if the referee use this application to give decisions, and decision lights need to be shown on the attempt
-	 * and result boards.
+	 * true if the referee use this application to give decisions, and decision lights need to be shown on the attempt and result boards.
 	 */
 	private Boolean showDecisionLights = false;
 	/**
@@ -150,12 +154,14 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	private Boolean showTimer = false;
 	private String soundMixerName;
+	private Boolean nonStandardBarAvailable = false;
 
 	/**
 	 * Instantiates a new platform. Used for import, no default values.
 	 */
 	public Platform() {
 		setId(IdUtils.getTimeBasedId());
+		//logger.debug"new Platform 1 {} {}",this.getNbB_5(), LoggerUtils.whereFrom());
 	}
 
 	/**
@@ -166,7 +172,8 @@ public class Platform implements Serializable, Comparable<Platform> {
 	public Platform(String name) {
 		setId(IdUtils.getTimeBasedId());
 		this.setName(name);
-		this.defaultPlates();
+		//logger.debug"new Platform 2",this.getNbB_5());
+		//this.defaultPlates();
 	}
 
 	@Override
@@ -199,6 +206,12 @@ public class Platform implements Serializable, Comparable<Platform> {
 		// large plates, kid competitions
 		this.setNbL_2_5(0);
 		this.setNbL_5(0);
+
+		// available bars
+		this.setNbB_5(0);
+		this.setNbB_10(0);
+		this.setNbB_15(1);
+		this.setNbB_20(1);
 	}
 
 	@Override
@@ -213,41 +226,6 @@ public class Platform implements Serializable, Comparable<Platform> {
 		Platform other = (Platform) obj;
 		return getId() != null && getId().equals(other.getId());
 
-		// @Override
-		// public boolean equals(Object obj) {
-		// if (this == obj) {
-		// return true;
-		// }
-		// if (obj == null) {
-		// return false;
-		// }
-		// if (getClass() != obj.getClass()) {
-		// return false;
-		// }
-		// Platform other = (Platform) obj;
-		// return Objects.equals(id, other.id) && Objects.equals(lightBar,
-		// other.lightBar)
-		// && mixerChecked == other.mixerChecked && Objects.equals(name, other.name)
-		// && Objects.equals(nbC_2_5, other.nbC_2_5) && Objects.equals(nbL_10,
-		// other.nbL_10)
-		// && Objects.equals(nbL_15, other.nbL_15) && Objects.equals(nbL_20,
-		// other.nbL_20)
-		// && Objects.equals(nbL_25, other.nbL_25) && Objects.equals(nbL_2_5,
-		// other.nbL_2_5)
-		// && Objects.equals(nbL_5, other.nbL_5) && Objects.equals(nbS_0_5,
-		// other.nbS_0_5)
-		// && Objects.equals(nbS_1, other.nbS_1) && Objects.equals(nbS_1_5,
-		// other.nbS_1_5)
-		// && Objects.equals(nbS_2, other.nbS_2) && Objects.equals(nbS_2_5,
-		// other.nbS_2_5)
-		// && Objects.equals(nbS_5, other.nbS_5) && nonStandardBar ==
-		// other.nonStandardBar
-		// && Objects.equals(officialBar, other.officialBar)
-		// && Objects.equals(showDecisionLights, other.showDecisionLights)
-		// && Objects.equals(showTimer, other.showTimer) &&
-		// Objects.equals(soundMixerName, other.soundMixerName);
-		// }
-		//
 	}
 
 	/**
@@ -257,18 +235,6 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	public Long getId() {
 		return this.id;
-	}
-
-	/**
-	 * Gets the light bar.
-	 *
-	 * @return the light bar
-	 */
-	public Integer getLightBar() {
-		if (this.lightBar == null) {
-			return 0;
-		}
-		return this.lightBar;
 	}
 
 	public Mixer getMixer() {
@@ -285,6 +251,22 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	public String getName() {
 		return this.name;
+	}
+
+	public Integer getNbB_10() {
+		return this.nbB_10 != null ? this.nbB_10 : 0;
+	}
+
+	public Integer getNbB_15() {
+		return this.nbB_15 != null ? this.nbB_15 : 1;
+	}
+
+	public Integer getNbB_20() {
+		return this.nbB_20 != null ? this.nbB_20 : 1;
+	}
+
+	public Integer getNbB_5() {
+		return this.nbB_5 != null ? this.nbB_5 : 0;
 	}
 
 	/**
@@ -444,16 +426,28 @@ public class Platform implements Serializable, Comparable<Platform> {
 	}
 
 	/**
-	 * Gets the official bar.
+	 * Gets the light bar.
 	 *
-	 * @return the official bar
+	 * @return the light bar
 	 */
-	public Integer getOfficialBar() {
-		if (this.lightBar == null) {
+	public Integer getNonStandardBarWeight() {
+		if (this.nonStandardBarWeight == null) {
 			return 0;
 		}
-		return this.officialBar;
+		return this.nonStandardBarWeight;
 	}
+
+//	/**
+//	 * Gets the official bar.
+//	 *
+//	 * @return the official bar
+//	 */
+//	public Integer getOfficialBar() {
+//		if (this.isNonStandardBar()) {
+//			return 0;
+//		}
+//		return this.officialBar;
+//	}
 
 	/**
 	 * Gets the show decision lights.
@@ -491,15 +485,14 @@ public class Platform implements Serializable, Comparable<Platform> {
 		return 31;
 	}
 
-	// @Override
-	// public int hashCode() {
-	// return Objects.hash(id, lightBar, mixerChecked, name, nbC_2_5, nbL_10, nbL_15, nbL_20, nbL_25, nbL_2_5, nbL_5,
-	// nbS_0_5, nbS_1, nbS_1_5, nbS_2, nbS_2_5, nbS_5, nonStandardBar, officialBar, showDecisionLights,
-	// showTimer, soundMixerName);
-	// }
-
+	@Transient
+	@JsonIgnore
 	public boolean isNonStandardBar() {
 		return this.nonStandardBar;
+	}
+
+	public Boolean isNonStandardBarAvailable() {
+		return this.nonStandardBarAvailable != null ? this.nonStandardBar : false;
 	}
 
 	/**
@@ -509,13 +502,8 @@ public class Platform implements Serializable, Comparable<Platform> {
 		this.id = id;
 	}
 
-	/**
-	 * Sets the light bar.
-	 *
-	 * @param lightBar the new light bar
-	 */
-	public void setLightBar(Integer lightBar) {
-		this.lightBar = lightBar;
+	public void setNonStandardBar(boolean nonStandardBar) {
+		this.nonStandardBar = nonStandardBar;
 	}
 
 	/**
@@ -525,6 +513,24 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	public void setName(String name) {
 		this.name = name;
+	}
+
+	public void setNbB_10(Integer nbB_10) {
+		this.nbB_10 = nbB_10;
+	}
+
+	public void setNbB_15(Integer nbB_15) {
+		this.nbB_15 = nbB_15;
+	}
+
+	public void setNbB_20(Integer nbB_20) {
+		//logger.debug("nbB_20 = {} {}",nbB_20, LoggerUtils.whereFrom());
+		this.nbB_20 = nbB_20;
+	}
+
+	public void setNbB_5(Integer nbB_5) {
+		//logger.debug"setting 5kg bumper {}",nbB_5);
+		this.nbB_5 = nbB_5;
 	}
 
 	/**
@@ -644,18 +650,27 @@ public class Platform implements Serializable, Comparable<Platform> {
 		this.nbS_5 = nbS_5;
 	}
 
-	public void setNonStandardBar(boolean nonStandardBar) {
-		this.nonStandardBar = nonStandardBar;
+	public void setNonStandardBarAvailable(Boolean nonStandardBarAvailable) {
+		this.nonStandardBarAvailable = nonStandardBarAvailable;
 	}
 
 	/**
-	 * Sets the official bar.
+	 * Sets the light bar.
 	 *
-	 * @param officialBar the new official bar
+	 * @param lightBar the new light bar
 	 */
-	public void setOfficialBar(Integer officialBar) {
-		this.officialBar = officialBar;
+	public void setNonStandardBarWeight(Integer lightBar) {
+		this.nonStandardBarWeight = lightBar;
 	}
+
+//	/**
+//	 * Sets the official bar.
+//	 *
+//	 * @param officialBar the new official bar
+//	 */
+//	public void setOfficialBar(Integer officialBar) {
+//		this.officialBar = officialBar;
+//	}
 
 	/**
 	 * Sets the show decision lights.

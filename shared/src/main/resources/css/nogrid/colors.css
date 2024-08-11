@@ -42,6 +42,9 @@
 
     --NextTextColor: orange;
     --NextBackgroundColor: var(--EmptyBackgroundColor);
+   
+    --PreviousTextColor: lightskyblue;
+    --PreviousBackgroundColor: var(--EmptyBackgroundColor); 
 
     --RequestTextColor: silver;
     --RequestBackgroundColor: var(--EmptyBackgroundColor);
@@ -90,7 +93,7 @@
 
     --RecordCellBorderWidth: thin;
      --RecordCellBorderColor: var(--pageTextColor);
-    
+
     --RecordCatBackground: var(--pageBackgroundColor);
     --RecordCatText: var(--pageTextColor);
 
@@ -125,9 +128,12 @@
 
     --NextTextColor: var(--TextColor);
     --NextBackgroundColor: gold;
+    
+    --PreviousTextColor: var(--TextColor);
+    --PreviousBackgroundColor: lightskyblue;
 
     --RequestTextColor: var(--TextColor);
-    --RequestBackgroundColor: var(--BackgroundColor);
+    --RequestBackgroundColor: var(--EmptyBackgroundColor);
 
     --StartBackgroundColor: var(--BackgroundColor);
     --StartTextColor: var(--TextColor);
@@ -144,8 +150,8 @@
     --TeamTextColor: var(--TextColor);
     --TeamBackgroundColor: var(--BackgroundColor);
 
-    --GoodTextColor: white;
-    --GoodBackgroundColor: green;
+    --GoodTextColor: black;
+    --GoodBackgroundColor: white;
 
     --FailTextColor: white;
     --FailBackgroundColor: darkred;
@@ -156,10 +162,10 @@
     --TotalRankTextColor: var(--TextColor);
     --TotalRankBackgroundColor: var(--RankBackgroundColor);
 
-    --TotalTextColor: var(--GoodTextColor);
+    --TotalTextColor: white;
     --TotalBackgroundColor: blue;
 
-    --SpacerBackgroundColor: var(--TableBorders);
+    --SpacerBackgroundColor: var(--pageBackgroundColor);
     --EmptyTextColor: #cccccc;
     --EmptyBackgroundColor: #cccccc;
 

@@ -175,9 +175,12 @@ public class CategoryRepository {
 	 * @return active categories
 	 */
 	public static List<Category> findActive() {
+
 		List<Category> findFiltered = findFiltered((String) null, (Gender) null, (Championship) null, (AgeGroup) null,
 		        (Integer) null, (Double) null,
 		        true, -1, -1);
+		
+		//logger.debug("findActive **** {} {}", findFiltered.size(), LoggerUtils.stackTrace());
 		findFiltered.sort(new RegistrationPreferenceComparator());
 		return findFiltered;
 	}
@@ -415,7 +418,7 @@ public class CategoryRepository {
 	public static void resetCodeMap() {
 		synchronized (allCategories) {
 			findActive().stream()
-			//.peek(c -> logger.warn/**/("adding {} + {}", c.getComputedName(), c.getTranslatedName()))
+			.peek(c -> logger.warn/**/("adding {} + {}", c.getDisplayName(), c.getNameWithAgeGroup()))
 			.forEach(c -> {
 				allCategories.put(c.getDisplayName(), c);
 				allCategories.put(c.getNameWithAgeGroup(), c);
@@ -425,7 +428,7 @@ public class CategoryRepository {
 
 	public static Category codeFromName(String catName) {
 		synchronized (allCategories) {
-			return allCategories.get(catName);
+			return allCategories.get(catName.trim());
 		}
 	}
 }
