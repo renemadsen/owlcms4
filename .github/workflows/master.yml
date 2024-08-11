@@ -1,0 +1,38 @@
+name: Main
+
+on:
+  push:
+  pull_request:
+    paths-ignore:
+    - '*.md'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image
+        id: build
+        run: docker build . -t dvfdocker/owlcms4:latest
+        shell: bash
+      - run: docker save dvfdocker/owlcms4:latest -o owlcms4.tar
+      - uses: actions/upload-artifact@v3
+        with:
+          name: owlcms4
+          path: owlcms4.tar
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Show mvn information
+        run: mvn --version
+      - name: Go offline using the pom.xml
+        run: mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true
+      - name: Build
+        run: mvn clean package -P production -am -pl owlcms -Dmaven.test.skip=true
+      - name: Run tests
+        run: mvn verify -am -pl owlcms
