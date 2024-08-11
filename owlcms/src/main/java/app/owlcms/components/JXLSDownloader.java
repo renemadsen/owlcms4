@@ -20,8 +20,10 @@ import java.util.function.Supplier;
 import org.apache.maven.shared.utils.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
+import com.vaadin.flow.component.UI;
 //import com.vaadin.componentfactory.EnhancedDialog;
 import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Anchor;
@@ -212,10 +214,6 @@ public class JXLSDownloader {
 
 					Competition current = Competition.getCurrent();
 
-					this.xlsWriter = this.streamSourceSupplier.get();
-					this.logger.debug("(2) xlsWriter {} {}", this.xlsWriter.getClass().getSimpleName(),
-					        newTemplateName);
-
 					// supplier is a lambda that sets the template and the filter values in the xls
 					// source
 					Resource res = searchMatch(prioritizedList, newTemplateName);
@@ -226,6 +224,15 @@ public class JXLSDownloader {
 					this.logger.debug("(2) template found {}", res != null ? res.getFilePath() : null);
 					this.templateNameSetter.accept(current, newTemplateName);
 					this.logger.debug("(2) template as set {}", this.templateNameGetter.apply(current));
+
+					this.xlsWriter = this.streamSourceSupplier.get();
+					this.logger.debug("(2) xlsWriter dialog {} {}", xlsWriter, dialog);
+					if (this.xlsWriter == null) {
+						UI.getCurrent().access(() -> dialog.close());
+						return;
+					}
+					this.logger.debug("(2) xlsWriter {} {}", this.xlsWriter.getClass().getSimpleName(),
+					        newTemplateName);
 
 					CompetitionRepository.save(current);
 					current = Competition.getCurrent();
@@ -278,6 +285,9 @@ public class JXLSDownloader {
 			this.templateSelect.setEnabled(false);
 			this.dialog.add(new Paragraph(getProcessingMessage()));
 		});
+		innerButton.focus();
+		// highlight because Vaadin does not show a focus ring for some unkown reason
+		innerButton.addThemeVariants(ButtonVariant.LUMO_CONTRAST, ButtonVariant.LUMO_PRIMARY);
 		return link;
 	}
 

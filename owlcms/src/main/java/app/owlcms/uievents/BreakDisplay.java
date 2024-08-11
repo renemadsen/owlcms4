@@ -27,6 +27,7 @@ public interface BreakDisplay {
 	}
 
 	public default String inferGroupName(CeremonyType ceremonyType) {
+		//logger.debug("inferGroupName {}\n{}",ceremonyType,LoggerUtils.stackTrace());
 		FieldOfPlay fop = OwlcmsSession.getFop();
 		if (fop == null || ceremonyType == CeremonyType.MEDALS) {
 			return "";

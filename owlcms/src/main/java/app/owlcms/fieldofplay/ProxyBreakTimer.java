@@ -193,7 +193,7 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 		this.setEnd(null);
 		getFop().pushOutUIEvent(
 		        new UIEvent.BreakSetTime(getFop().getBreakType(), getFop().getCountdownType(), getTimeRemaining(), null,
-		                true, this, LoggerUtils.stackTrace()));
+		                true, this, LoggerUtils.stackTrace(), getFop()));
 		this.indefinite = true;
 	}
 
@@ -233,14 +233,14 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 		UIEvent.BreakStarted event = new UIEvent.BreakStarted(
 		        millisRemaining, getOrigin(), false,
 		        breakType,
-		        getFop().getCountdownType(), LoggerUtils.stackTrace(), this.isIndefinite());
+		        getFop().getCountdownType(), LoggerUtils.stackTrace(), this.isIndefinite(), getFop());
 		// logger.debug("posting {}", event);
 		getFop().pushOutUIEvent(event);
 		setRunning(true);
-		if (Config.getCurrent().featureSwitch("serverTimers")) {
+		if (!Config.getCurrent().featureSwitch("oldTimers")) {
 			this.serverTimer = new Timer();
 			serverTimer.schedule(computeTask(timeRemaining), timeRemaining);
-	}
+		}
 	}
 
 	private TimerTask computeTask(int timeRemaining2) {
@@ -272,7 +272,8 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 		}
 		UIEvent.BreakPaused event = new UIEvent.BreakPaused(isIndefinite() ? null : getTimeRemaining(), getOrigin(),
 		        false,
-		        getFop().getBreakType(), getFop().getCountdownType());
+		        getFop().getBreakType(), getFop().getCountdownType(), getFop());
+
 		getFop().pushOutUIEvent(event);
 	}
 
@@ -296,7 +297,7 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 			}
 			// should emit sound at end of break
 			// logger.debug("******* timeOver \n{}", LoggerUtils.whereFrom());
-			getFop().pushOutUIEvent(new UIEvent.BreakDone(origin, getFop().getBreakType()));
+			getFop().pushOutUIEvent(new UIEvent.BreakDone(origin, getFop().getBreakType(), getFop()));
 			getFop().fopEventPost(new FOPEvent.BreakDone(getFop().getBreakType(), origin));
 		}
 	}
@@ -332,7 +333,7 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 	}
 
 	private void setIndefinite(boolean indefinite) {
-		//logger.debug("breakTimer setIndefinite {} {}",indefinite, LoggerUtils.whereFrom());
+		// logger.debug("breakTimer setIndefinite {} {}",indefinite, LoggerUtils.whereFrom());
 		this.indefinite = indefinite;
 	}
 }

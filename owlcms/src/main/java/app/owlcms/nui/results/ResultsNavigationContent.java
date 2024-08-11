@@ -9,10 +9,12 @@ package app.owlcms.nui.results;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.LoggerFactory;
 
 import com.github.appreciated.layout.FlexibleGridLayout;
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
@@ -23,6 +25,7 @@ import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.DebugUtils;
 import app.owlcms.components.JXLSDownloader;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.i18n.Translator;
 import app.owlcms.nui.home.HomeNavigationContent;
 import app.owlcms.nui.preparation.TeamSelectionContent;
@@ -30,6 +33,7 @@ import app.owlcms.nui.shared.BaseNavigationContent;
 import app.owlcms.nui.shared.NavigationPage;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSExportRecords;
+import app.owlcms.spreadsheet.JXLSMedalSchedule;
 import app.owlcms.spreadsheet.JXLSTimingStats;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -51,20 +55,16 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 	 * Instantiates a new wrapup navigation content.
 	 */
 	public ResultsNavigationContent() {
-		Button groupResults = openInNewTab(ResultsContent.class, getTranslation("GroupResults"));
+		Button groupResults = openInNewTab(ResultsContent.class, Translator.translate("GroupResults"));
 		highlight(groupResults);
 		// Button medals = openInNewTab(ResultsContent.class,
-		// getTranslation("Results.Medals"));
-		Button teamResults = openInNewTabNoParam(TeamResultsContent.class, getTranslation("TeamResults.Title"));
-		Button teams = openInNewTabNoParam(TeamSelectionContent.class, getTranslation(TeamSelectionContent.TITLE));
+		// Translator.translate("Results.Medals"));
+		Button teamResults = openInNewTabNoParam(TeamResultsContent.class, Translator.translate("TeamResults.Title"));
+		Button teams = openInNewTabNoParam(TeamSelectionContent.class, Translator.translate(TeamSelectionContent.TITLE));
 		// Button categoryResults = openInNewTabNoParam(PackageContent.class,
-		// getTranslation("CategoryResults"));
-		Button finalPackage = openInNewTabNoParam(PackageContent.class, getTranslation("CompetitionResults"));
+		// Translator.translate("CategoryResults"));
+		Button finalPackage = openInNewTabNoParam(PackageContent.class, Translator.translate("CompetitionResults"));
 		highlight(finalPackage);
-
-		// Div timingStats = DownloadButtonFactory.createDynamicXLSDownloadButton("timingStats",
-		// getTranslation("TimingStatistics"), new JXLSTimingStats(UI.getCurrent()));
-		// ((Button) timingStats.getComponentAt(0)).setWidth("100%");
 
 		var timingWriter = new JXLSTimingStats(UI.getCurrent());
 		JXLSDownloader dd1 = new JXLSDownloader(
@@ -81,12 +81,30 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 		timingStats.add(dd1.createImmediateDownloadButton());
 		timingStats.setWidthFull();
 
+		var medalScheduleWriter = new JXLSMedalSchedule(UI.getCurrent());
+		JXLSDownloader dd2 = new JXLSDownloader(
+		        () -> {
+			        return medalScheduleWriter;
+		        },
+		        "/templates/medalSchedule",
+		        // template name used only to generate the results file name. Localized template determined by
+		        // JXLSTimingStats
+		        Competition::getComputedMedalScheduleTemplateFileName,
+				Competition::setMedalScheduleTemplateFileName,
+		        Translator.translate("Results.MedalSchedule"),
+				Translator.translate("Download"));
+		Div medalScheduleDiv = new Div();
+		medalScheduleDiv.add(dd2.createDownloadButton());
+		Optional<Component> medalScheduleButton = medalScheduleDiv.getChildren().findFirst();
+		medalScheduleButton.ifPresent(c -> ((Button) c).setWidth("100%"));
+		medalScheduleDiv.setWidthFull();
+
 		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
-		// getTranslation("Results.NewRecords"), new JXLSExportRecords(UI.getCurrent(),false));
+		// Translator.translate("Results.NewRecords"), new JXLSExportRecords(UI.getCurrent(),false));
 		// ((Button) newRecords.getComponentAt(0)).setWidth("100%");
 
 		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false);
-		JXLSDownloader dd2 = new JXLSDownloader(
+		JXLSDownloader dd3 = new JXLSDownloader(
 		        () -> {
 			        return recordsWriter;
 		        },
@@ -95,29 +113,29 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 		        Translator.translate("Results.NewRecords"),
 		        fileName -> fileName.endsWith(".xlsx"));
 		Div newRecords = new Div();
-		newRecords.add(dd2.createImmediateDownloadButton());
+		newRecords.add(dd3.createImmediateDownloadButton());
 		newRecords.setWidthFull();
 
 		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(groupResults);
 		FlexibleGridLayout grid2 = HomeNavigationContent.navigationGrid(teamResults, teams);
-		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(finalPackage, newRecords,
-		        timingStats);
+		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(finalPackage,
+		        medalScheduleDiv, newRecords, timingStats);
 
-		doGroup(getTranslation("ForEachCompetitionGroup"), grid1, this);
-		doGroup(getTranslation("TeamResults.Title"), grid2, this);
-		doGroup(getTranslation("Results.EndOfCompetition"), grid3, this);
+		doGroup(Translator.translate("ForEachCompetitionGroup"), grid1, this);
+		doGroup(Translator.translate("TeamResults.Title"), grid2, this);
+		doGroup(Translator.translate("Results.EndOfCompetition"), grid3, this);
 
 		DebugUtils.gc();
 	}
 
 	@Override
 	public String getMenuTitle() {
-		return getTranslation("ShortTitle.Results");
+		return Translator.translate("ShortTitle.Results");
 	}
 
 	@Override
 	public String getPageTitle() {
-		return getTranslation("ShortTitle.Results");
+		return Translator.translate("ShortTitle.Results");
 	}
 
 	@Override

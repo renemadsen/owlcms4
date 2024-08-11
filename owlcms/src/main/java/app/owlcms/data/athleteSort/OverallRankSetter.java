@@ -35,13 +35,19 @@ public class OverallRankSetter {
 				a.setRobiRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 			case SMM:
-				a.setSmmRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				a.setSmhfRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 			case QPOINTS:
 				a.setqPointsRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
+			case QAGE:
+				a.setqAgeRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				break;
 			case GAMX:
-				a.setGmaxRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				a.setGamxRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				break;
+			case AGEFACTORS:
+				a.setAgeAdjustedTotalRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 		}
 	}

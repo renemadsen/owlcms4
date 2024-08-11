@@ -28,6 +28,7 @@ import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.components.fields.LocalDateTimeField;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
+import app.owlcms.i18n.Translator;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.crudui.OwlcmsCrudGrid;
 import app.owlcms.nui.crudui.OwlcmsGridLayout;
@@ -101,7 +102,7 @@ public class GroupContent extends BaseContent implements CrudListener<Group>, Ow
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Preparation_Groups");
+		return Translator.translate("Preparation_Groups");
 	}
 
 	@Override
@@ -130,18 +131,18 @@ public class GroupContent extends BaseContent implements CrudListener<Group>, Ow
 		GridCrud<Group> crud = new OwlcmsCrudGrid<>(Group.class, new OwlcmsGridLayout(Group.class),
 		        crudFormFactory, grid);
 		grid.getThemeNames().add("row-stripes");
-		grid.addColumn(Group::getName).setHeader(getTranslation("Name")).setComparator(Group::compareTo);
-		grid.addColumn(Group::getDescription).setHeader(getTranslation("Group.Description"));
-		grid.addColumn(Group::size).setHeader(getTranslation("GroupSize")).setTextAlign(ColumnTextAlign.CENTER);
+		grid.addColumn(Group::getName).setHeader(Translator.translate("Name")).setComparator(Group::compareTo);
+		grid.addColumn(Group::getDescription).setHeader(Translator.translate("Group.Description"));
+		grid.addColumn(Group::size).setHeader(Translator.translate("GroupSize")).setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn(LocalDateTimeField.getRenderer(Group::getWeighInTime, this.getLocale()))
-		        .setHeader(getTranslation("WeighInTime")).setComparator(Group::compareToWeighIn);
+		        .setHeader(Translator.translate("WeighInTime")).setComparator(Group::compareToWeighIn);
 		grid.addColumn(LocalDateTimeField.getRenderer(Group::getCompetitionTime, this.getLocale()))
-		        .setHeader(getTranslation("StartTime"));
-		grid.addColumn(Group::getPlatform).setHeader(getTranslation("Platform"));
-		String translation = getTranslation("EditAthletes");
+		        .setHeader(Translator.translate("StartTime"));
+		grid.addColumn(Group::getPlatform).setHeader(Translator.translate("Platform"));
+		String translation = Translator.translate("EditAthletes");
 		int tSize = translation.length();
 		grid.addColumn(new ComponentRenderer<>(p -> {
-			Button technical = openInNewTab(RegistrationContent.class, translation, p.getName());
+			Button technical = openInNewTab(RegistrationContent.class, translation, p != null ? p.getName() : "?");
 			// prevent grid row selection from triggering
 			technical.getElement().addEventListener("click", ignore -> {
 			}).addEventData("event.stopPropagation()");
@@ -164,7 +165,7 @@ public class GroupContent extends BaseContent implements CrudListener<Group>, Ow
 	private <T extends Component> Button openInNewTab(Class<T> targetClass,
 	        String label, String parameter) {
 		Button button = new Button(label);
-		button.getElement().setAttribute("onClick", getWindowOpenerFromClass(targetClass, parameter));
+		button.getElement().setAttribute("onClick", getWindowOpenerFromClass(targetClass, parameter != null ? parameter : "-"));
 		return button;
 	}
 

@@ -19,7 +19,6 @@ import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -60,7 +59,7 @@ public class OwlcmsSession {
 		if (currentVaadinSession != null) {
 			OwlcmsSession owlcmsSession = (OwlcmsSession) currentVaadinSession.getAttribute("owlcmsSession");
 			if (owlcmsSession == null) {
-				logger.trace("creating new OwlcmsSession {}", LoggerUtils.whereFrom());
+				//logger.trace("creating new OwlcmsSession {}", LoggerUtils.whereFrom());
 				owlcmsSession = new OwlcmsSession();
 				currentVaadinSession.setAttribute("owlcmsSession", owlcmsSession);
 			}
@@ -76,9 +75,10 @@ public class OwlcmsSession {
 
 	public static FieldOfPlay getFop() {
 		FieldOfPlay fop = (FieldOfPlay) getAttribute(FOP);
-		if (fop == null) {
-			fop = OwlcmsFactory.getDefaultFOP();
-		}
+//		if (fop == null) {
+//			//fop = OwlcmsFactory.getDefaultFOP();
+//			throw new RuntimeException("no fop set");
+//		}
 		return fop;
 	}
 
@@ -105,10 +105,6 @@ public class OwlcmsSession {
 	}
 
 	public static Locale getLocale() {
-		Locale locale = (Locale) getAttribute(LOCALE);
-		if (locale != null) {
-			return locale;
-		}
 		return computeLocale();
 	}
 
@@ -151,7 +147,7 @@ public class OwlcmsSession {
 	}
 
 	public static void setFop(FieldOfPlay fop) {
-		logger.trace("setFop {} from {}", (fop != null ? fop.getName() : null), LoggerUtils.whereFrom());
+		//logger.debug("setFop {} from {}", (fop != null ? fop.getName() : null), LoggerUtils.whereFrom());
 		setAttribute(FOP, fop);
 	}
 
@@ -173,9 +169,13 @@ public class OwlcmsSession {
 		}
 	}
 
-	private static Locale computeLocale() {
-		Locale locale = Translator.getForcedLocale();
-		logger.trace("forced locale = {}", locale);
+	public static Locale computeLocale() {
+		Locale locale = (Locale) getAttribute(LOCALE);
+		if (locale != null) {
+			return locale;
+		}
+		locale = Translator.getForcedLocale();
+		
 		UI currentUi = UI.getCurrent();
 		if (locale == null && currentUi != null) {
 			locale = currentUi.getLocale();
@@ -214,7 +214,7 @@ public class OwlcmsSession {
 
 	private Properties attributes = new Properties();
 
-	private OwlcmsSession() {
+	public OwlcmsSession() {
 	}
 
 	public Properties getAttributes() {

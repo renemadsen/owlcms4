@@ -280,7 +280,7 @@ public class TopSinclair extends AbstractTop {
 		logger.debug("onAttach start");
 		checkVideo(this);
 		setWide(false);
-		setTranslationMap();
+		setTranslationMap(null, true);
 		for (FieldOfPlay fop : OwlcmsFactory.getFOPs()) {
 			// we listen on all the uiEventBus.
 			this.uiEventBus = uiEventBusRegister(this, fop);
@@ -291,7 +291,7 @@ public class TopSinclair extends AbstractTop {
 	}
 
 	@Override
-	protected void setTranslationMap() {
+	protected void setTranslationMap(Ranking ignored, boolean globalRanking) {
 		JsonObject translations = Json.createObject();
 		Enumeration<String> keys = Translator.getKeys();
 		while (keys.hasMoreElements()) {
@@ -404,10 +404,10 @@ public class TopSinclair extends AbstractTop {
 				case SMM:
 					if (curGender == Gender.F) {
 						needed = (int) Math.round(
-						        Math.ceil((this.topWomanScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topWomanScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					} else {
 						needed = (int) Math.round(
-						        Math.ceil((this.topManScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topManScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					}
 					break;
 				default:
@@ -441,7 +441,6 @@ public class TopSinclair extends AbstractTop {
 
 	private List<Athlete> nodups(List<Athlete> athletes) {
 		// massive kludge because we have same athlete in multiple age groups
-		// TODO: top sinclair can be absolute or by age group
 		athletes = athletes.stream()
 		        .map((p) -> p instanceof PAthlete ? ((PAthlete) p)._getAthlete() : p)
 		        .collect(Collectors.toSet())

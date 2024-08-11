@@ -6,8 +6,11 @@
  *******************************************************************************/
 package app.owlcms.data.athlete;
 
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.persistence.EntityManager;
@@ -20,6 +23,7 @@ import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.category.Category;
+import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.jpa.JPAService;
@@ -144,7 +148,7 @@ public class AthleteRepository {
 		if (group != null && group.getName() == "*") {
 			group = null;
 		}
-		// FIXME check that it works with ageDivision/Championship
+		// REVIEW this does not appear to work with ageDivision/Championship
 		String qlString = "select a from Athlete a"
 		        + filteringSelection(lastName, group, category, ageGroup, ageDivision, gender, weighedIn, team)
 		        + " order by a.category";
@@ -236,7 +240,7 @@ public class AthleteRepository {
 	 * their participations.
 	 *
 	 * @param g
-	 * @param onlyWeighedIn TODO
+	 * @param onlyWeighedIn
 	 * @return
 	 */
 
@@ -337,14 +341,20 @@ public class AthleteRepository {
 
 	private static List<Athlete> doFindAthletesForGlobalRanking(Group g, EntityManager em, boolean onlyWeighedIn) {
 		String onlyCategoriesFromCurrentGroup = "";
+		
+		// only consider weighed-in athletes from the current session.
+		// once we have the categories from that query, we will find other athetes in other sessions, and 
+		// we will use the onlyWeighedIn flag on that second result.
 		if (g != null) {
 			String categoriesFromCurrentGroup = "select distinct c2 from Athlete b join b.group g join b.participations p join p.category c2 where g.id = :groupId";
 			onlyCategoriesFromCurrentGroup = " join p.category c where exists (" + categoriesFromCurrentGroup
-			        + " and c2.code = c.code)";
-			// TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
-			// q2.setParameter("groupId", g.getId());
-			// List<Category> q2Results = q2.getResultList();
-			// logger.debug("categories for currentGroup {}",q2Results);
+			        + " and c2.code = c.code and b.bodyWeight > 0.01)";
+
+			 // following 4 lines are a trace, disable when confirmed.
+			 TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
+			 q2.setParameter("groupId", g.getId());
+			 List<Category> q2Results = q2.getResultList();
+			 logger.debug("categories for currentGroup {}",q2Results);
 		}
 		Query q = em.createQuery(
 		        "select distinct a, p from Athlete a join fetch a.participations p"
@@ -456,5 +466,43 @@ public class AthleteRepository {
 		if (team != null) {
 			query.setParameter("team", team);
 		}
+	}
+
+	public static Set<Athlete> keepOnlyFinishedCategoryAthletes(Collection<Athlete> athletes) {
+		Set<String> unfinishedCategories = new HashSet<>();
+		Set<Athlete> finishedCategoryAthletes = new HashSet<>();
+		for (Athlete a : athletes) {
+			if (a.getSnatch3AsInteger() == null || a.getSnatch3ActualLift().isBlank()
+					|| a.getCleanJerk3AsInteger() == null || a.getCleanJerk3ActualLift().isBlank()) {
+				for (Participation p: a.getParticipations()) {
+					unfinishedCategories.add(p.getCategory().getCode());
+				}
+			}
+		}
+		//logger.debug("unfinishedCategories1 {}",unfinishedCategories);
+		for (Athlete a : athletes) {
+			if (!unfinishedCategories.contains(a.getCategory().getCode())) {
+				finishedCategoryAthletes.add(a);
+			}
+		}
+		return finishedCategoryAthletes;
+	}
+	
+	public static Set<String> unfinishedCategories(List<Athlete> ranked) {
+		Set<String> unfinishedCategories = new HashSet<>();
+		if (ranked == null || ranked.isEmpty()) {
+			return Set.of();
+		}
+		for (Athlete a : ranked) {
+			//logger.debug("unfinishedCategories *** athlete {}",a);
+			if (!a.isDone()) {
+				//logger.debug("{}", a, a.getCleanJerk3ActualLift());
+				for (Participation p: a.getParticipations()) {
+					unfinishedCategories.add(p.getCategory().getCode());
+				}
+			}
+		}
+		//logger.debug("unfinishedCategories2 {}",unfinishedCategories);
+		return unfinishedCategories;
 	}
 }

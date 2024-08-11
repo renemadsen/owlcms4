@@ -119,12 +119,12 @@ public class JuryDialog extends Dialog {
 					        new UIEvent.Notification(null, this,
 					                UIEvent.Notification.Level.WARNING,
 					                "Jury.AnnouncerWillAnnounce",
-					                5000));
+					                5000, OwlcmsSession.getFop()));
 				}
 				this.close();
 				return;
 			}
-			// FIXME: this should be done after processing the JuryEvent in FieldOfPlay
+			// REVIEW: this should be done after processing the JuryEvent in FieldOfPlay
 			resumeLifting(noAction);
 
 			this.close();

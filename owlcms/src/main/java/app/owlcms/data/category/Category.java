@@ -263,15 +263,17 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	public String getDisplayName() {
 		String agName = (this.ageGroup != null ? this.ageGroup.getName() : "");
 		String catName = getLimitString();
+		String result;
 		if (isAlreadyGendered()) {
 			// this takes priority over DEFAULT championship
-			return agName + " " + catName;
+			result = agName + " " + catName;
 		} else if (getChampionshipType() == ChampionshipType.DEFAULT) {
 			// legacy case - just the gender and the category.
-			return getTranslatedGender() + " " + catName;
+			result = getTranslatedGender() + " " + catName;
 		} else {
-			return agName + " " + catName;
+			result = agName + " " + catName;
 		}
+		return result.trim();
 	}
 
 	@JsonIgnore
@@ -318,7 +320,10 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 			// logger.debug("{} \n{}", val, LoggerUtils.stackTrace());
 			return val;
 		}
-		if (this.maximumWeight > 130) {
+		if (this.maximumWeight > 998.1 && this.minimumWeight < 0.1) {
+			// all body weights
+			return "";
+		} else if (this.maximumWeight > 130) {
 			return Translator.translate("catAboveFormat",
 			        this.minimumWeight != null ? String.valueOf((int) (Math.round(this.minimumWeight))) : "");
 		} else {
@@ -371,6 +376,9 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	}
 
 	public String getTranslatedGender() {
+		if (gender == null) {
+			return "";
+		}
 		switch (getGender()) {
 			case F:
 			case I:
@@ -386,11 +394,13 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	public String getNameWithAgeGroup() {
 		String agName = (this.ageGroup != null ? this.ageGroup.getName() : "");
 		String catName = getLimitString();
+		String result;
 		if (agName == null || agName.isEmpty()) {
-			return getTranslatedGender() + " " + catName;
+			result = getTranslatedGender() + " " + catName;
 		} else {
-			return agName + " " + catName;
+			result = agName + " " + catName;
 		}
+		return result.trim();
 	}
 
 	public String getUpperBound() {

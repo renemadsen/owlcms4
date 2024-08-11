@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.Tag;
@@ -29,6 +30,7 @@ import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.components.elements.AthleteTimerElementPR;
 import app.owlcms.components.elements.BreakTimerElementPR;
 import app.owlcms.components.elements.DecisionElementPR;
+import app.owlcms.components.elements.unload.UnloadObserverPR;
 import app.owlcms.displays.options.DisplayOptions;
 import app.owlcms.i18n.Translator;
 import app.owlcms.prutils.SafeEventBusRegistrationPR;
@@ -37,7 +39,6 @@ import app.owlcms.publicresults.DecisionReceiverServlet;
 import app.owlcms.publicresults.TimerReceiverServlet;
 import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.BreakTimerEvent;
-import app.owlcms.uievents.BreakTimerEvent.BreakStart;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.DecisionEvent;
 import app.owlcms.uievents.DecisionEventType;
@@ -101,11 +102,15 @@ public class ResultsPR extends LitTemplate
     private boolean liftingOrder;
     private boolean done;
     private int lastHashCode;
+    private UnloadObserverPR eventObserver;
 
     /**
      * Instantiates a new results board.
+     * 
+     * @throws InterruptedException
      */
-    public ResultsPR() {
+    public ResultsPR() throws InterruptedException {
+        this.setId("owlcmsTemplate");
         setDarkMode(true);
         setDefaultLeadersDisplay(true);
         setDefaultRecordsDisplay(true);
@@ -155,7 +160,7 @@ public class ResultsPR extends LitTemplate
 
     @Override
     public String getPageTitle() {
-        return getTranslation("ScoreboardWLeadersTitle") + getFopName() != null ? (" " + getFopName()) : "";
+        return Translator.translate("ScoreboardWLeadersTitle") + getFopName() != null ? (" " + getFopName()) : "";
     }
 
     @Override
@@ -182,6 +187,8 @@ public class ResultsPR extends LitTemplate
     public boolean isLiftingOrder() {
         return this.liftingOrder;
     }
+    
+    
 
     @Override
     public boolean isRecordsDisplay() {
@@ -278,10 +285,10 @@ public class ResultsPR extends LitTemplate
         this.showLeaders = showLeaders;
         this.getElement().setProperty("showLeaders", showLeaders);
         if (!showLeaders || this.done) {
-            logger.debug("setLeadersDisplay 0px: isLeaders = {} done = {}", showLeaders, this.done);
+            //logger.debug("setLeadersDisplay 0px: isLeaders = {} done = {}", showLeaders, this.done);
             this.getElement().setProperty("leaderFillerHeight", "--leaderFillerHeight: 0px");
         } else {
-            logger.debug("setLeadersDisplay default: isLeaders = {} done = {}", showLeaders, this.done);
+            //logger.debug("setLeadersDisplay default: isLeaders = {} done = {}", showLeaders, this.done);
             this.getElement().setProperty("leaderFillerHeight",
                     "--leaderFillerHeight: var(--defaultLeaderFillerHeight)");
         }
@@ -358,6 +365,10 @@ public class ResultsPR extends LitTemplate
 
     @Subscribe
     public void slaveUpdateEvent(UpdateEvent e) {
+        var eo = this.getEventObserver();
+        if (eo != null) {
+            eo.setTitle(fopName);
+        }
         // ignore identical updates
         if (e.getHashCode() == this.lastHashCode) {
             return;
@@ -438,12 +449,12 @@ public class ResultsPR extends LitTemplate
             // following two are fixed in owlcms
             getElement().setProperty("showTotal", true);
             getElement().setProperty("showBest", true);
-            
+
             getElement().setProperty("showLiftRanks", e.isShowLiftRanks());
-            getElement().setProperty("showTotalRank",  e.isShowTotalRank());
+            getElement().setProperty("showTotalRank", e.isShowTotalRank());
             getElement().setProperty("showSinclair", e.isShowSinclair());
             getElement().setProperty("showSinclairRanks", e.isShowSinclairRank());
-            
+
             getElement().setProperty("competitionName", e.getCompetitionName());
             getElement().setProperty("attempt", e.getAttempt());
             getElement().setProperty("fullName", e.getFullName());
@@ -468,14 +479,16 @@ public class ResultsPR extends LitTemplate
                 logger.debug("### not in a group");
                 doDone(e.getFullName());
                 this.needReset = true;
-            } else if ("BREAK".equals(fopState)) {
-                logger.debug("### in a break {}", e.getBreakType());
-                // also trigger a break timer event to make sure we are in sync with owlcms
-                BreakStart breakStart = new BreakStart(e.getBreakRemaining(), e.isIndefinite());
-                breakStart.setFopName(e.getFopName());
-                TimerReceiverServlet.getEventBus().post(breakStart);
-                this.needReset = true;
-            } else if (!this.needReset) {
+            } 
+//            else if ("BREAK".equals(fopState)) {
+//                logger.debug("### in a break {}", e.getBreakType());
+//                // also trigger a break timer event to make sure we are in sync with owlcms
+//                BreakStart breakStart = new BreakStart(e.getBreakRemaining(), e.isIndefinite());
+//                breakStart.setFopName(e.getFopName());
+//                TimerReceiverServlet.getEventBus().post(breakStart);
+//                this.needReset = true;
+//            } 
+            else if (!this.needReset) {
                 // logger.debug("no reset");
             } else {
                 logger.debug("### resetting becase of ranking update");
@@ -484,10 +497,6 @@ public class ResultsPR extends LitTemplate
             }
         });
     }
-
-    // protected void doEmpty() {
-    // setBoardMode("BREAK", null, null, this.getElement());
-    // }
 
     protected boolean isVideo() {
         return false;
@@ -498,18 +507,18 @@ public class ResultsPR extends LitTemplate
      */
     @Override
     protected void onAttach(AttachEvent attachEvent) {
+        String fopName2 = getFopName();
         if (!this.isSilenced()) {
             SoundUtils.enableAudioContextNotification(this.getElement());
         }
 
         this.ui = UI.getCurrent();
-
-        eventBusRegister(this, TimerReceiverServlet.getEventBus());
-        eventBusRegister(this, DecisionReceiverServlet.getEventBus());
         eventBusRegister(this, UpdateReceiverServlet.getEventBus());
 
-        // setDarkMode(this, isDarkMode(), false);
-        UpdateEvent initEvent = UpdateReceiverServlet.sync(getFopName());
+        logger.debug("ResultsPR onAttach {}",fopName2);
+        getEventObserver().setTitle(fopName2);
+        
+        UpdateEvent initEvent = UpdateReceiverServlet.sync(fopName2);
         if (initEvent != null) {
             slaveUpdateEvent(initEvent);
             this.timer.slaveOrderUpdated(initEvent);
@@ -517,6 +526,9 @@ public class ResultsPR extends LitTemplate
             getElement().setProperty("fulName", Translator.translate("WaitingForSite"));
             getElement().setProperty("groupInfo", "");
         }
+        
+       TimerReceiverServlet.syncAthleteTimer(fopName2, this.timer);
+       TimerReceiverServlet.syncBreakTimer(fopName2, this.breakTimer);
     }
 
     /**
@@ -587,4 +599,26 @@ public class ResultsPR extends LitTemplate
     private void setWideTeamNames(boolean wide) {
         this.getElement().setProperty("teamWidthClass", (wide ? "wideTeams" : "narrowTeams"));
     }
+    
+    @ClientCallable
+    public void visibilityStatus(boolean visible) {
+        logger.debug("visibilityStatus: {} {} {}",visible,this.getClass().getSimpleName(),System.identityHashCode(this));
+        UnloadObserverPR eventObserver = getEventObserver();
+        if (visible) {
+            eventObserver.setActivityTime();
+        } else {
+            eventObserver.setInactivityTime();
+        }     
+    }
+    
+    @Override
+    public void setEventObserver(UnloadObserverPR uo) {
+        this.eventObserver=uo;
+    }
+    
+    @Override
+    public UnloadObserverPR getEventObserver() {
+        return this.eventObserver;
+    }
+    
 }

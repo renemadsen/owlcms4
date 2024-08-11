@@ -19,6 +19,7 @@ import com.vaadin.flow.component.UI;
 
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
@@ -37,13 +38,12 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 	private String ageGroupPrefix;
 	@SuppressWarnings("unused")
 	private Logger logger = LoggerFactory.getLogger(JXLSCompetitionBook.class);
+	private boolean isIncludeUnfinished;
 
 	public JXLSCompetitionBook(boolean excludeNotWeighed, UI ui) {
 	}
 
 	public JXLSCompetitionBook(UI ui) {
-		// by default, we exclude athletes who did not weigh in.
-		
 	}
 
 	/**
@@ -91,6 +91,7 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 		transformer.markAsFixedSizeCollection("mwCombined");
 		transformer.markAsFixedSizeCollection("mCustom");
 		transformer.markAsFixedSizeCollection("wCustom");
+		transformer.markAsFixedSizeCollection("mwCustom");
 	}
 
 	/*
@@ -102,25 +103,26 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 	@Override
 	protected void postProcess(Workbook workbook) {
 		super.postProcess(workbook);
-		@SuppressWarnings("unchecked")
-		int nbClubs = ((Set<String>) getReportingBeans().get("clubs")).size();
+//		@SuppressWarnings("unchecked")
+//		int nbClubs = ((Set<String>) getReportingBeans().get("clubs")).size();
 
-		setTeamSheetPrintArea(workbook, "MT", nbClubs);
-		setTeamSheetPrintArea(workbook, "WT", nbClubs);
-		setTeamSheetPrintArea(workbook, "MWT", nbClubs);
-
-		setTeamSheetPrintArea(workbook, "MXT", nbClubs);
-		setTeamSheetPrintArea(workbook, "WXT", nbClubs);
-
-		setTeamSheetPrintArea(workbook, "MCT", nbClubs);
-		setTeamSheetPrintArea(workbook, "WCT", nbClubs);
-		setTeamSheetPrintArea(workbook, "MWCT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "MT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "WT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "MWT", nbClubs);
+//
+//		setTeamSheetPrintArea(workbook, "MXT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "WXT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "MWXT", nbClubs);
+//
+//		setTeamSheetPrintArea(workbook, "MCT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "WCT", nbClubs);
+//		setTeamSheetPrintArea(workbook, "MWCT", nbClubs);
 
 		translateSheets(workbook);
 		workbook.setForceFormulaRecalculation(true);
-
 	}
 
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	protected void setReportingInfo() {
 		Competition competition = Competition.getCurrent();
@@ -129,17 +131,32 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 		super.setReportingInfo();
 		Object records = super.getReportingBeans().get("records");
 		HashMap<String, Object> reportingBeans = competition.getReportingBeans();
+
+		// remove athletes from incomplete categories
+		if (!isIncludeUnfinished()) {
+			for (String k : reportingBeans.keySet()) {
+				Object bean = reportingBeans.get(k);
+				if (bean instanceof List && ((List) bean).size() > 0 && ((List) bean).get(0) instanceof Athlete) {
+					logger.debug("cleaning up {}", k);
+					List<Athlete> bean2 = (List<Athlete>) bean;
+					Set<String> unfinishedCategories = AthleteRepository.unfinishedCategories(bean2);
+					bean2 = bean2.stream().filter(a -> !unfinishedCategories.contains(a.getCategoryCode())).toList();
+					reportingBeans.put(k, bean2);
+				}
+			}
+		}
+
 		reportingBeans.put("records", records);
 		setReportingBeans(reportingBeans);
 	}
 
-	private void setTeamSheetPrintArea(Workbook workbook, String sheetName, int nbClubs) {
-		// int sheetIndex = workbook.getSheetIndex(sheetName);
-		// if (sheetIndex >= 0) {
-		// workbook.setPrintArea(sheetIndex, 0, 4, TEAMSHEET_FIRST_ROW,
-		// TEAMSHEET_FIRST_ROW+nbClubs);
-		// }
-	}
+//	private void setTeamSheetPrintArea(Workbook workbook, String sheetName, int nbClubs) {
+//		int sheetIndex = workbook.getSheetIndex(sheetName);
+//		if (sheetIndex >= 0) {
+//			workbook.setPrintArea(sheetIndex, 0, 4, TEAMSHEET_FIRST_ROW,
+//			        TEAMSHEET_FIRST_ROW + nbClubs);
+//		}
+//	}
 
 	/**
 	 * jxls does not translate sheet names and header/footers.
@@ -152,32 +169,41 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 		for (int sheetIndex = 0; sheetIndex < nbSheets; sheetIndex++) {
 			Sheet curSheet = workbook.getSheetAt(sheetIndex);
 			String sheetName = curSheet.getSheetName();
-			String translate = Translator.translateOrElseNull("CompetitionBook." + sheetName,
+			String translatedSheetName = Translator.translateOrElseNull("CompetitionBook." + sheetName,
 			        OwlcmsSession.getLocale());
-			workbook.setSheetName(sheetIndex, translate != null ? translate : sheetName);
+			workbook.setSheetName(sheetIndex, translatedSheetName != null ? translatedSheetName : sheetName);
 
-			// use translate so this shows as missing on the sheet.
-			String leftHeader = Translator.translate("CompetitionBook." + sheetName + "_LeftHeader",
+			String leftHeader = Translator.translateOrElseNull("CompetitionBook." + sheetName + "_LeftHeader",
 			        OwlcmsSession.getLocale());
-			if (leftHeader != null) {
-				curSheet.getHeader().setLeft(leftHeader);
+			if (leftHeader == null) {
+				curSheet.getHeader().setLeft(Competition.getCurrent().getCompetitionName());
+			} else {
+				curSheet.getHeader().setLeft(leftHeader != null ? leftHeader : "");
 			}
+			
 			String centerHeader = Translator.translateOrElseNull("CompetitionBook." + sheetName + "_CenterHeader",
 			        OwlcmsSession.getLocale());
-			if (centerHeader != null) {
-				curSheet.getHeader().setCenter(centerHeader);
-			}
-			// use translate so this shows as missing on the sheet.
-			String rightHeader = Translator.translate("CompetitionBook." + sheetName + "_RightHeader",
-			        OwlcmsSession.getLocale());
-			if (rightHeader != null) {
-				curSheet.getHeader().setRight(rightHeader);
+			if (centerHeader == null) {
+				String c = getChampionship() != null ? getChampionship().getName() : "";
+				String ag = getAgeGroupPrefix();
+				curSheet.getHeader().setCenter(c != null && ag != null ? c + "\u2013" + ag : (c != null ? c : ag));
+			} else {
+				curSheet.getHeader().setCenter(centerHeader != null ? centerHeader : "");
 			}
 
+			String rightHeader = Translator.translateOrElseNull("CompetitionBook." + sheetName + "_RightHeader",
+			        OwlcmsSession.getLocale());
+			if (rightHeader == null && translatedSheetName != null) {
+				curSheet.getHeader().setRight(translatedSheetName);
+			} else  {
+				curSheet.getHeader().setRight(rightHeader != null ? rightHeader: "");
+			}
+
+			createStandardFooter(workbook);
 			String leftFooter = Translator.translateOrElseNull("CompetitionBook." + sheetName + "_LeftFooter",
 			        OwlcmsSession.getLocale());
 			if (leftFooter != null) {
-				curSheet.getFooter().setLeft(leftFooter);
+				curSheet.getFooter().setLeft("leftFooter");
 			}
 			String centerFooter = Translator.translateOrElseNull("CompetitionBook." + sheetName + "_CenterFooter",
 			        OwlcmsSession.getLocale());
@@ -190,6 +216,14 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 				curSheet.getFooter().setRight(rightFooter);
 			}
 		}
+	}
+
+	public boolean isIncludeUnfinished() {
+		return isIncludeUnfinished;
+	}
+
+	public void setIncludeUnfinished(boolean isIncludeUnifinished) {
+		this.isIncludeUnfinished = isIncludeUnifinished;
 	}
 
 }
