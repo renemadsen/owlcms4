@@ -36,3 +36,4 @@ database/owlcms.mv.db
 /fly.toml
 /mqttData/
 .idea
+*.iml

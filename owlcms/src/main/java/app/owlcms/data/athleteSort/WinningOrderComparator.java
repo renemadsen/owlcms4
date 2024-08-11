@@ -550,7 +550,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 				return compare; // earlier group time wins
 			}
 		}
-		}
+
 
 		if (bodyWeightTieBreak) {
 			compare = compareBodyWeight(lifter1, lifter2);
