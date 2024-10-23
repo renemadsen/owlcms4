@@ -14,7 +14,7 @@ COPY pom.xml .
 COPY ./src ./src
 COPY owlcms/pom.xml owlcms/
 COPY ./owlcms/src ./owlcms/src
-COPY ./owlcms/frontend ./owlcms/frontend
+#COPY ./owlcms/frontend ./owlcms/frontend
 COPY shared/pom.xml shared/
 COPY ./shared/src ./shared/src
 COPY ./publicresults/pom.xml ./publicresults/
