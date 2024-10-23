@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #Stage 1
 # initialize build and set base image for first stage
-FROM maven:3.8.8-eclipse-temurin-17 as stage1
+FROM maven:3.9.8-eclipse-temurin-17 as stage1
 # speed up Maven JVM a bit
 ENV MAVEN_OPTS="-XX:+TieredCompilation -XX:TieredStopAtLevel=1"
 ENV DEBIAN_FRONTEND=noninteractive
@@ -14,7 +14,6 @@ COPY pom.xml .
 COPY ./src ./src
 COPY owlcms/pom.xml owlcms/
 COPY ./owlcms/src ./owlcms/src
-#COPY ./owlcms/frontend ./owlcms/frontend
 COPY shared/pom.xml shared/
 COPY ./shared/src ./shared/src
 COPY ./publicresults/pom.xml ./publicresults/

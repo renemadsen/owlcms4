@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import app.owlcms.data.athleteSort.Ranking;
+import app.owlcms.nui.displays.top.TopTeamsSinclairPage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 
@@ -149,7 +151,18 @@ public class VideoNavigationContent extends BaseNavigationContent
 		VerticalLayout intro1a = new VerticalLayout();
 		// addP(intro1, Translator.translate("darkModeSelect"));
 		intro1a.add(hl);
-		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings);
+
+		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		String scoringTitle = Ranking.getScoringTitle(scoringSystem);
+
+		Button topTeamsSinclair = new Button(
+				Translator.translate("Scoreboard.TopTeamsSinclair"));
+		topTeamsSinclair.addClickListener((e) -> {
+			Class<TopTeamsSinclairPage> class1 = TopTeamsSinclairPage.class;
+			openInNewTabWithResultsQueryParameters(class1);
+		});
+
+		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings, topTeamsSinclair);
 		doGroup(Translator.translate("Scoreboard.RANKINGS"), intro1a, grid1a, this);
 
 		Button obsMonitor = openInNewTab(OBSMonitor.class, Translator.translate("OBS.MonitoringButton"));

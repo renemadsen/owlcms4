@@ -37,3 +37,4 @@ database/owlcms.mv.db
 /mqttData/
 .idea
 owlcms/.vaadin-node-tasks.lock
+*.iml
