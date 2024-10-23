@@ -19,11 +19,19 @@ class TopTeamsSinclair extends LitElement {
         <timer-element id="timer"></timer-element>
         <timer-element id="breakTimer"></timer-element>
         <decision-element id="decisions"></decision-element>
-      </div> 
+      </div>
      <div id="resultBoardDiv" class="${this.activeClasses()}">
+       <div class="video" style="${this.videoHeaderStyles()}">
+         <div class="eventlogo"></div>
+         <div class="videoheader">
+           <div class="groupName">${this.competitionName}</div>
+           <div>${this.groupDescription}</div>
+         </div>
+         <div class="federationlogo"></div>
+       </div>
         ${this.topTeamsWomen
           ? html`
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsWomen}" ></h2>
+              <h2 class="fullName" id="fullNameDivWomen" .innerHTML="${this.topTeamsWomen}" ></h2>
               <table class="results" id="orderDiv" style$="">
                 <thead>
                   <tr>
@@ -31,21 +39,25 @@ class TopTeamsSinclair extends LitElement {
                     <th class="medium" .innerHTML="${this.t?.ScoringTitle}" ></th>
                   </tr>
                 </thead>
-                ${(this.womensTeams ?? []).map(
-                  (item) => html`
-                    <tr>
-                      <td class="club"><div>${item.team}</div></td>
-                      <td class="medium"><div>${item.score}</div></td>
-                    </tr>
-                  `
-                )}
+                <tbody>
+                  <tr>
+                    <td class="spacer" style="grid-column: 1 / -1; justify-content: left;" innerHTML="-" ></td>
+                  </tr>
+                  ${(this.womensTeams ?? []).map(
+                    (item) => html`
+                      <tr class="athlete">
+                        <td class="club"><div>${item.team}</div></td>
+                        <td class="medium"><div>${item.score}</div></td>
+                      </tr>
+                    `
+                  )}
+                </tbody>
               </table>
-              <h2>&nbsp;</h2>
             `
           : html``}
         ${this.topTeamsMen 
           ? html` 
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsMen}"></h2>
+              <h2 class="fullName" id="fullNameDivMen" .innerHTML="${this.topTeamsMen}"></h2>
               <table class="results" id="orderDiv" style$="">
                 <thead>
                   <tr>
@@ -53,14 +65,19 @@ class TopTeamsSinclair extends LitElement {
                     <th class="medium" .innerHTML="${this.t?.ScoringTitle}"></th>
                   </tr>
                 </thead>
-                ${(this.mensTeams ?? []).map(
-                  (item) => html`
-                    <tr>
-                      <td class="club"><div>${item.team}</div></td>
-                      <td class="medium"><div>${item.score}</div></td>
-                    </tr>
-                  `
-                )}
+                <tbody>
+                  <tr>
+                    <td class="spacer" style="grid-column: 1 / -1; justify-content: left;" innerHTML="-" ></td>
+                  </tr>
+                  ${(this.mensTeams ?? []).map(
+                    (item) => html`
+                      <tr class="athlete">
+                        <td class="club"><div>${item.team}</div></td>
+                        <td class="medium"><div>${item.score}</div></td>
+                      </tr>
+                    `
+                  )}
+                </tbody>
               </table>
               <h2>&nbsp;</h2>
             `
@@ -92,6 +109,11 @@ class TopTeamsSinclair extends LitElement {
   activeClasses() {
     return "wrapper ";
   }
+
+  videoHeaderStyles() {
+      return "display: " + ((this.mode !== "WAIT" && this.video)? "flex" : "none");
+    }
+
 
 }
 

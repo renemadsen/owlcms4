@@ -551,6 +551,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 			}
 		}
 
+
 		if (bodyWeightTieBreak) {
 			compare = compareBodyWeight(lifter1, lifter2);
 			traceComparison("tiebreak compareBodyWeight", lifter1, lifter2, compare);

@@ -93,12 +93,13 @@ public class TopTeamsSinclair extends AbstractTop {
 	}
 
 	public void doUpdate(Competition competition) {
+		this.getElement().setProperty("competitionName", competition.getCurrent().getCompetitionName());
 		FieldOfPlay fop = OwlcmsSession.getFop();
 		setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 
 		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
 		        (Gender) null,
-		        Competition.getCurrent().getScoringSystem(), true);
+				competition.getCurrent().getScoringSystem(), true);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamResultsTreeData.getTeamItemsByGender();
 
 		this.mensTeams = teamsByGender.get(Gender.M);
@@ -116,9 +117,6 @@ public class TopTeamsSinclair extends AbstractTop {
 		updateBottom();
 	}
 
-	@Override
-	public void setVideo(boolean video) {
-	}
 
 	@Override
 	@Subscribe
@@ -212,9 +210,10 @@ public class TopTeamsSinclair extends AbstractTop {
 
 	private String computeAgeGroupSuffix() {
 		String suffix = null;
-		if (getAgeGroupPrefix() != null) {
-			suffix = getAgeGroupPrefix();
-		}
+//		if (getAgeGroupPrefix() != null) {
+//			suffix = getAgeGroupPrefix();
+//		}
+// TODO change so we don't have this always.
 		return (suffix != null ? " &ndash; " + suffix : "");
 	}
 
