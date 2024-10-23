@@ -66,11 +66,11 @@ public class CategoryGridField extends CustomField<List<Category>> {
 		adder.getStyle().set("margin-top", "0.5em");
 		adder.getStyle().set("margin-bottom", "1em");
 		TextField newCategoryField = new TextField();
-		newCategoryField.setPlaceholder(getTranslation("LimitForCategory"));
+		newCategoryField.setPlaceholder(Translator.translate("LimitForCategory"));
 		newCategoryField.setAllowedCharPattern("[0-9]");
 		newCategoryField.setPattern("[0-9]{0,3}");
 
-		Button button = new Button(getTranslation("AddNewCategory"));
+		Button button = new Button(Translator.translate("AddNewCategory"));
 		button.addClickListener((click) -> {
 			react(ag, newCategoryField);
 		});
@@ -125,8 +125,9 @@ public class CategoryGridField extends CustomField<List<Category>> {
 		        new Text(Translator.translate("Category.QualificationTotal")));
 		this.catGrid.add(title);
 		for (Category pc : presentationCategories2) {
+
 			HorizontalLayout hl = new HorizontalLayout();
-			NativeLabel nativeLabel = new NativeLabel(pc.getSafeName());
+			NativeLabel nativeLabel = new NativeLabel(pc.getDisplayName());
 			nativeLabel.getStyle().set("font-weight", "bold");
 			nativeLabel.setWidth(CAT_WIDTH);
 			hl.add(nativeLabel);
@@ -142,6 +143,7 @@ public class CategoryGridField extends CustomField<List<Category>> {
 			        .withStatusLabel(this.validationStatus).bind("qualifyingTotal");
 			catBinder.setBean(pc);
 			hl.add(qualTotField);
+			
 			Button delete = new Button(Translator.translate("Delete"));
 			delete.addClassName("delete");
 			delete.addClickListener(e -> {
@@ -155,7 +157,10 @@ public class CategoryGridField extends CustomField<List<Category>> {
 				updateValue();
 			});
 			delete.getStyle().set("margin-left", "2em");
-			hl.add(delete);
+			
+			if (pc.getMaximumWeight() <= 998) {
+				hl.add(delete);
+			}
 			catGrid2.add(hl);
 		}
 	}
@@ -165,7 +170,7 @@ public class CategoryGridField extends CustomField<List<Category>> {
 		if (ag == null) {
 			Notification notif = new Notification();
 			notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
-			notif.setText(getTranslation("SaveAgeGroupBefore"));
+			notif.setText(Translator.translate("SaveAgeGroupBefore"));
 			return; // was missing ?
 		}
 		if ((value == null) || value.trim().isEmpty()) {

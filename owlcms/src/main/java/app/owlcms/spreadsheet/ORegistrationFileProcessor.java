@@ -72,7 +72,7 @@ public class ORegistrationFileProcessor implements IRegistrationFileProcessor {
 	@Override
 	@SuppressWarnings("unchecked")
 	public int doProcessAthletes(InputStream inputStream, boolean dryRun, Consumer<String> errorConsumer,
-	        Runnable displayUpdater) {
+	        Runnable displayUpdater, boolean resetAthletes) {
 		try (InputStream xmlInputStream = ResourceWalker.getResourceAsStream(REGISTRATION_READER_SPEC)) {
 			inputStream.reset();
 			ReaderConfig readerConfig = ReaderConfig.getInstance();
@@ -82,10 +82,12 @@ public class ORegistrationFileProcessor implements IRegistrationFileProcessor {
 
 			try (InputStream xlsInputStream = inputStream) {
 				RCompetition c = new RCompetition();
-				RCompetition.resetActiveCategories();
-				RCompetition.resetActiveGroups();
-				RCompetition.resetAthleteToEligibles();
-				RCompetition.resetAthleteToTeams();
+				if (resetAthletes) {
+					RCompetition.resetActiveCategories();
+					RCompetition.resetActiveGroups();
+					RCompetition.resetAthleteToEligibles();
+					RCompetition.resetAthleteToTeams();
+				}
 
 				List<RAthlete> athletes = new ArrayList<>();
 
@@ -147,7 +149,7 @@ public class ORegistrationFileProcessor implements IRegistrationFileProcessor {
 				Map<String, Object> beans = new HashMap<>();
 				beans.put("groups", groups);
 
-				// logger.info(getTranslation("ReadingData_"));
+				// logger.info(Translator.translate("ReadingData_"));
 				XLSReadStatus status = reader.read(inputStream, beans);
 				this.logger.info("Read {} groups.", groups.size());
 				if (!dryRun) {

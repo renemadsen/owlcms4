@@ -21,13 +21,10 @@ import com.vaadin.flow.component.littemplate.LitTemplate;
 
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.prutils.SafeEventBusRegistrationPR;
-import app.owlcms.publicresults.DecisionReceiverServlet;
-import app.owlcms.publicresults.TimerReceiverServlet;
 import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.BreakTimerEvent;
 import app.owlcms.uievents.DecisionEvent;
 import app.owlcms.uievents.TimerEvent;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -40,12 +37,6 @@ public class DecisionElementPR extends LitTemplate
         implements IFopName, SafeEventBusRegistrationPR {
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(DecisionElementPR.class);
-    final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
-
-    static {
-        logger.setLevel(Level.DEBUG);
-        uiEventLogger.setLevel(Level.INFO);
-    }
 
     protected EventBus uiEventBus;
     protected EventBus fopEventBus;
@@ -106,7 +97,7 @@ public class DecisionElementPR extends LitTemplate
             } else {
                 switch (de.getEventType()) {
                     case DOWN_SIGNAL:
-                        logger.debug("*****showing down");
+                        logger.debug("showing down");
                         this.getElement().callJsFunction("showDown", false, isSilenced());
                         break;
                     case FULL_DECISION:
@@ -218,8 +209,8 @@ public class DecisionElementPR extends LitTemplate
 
         this.ui = attachEvent.getUI();
         eventBusRegister(this, UpdateReceiverServlet.getEventBus());
-        eventBusRegister(this, DecisionReceiverServlet.getEventBus());
-        eventBusRegister(this, TimerReceiverServlet.getEventBus());
+//        eventBusRegister(this, DecisionReceiverServlet.getEventBus());
+//        eventBusRegister(this, TimerReceiverServlet.getEventBus());
 
         setFopName(OwlcmsSession.getFopName());
     }
@@ -227,19 +218,9 @@ public class DecisionElementPR extends LitTemplate
     @Override
     protected void onDetach(DetachEvent detachEvent) {
         super.onDetach(detachEvent);
-        this.ui = null;
-        try {
-            DecisionReceiverServlet.getEventBus().unregister(this);
-        } catch (Exception e) {
-        }
-        try {
-            TimerReceiverServlet.getEventBus().unregister(this);
-        } catch (Exception e) {
-        }
     }
 
     private void init() {
         getElement().setProperty("publicFacing", true);
     }
-
 }

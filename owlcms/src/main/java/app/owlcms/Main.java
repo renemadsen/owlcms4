@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
-import java.util.concurrent.CountDownLatch;
 
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.beanutils.converters.DateConverter;
@@ -123,9 +122,6 @@ public class Main {
 	public static void initData() {
 		// Vaadin configs
 		System.setProperty("vaadin.i18n.provider", Translator.class.getName());
-		if (demoResetDelay == null) {
-			startMQTT();
-		}
 
 		long now = System.currentTimeMillis();
 		// read locale from database and override if needed
@@ -134,15 +130,29 @@ public class Main {
 		overrideTimeZone();
 		logger.info("Initialized data ({} ms)", System.currentTimeMillis() - now);
 
+		if (demoResetDelay == null) {
+			startMQTT();
+		}
 		// initialization, don't push out to browsers
 		OwlcmsFactory.initDefaultFOP();
+		
+		signalDatabaseReady();
+	}
+
+	private static void signalDatabaseReady() {
+		try {
+			logger.info("Data initialized.");
+			OwlcmsFactory.countDownLatch();
+		} catch (InterruptedException e) {
+			LoggerUtils.logError(logger, e, false);
+		}
 	}
 
 	public static void injectSuppliers() {
 		// app config injection
-		Translator.setLocaleSupplier(() -> OwlcmsSession.getLocale());
+		Translator.setLocaleSupplier(() -> OwlcmsSession.computeLocale());
 		ResourceWalker.setLocaleSupplier(Translator.getLocaleSupplier());
-		ResourceWalker.setLocalZipBlobSupplier(() -> Config.getCurrent().getLocalZipBlob());
+		//ResourceWalker.setLocalZipBlobSupplier(() -> Config.getCurrent().getLocalZipBlob());
 	}
 
 	/**
@@ -163,11 +173,11 @@ public class Main {
 		}
 
 		init();
-		CountDownLatch latch = OwlcmsFactory.getInitializationLatch();
+		//CountDownLatch latch = OwlcmsFactory.getInitializationLatch();
 
 		// restart automatically forever if running as public demo
 		while (true) {
-			EmbeddedJetty embeddedJetty = new EmbeddedJetty(latch, "owlcms")
+			EmbeddedJetty embeddedJetty = new EmbeddedJetty(null, "owlcms")
 			        .setStartLogger(logger)
 			        .setInitConfig(Main::initConfig)
 			        .setInitData(Main::initData);
@@ -209,6 +219,13 @@ public class Main {
 		SLF4JBridgeHandler.install();
 		// disable poixml warning
 		StartupUtils.disableWarning();
+		
+		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+		    @Override
+		    public void uncaughtException(Thread t, Throwable e) {
+		        System.out.println("Caught " + e);
+		    }
+		});
 
 		// read command-line and environment variable parameters
 		parseConfig();
@@ -275,7 +292,7 @@ public class Main {
 				logger.info("database not empty: {}", allCompetitions.get(0).getCompetitionName());
 				List<AgeGroup> ags = AgeGroupRepository.findAll();
 				if (ags.isEmpty()) {
-					logger.info("creating age groups and categories");
+					logger.info("Creating age groups and categories");
 					JPAService.runInTransaction(em -> {
 						AgeGroupRepository.insertAgeGroups(em, null);
 						return null;
@@ -287,7 +304,7 @@ public class Main {
 				}
 				List<Config> configs = ConfigRepository.findAll();
 				if (configs.isEmpty()) {
-					logger.info("adding config object");
+					logger.debug("adding config object");
 					Config.setCurrent(new Config());
 				}
 
@@ -296,13 +313,13 @@ public class Main {
 				        && AthleteRepository.countFiltered(null, null, null, null, null, null, null, null) > 0) {
 					// database has athletes, but no participations. 4.22 and earlier.
 					// need to create Participation entries for the Athletes.
-					logger.info("updating database: computing athlete eligibility to age groups and categories.");
+					logger.debug("updating database: computing athlete eligibility to age groups and categories.");
 					AthleteRepository.resetParticipations();
 				}
 
 				List<Category> nullCodeCategories = CategoryRepository.findNullCodes();
 				if (!nullCodeCategories.isEmpty()) {
-					logger.info("updating category codes", nullCodeCategories);
+					logger.debug("updating category codes", nullCodeCategories);
 					CategoryRepository.fixNullCodes(nullCodeCategories);
 				}
 

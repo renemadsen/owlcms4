@@ -31,6 +31,8 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.dependency.CssImport;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.grid.Grid.Column;
+import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -40,6 +42,7 @@ import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.provider.SortDirection;
 import com.vaadin.flow.data.renderer.NumberRenderer;
 import com.vaadin.flow.data.renderer.TextRenderer;
 import com.vaadin.flow.data.value.ValueChangeMode;
@@ -163,9 +166,9 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 	public FlexLayout createMenuArea() {
 		createTopBarGroupSelect();
 
-		Button bwButton = createBWButton();
-		Button categoriesListButton = createCategoriesListButton();
-		Button teamsListButton = createTeamsListButton();
+//		Button bwButton = createBWButton();
+//		Button categoriesListButton = createCategoriesListButton();
+//		Button teamsListButton = createTeamsListButton();
 
 		Button drawLots = new Button(Translator.translate("DrawLotNumbers"), (e) -> {
 			drawLots();
@@ -188,7 +191,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 				        clearLifts();
 			        }).open();
 		});
-		deleteAthletes.getElement().setAttribute("title", Translator.translate("ClearLifts_forListed"));
+		clearLifts.getElement().setAttribute("title", Translator.translate("ClearLifts_forListed"));
 
 		Button resetCats = new Button(Translator.translate("ResetCategories.ResetAthletes"), (e) -> {
 			new ConfirmationDialog(
@@ -205,11 +208,13 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		hr.getStyle().set("margin", "0");
 		hr.getStyle().set("padding", "0");
 		FlexLayout buttons = new FlexLayout(
-		        new NativeLabel(Translator.translate("Preparation")),
+//		        new NativeLabel(Translator.translate("Preparation")),
 		        drawLots, deleteAthletes, clearLifts,
-		        resetCats, hr,
-		        new NativeLabel(Translator.translate("Entries")),
-		        bwButton, categoriesListButton, teamsListButton);
+		        resetCats
+//		        , hr,
+//		        new NativeLabel(Translator.translate("Entries")),
+//		        bwButton, categoriesListButton, teamsListButton
+		        );
 		buttons.getStyle().set("flex-wrap", "wrap");
 		buttons.getStyle().set("gap", "1ex");
 		buttons.getStyle().set("margin-left", "3em");
@@ -221,6 +226,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		this.topBar.add(this.topBarMenu, buttons);
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.BETWEEN);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
+		this.topBar.setJustifyContentMode(JustifyContentMode.START);
 
 		return this.topBar;
 	}
@@ -494,7 +500,6 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			AthleteSorter.registrationOrder(regCatAthletesList);
 		}
 
-
 		updateURLLocations();
 		return regCatAthletesList;
 	}
@@ -575,14 +580,22 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		grid.addColumn(new NumberRenderer<>(Athlete::getBodyWeight, "%.2f", this.getLocale()))
 		        .setSortProperty("bodyWeight")
 		        .setHeader(Translator.translate("BodyWeight")).setAutoWidth(true).setTextAlign(ColumnTextAlign.CENTER);
-		grid.addColumn("group").setHeader(Translator.translate("Group")).setAutoWidth(true)
+		Column<Athlete> groupCol = grid.addColumn("group").setHeader(Translator.translate("Group")).setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn("eligibleCategories").setHeader(Translator.translate("Registration.EligibleCategories"))
 		        .setAutoWidth(true);
+		grid.addColumn("subCategory").setHeader(Translator.translate("SubCategory")).setAutoWidth(true)
+		        .setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn("entryTotal").setHeader(Translator.translate("EntryTotal")).setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn("federationCodes").setHeader(Translator.translate("Registration.FederationCodesShort"))
 		        .setAutoWidth(true);
+
+		List<GridSortOrder<Athlete>> sortOrder = new ArrayList<>();
+		// groupWeighinTimeComparator implements traditional platform name comparisons e.g. USAW.
+		groupCol.setComparator((a,b) -> Group.groupWeighinTimeComparator.compare(a.getGroup(), b.getGroup()));
+		sortOrder.add(new GridSortOrder<Athlete>(groupCol, SortDirection.ASCENDING));
+		grid.sort(sortOrder);
 
 		OwlcmsCrudGrid<Athlete> crudGrid = new OwlcmsCrudGrid<>(Athlete.class, new OwlcmsGridLayout(Athlete.class) {
 
@@ -644,7 +657,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		// filter.
 
 		List<Group> groups = GroupRepository.findAll();
-		groups.sort(new NaturalOrderComparator<>());
+		groups.sort(Group.groupWeighinTimeComparator);
 
 		OwlcmsSession.withFop(fop -> {
 			// logger.debug("initial setting group to {} {}", getCurrentGroup(),
@@ -656,7 +669,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			        (g1) -> doSwitchGroup(g1),
 			        (g1) -> doSwitchGroup(new Group("*")),
 			        null,
-			        Translator.translate("AllGroups"));
+			        Translator.translate("AllGroups"), false);
 		});
 	}
 
@@ -835,14 +848,24 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			        fLastName = fLastName.toLowerCase();
 			        return aLastName.startsWith(fLastName);
 		        })
-		        .filter(a -> getWeighedIn() == null
-		                || (getWeighedIn() && (a.getBodyWeight() != null && a.getBodyWeight() > 0)))
+		        .filter(a -> {
+					if (getWeighedIn() == null) {
+						return true;
+					}
+
+					if (getWeighedIn()) {
+						return a.getBodyWeight() != null && a.getBodyWeight() > 0;
+					}
+
+					return a.getBodyWeight() == null || a.getBodyWeight() == 0;
+				})
 		        // .filter(a -> a.getCategory() != null)
 		        .filter(a -> {
 			        Gender genderFilterValue = getGender();
 			        Gender athleteGender = a.getGender();
 			        boolean catOk = (catFilterValue == null
-			                || catFilterValue.toString().equals(a.getCategory().toString()))
+			                || (a.getCategory() != null
+			                        && catFilterValue.toString().equals(a.getCategory().toString())))
 			                && (genderFilterValue == null || genderFilterValue == athleteGender);
 			        return catOk;
 		        })

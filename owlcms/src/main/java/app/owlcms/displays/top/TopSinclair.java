@@ -404,10 +404,10 @@ public class TopSinclair extends AbstractTop {
 				case SMM:
 					if (curGender == Gender.F) {
 						needed = (int) Math.round(
-						        Math.ceil((this.topWomanScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topWomanScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					} else {
 						needed = (int) Math.round(
-						        Math.ceil((this.topManScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topManScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					}
 					break;
 				default:
@@ -441,7 +441,6 @@ public class TopSinclair extends AbstractTop {
 
 	private List<Athlete> nodups(List<Athlete> athletes) {
 		// massive kludge because we have same athlete in multiple age groups
-		// TODO: top sinclair can be absolute or by age group
 		athletes = athletes.stream()
 		        .map((p) -> p instanceof PAthlete ? ((PAthlete) p)._getAthlete() : p)
 		        .collect(Collectors.toSet())

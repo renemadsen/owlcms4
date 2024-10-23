@@ -103,7 +103,7 @@ public class CurrentAthlete extends Results {
 			uiEventLogger.debug("$$$ currentAthlete calling doBreak()");
 			if (fop.getGroup() != null && fop.getGroup().isDone()) {
 				setDisplay();
-				getElement().setProperty("fullName", getTranslation("Group_number_done", fop.getGroup().toString()));
+				getElement().setProperty("fullName", Translator.translate("Group_number_done", fop.getGroup().toString()));
 				getElement().setProperty("teamName", "");
 				getElement().setProperty("attempt", "");
 			} else {
@@ -191,6 +191,7 @@ public class CurrentAthlete extends Results {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			setDisplay();
 			this.getElement().setProperty("decisionVisible", true);
+			OwlcmsSession.withFop(fop -> doUpdate(fop.getCurAthlete(), e));
 		});
 	}
 
@@ -204,7 +205,7 @@ public class CurrentAthlete extends Results {
 			if (isDone()) {
 				doDone(e.getAthlete().getGroup());
 			} else {
-				doUpdate(e.getAthlete(), e);
+				OwlcmsSession.withFop(fop -> doUpdate(fop.getCurAthlete(), e));
 			}
 		});
 	}
@@ -240,7 +241,7 @@ public class CurrentAthlete extends Results {
 	@Subscribe
 	public void slaveOrderUpdated(UIEvent.LiftingOrderUpdated e) {
 		// uiLog(e);
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = e.getFop();
 		FOPState state = fop.getState();
 		if (state == FOPState.DOWN_SIGNAL_VISIBLE || state == FOPState.DECISION_VISIBLE) {
 			return;
@@ -324,11 +325,13 @@ public class CurrentAthlete extends Results {
 			}
 		}
 
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = e.getFop();
 		if (!leaveTopAlone) {
 			if (a != null) {
 				Group group = fop.getGroup();
-				if (!group.isDone()) {
+				if (group == null) {
+					doEmpty();
+				} else if (!group.isDone()) {
 					logger.debug("updating top {} {} {}", a.getFullName(), group, System.identityHashCode(group));
 					//getElement().setProperty("fullName", a.getFullName());
 					getElement().setProperty("fullName", a.getFirstName() + " " + a.getLastName());
@@ -343,13 +346,9 @@ public class CurrentAthlete extends Results {
 				}
 			}
 
-			// current athlete bottom should only change when top does
-			if (fop.getState() != FOPState.DECISION_VISIBLE) {
-				// logger.debug("updating bottom {}", fop.getState());
-				updateDisplay(computeLiftType(a), fop);
-			} else {
-				// logger.debug("not updating bottom {}", fop.getState());
-			}
+			// change bottom line as soon as possible
+			updateDisplay(computeLiftType(a), fop);
+
 
 		}
 		// logger.debug("leave top alone {} {}", leaveTopAlone, fop.getState());
@@ -516,7 +515,7 @@ public class CurrentAthlete extends Results {
 			this.order = fop.getDisplayOrder();
 
 			// liftsDone = AthleteSorter.countLiftsDone(order);
-			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this));
+			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this, fop));
 			// we listen on uiEventBus.
 			this.uiEventBus = uiEventBusRegister(this, fop);
 			this.getElement().setProperty("platformName", CSSUtils.sanitizeCSSClassName(fop.getName()));
@@ -566,7 +565,7 @@ public class CurrentAthlete extends Results {
 		} else {
 			OwlcmsSession.withFop(fop -> {
 				updateDisplay(null, fop);
-				getElement().setProperty("fullName", getTranslation("Group_number_done", g.toString()));
+				getElement().setProperty("fullName", Translator.translate("Group_number_done", g.toString()));
 			});
 		}
 	}

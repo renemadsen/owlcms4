@@ -61,6 +61,8 @@ import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.shared.CustomFormFactory;
 import app.owlcms.nui.shared.IAthleteEditing;
 import app.owlcms.spreadsheet.PAthlete;
+import app.owlcms.uievents.UIEvent;
+import app.owlcms.uievents.UIEvent.Notification;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
 
@@ -171,9 +173,8 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Integer entryTotal = aFromDb.getEntryTotal();
 		String entryString = "";
 		if (entryTotal != null && entryTotal > 0 && Competition.getCurrent().isEnforce20kgRule()
-				&& Config.getCurrent().featureSwitch("AthleteCardEntryTotal")
-				) {
-			entryString  = " ("+Translator.translate("Results.Entry_abbrev")+" = "+entryTotal+")";
+		        && Config.getCurrent().featureSwitch("AthleteCardEntryTotal")) {
+			entryString = " (" + Translator.translate("Results.Entry_abbrev") + " = " + entryTotal + ")";
 		}
 		return (startNumber != null ? "[" + startNumber + "] " : "") + aFromDb.getFullId() + entryString;
 	}
@@ -345,51 +346,14 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			return null;
 		}
 		Button button = doBuildButton(operation);
-		// operationTrigger = defineOperationTrigger(operation, domainObject, callBack);
-		//
-		// ComponentEventListener<ClickEvent<Button>> listener = event -> {
-		// // force value to be written to underlying bean. Crude Workaround for keyboard
-		// // shortcut
-		// // which does not process last field input when ENTER key is used.
-		// //operationTrigger.focus();
-		// };
-		//
-		// button.addClickListener(listener);
 		button.addClickListener((f) -> {
 			performOperationAndCallback(operation, domainObject, callBack, isIgnoreErrors());
 			// the field value change listener will set the following to true if the user edits using the interface
-			domainObject.setCheckTiming(false);
+			// already initialized correctly in the form, should not be reset here.  see #
+			//domainObject.setCheckTiming(false);
 		});
 		return button;
 	}
-
-	// /**
-	// * @see app.owlcms.nui.shared.CustomFormFactory#defineOperationTrigger(org.vaadin.crudui.crud.CrudOperation,
-	// * app.owlcms.data.athlete.Athlete, com.vaadin.flow.component.ComponentEventListener)
-	// */
-	// @Override
-	// public TextField defineOperationTrigger(CrudOperation operation, Athlete domainObject,
-	// ComponentEventListener<ClickEvent<Button>> action) {
-	// TextField operationTrigger = new TextField();
-	// operationTrigger.setReadOnly(true);
-	// operationTrigger.setTabIndex(-1);
-	//// operationTrigger.addFocusListener((f) -> {
-	//// boolean valid = isValid();
-	//// boolean ignoreErrors = isIgnoreErrors();
-	//// if (valid || ignoreErrors) {
-	//// // logger.debug("updating {} {}", valid, ignoreErrors);
-	//// doUpdate();
-	//// } else {
-	//// // logger.debug("not updating {} {}", valid, ignoreErrors);
-	//// }
-	//// });
-	//// // field must visible and added to the layout for focus() to work, so we hide it
-	//// // brutally. operationTrigger is placed in the footer.
-	//
-	// operationTrigger.getStyle().set("z-index", "-10");
-	// operationTrigger.setWidth("1px");
-	// return operationTrigger;
-	// }
 
 	/**
 	 * @see app.owlcms.nui.shared.CustomFormFactory#delete(app.owlcms.data.athlete.Athlete)
@@ -938,6 +902,9 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			        this.originalAthlete.withdrawFromSnatch();
 			        AthleteRepository.save(this.originalAthlete);
 			        OwlcmsSession.withFop((fop) -> {
+				        fop.pushOutUIEvent(new UIEvent.Notification(
+				                this.originalAthlete, this, Notification.Level.WARNING,
+				                "SnatchWithdrawalNotification", 5000, fop, this.originalAthlete.getFullName()));
 				        fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, true));
 			        });
 			        this.origin.closeDialog();
@@ -951,6 +918,9 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			        this.originalAthlete.withdraw();
 			        AthleteRepository.save(this.originalAthlete);
 			        OwlcmsSession.withFop((fop) -> {
+				        fop.pushOutUIEvent(new UIEvent.Notification(
+				                this.originalAthlete, this, Notification.Level.WARNING,
+				                "FullWithdrawalNotification", 5000, fop, this.originalAthlete.getFullName()));
 				        fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, true));
 			        });
 			        this.origin.closeDialog();
@@ -997,7 +967,8 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 
 	private TextField createPositiveWeightField(int row, int col) {
 		TextField tf = new TextField();
-		tf.setPattern("^\\d*$");
+		tf.setPattern("^(350|3[0-4][0-9]|2[0-9]{2}|1[0-9]{2}|[1-9][0-9]?|0)$");
+		tf.setMaxLength(3);
 		tf.setAllowedCharPattern("[0-9]");
 		tf.setValueChangeMode(ValueChangeMode.ON_CHANGE);
 		tf.addValueChangeListener(e -> {
@@ -1074,7 +1045,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			if (sb.length() > 0) {
 				sb.append("; ");
 			}
-			String message = ve.getMessage().orElse(field.getTranslation("Error"));
+			String message = ve.getMessage().orElse(Translator.translate("Error"));
 			logger.debug("field message: {}", message);
 			sb.append(message);
 		}

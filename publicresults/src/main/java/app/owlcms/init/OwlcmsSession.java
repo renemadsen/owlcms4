@@ -17,7 +17,6 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.i18n.Translator;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -32,9 +31,6 @@ import ch.qos.logback.classic.Logger;
 public class OwlcmsSession {
 
     private final static Logger logger = (Logger) LoggerFactory.getLogger(OwlcmsSession.class);
-    static {
-        logger.setLevel(Level.INFO);
-    }
 
     /**
      * Gets the attribute.
@@ -42,8 +38,8 @@ public class OwlcmsSession {
      * @param s the s
      * @return the attribute
      */
-    public static Object getAttribute(String s) {
-        return getCurrent().attributes.get(s);
+    public static synchronized Object getAttribute(String s) {
+        return getCurrent().getAttributes().get(s);
     }
 
     public static OwlcmsSession getCurrent() {
@@ -115,7 +111,7 @@ public class OwlcmsSession {
      */
     public static void setAttribute(String s, Object o) {
         // logger.trace("{} setting Attribute {} to {}",getCurrent(), s, o);
-        getCurrent().attributes.put(s, o);
+        getCurrent().getAttributes().put(s, o);
     }
 
     public static void setAuthenticated(boolean isAuthenticated) {
@@ -150,5 +146,17 @@ public class OwlcmsSession {
 
     public void setFopName(String fopName) {
         this.fopName = fopName;
+    }
+
+    public static void removeAttribute(String string) {
+        getCurrent().getAttributes().remove(string);
+    }
+
+    public Properties getAttributes() {
+        return attributes;
+    }
+
+    public void setAttributes(Properties attributes) {
+        this.attributes = attributes;
     }
 }

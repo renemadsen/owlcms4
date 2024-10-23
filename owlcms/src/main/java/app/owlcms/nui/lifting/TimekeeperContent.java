@@ -43,6 +43,7 @@ import app.owlcms.data.group.GroupRepository;
 import app.owlcms.fieldofplay.CountdownType;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FOPState;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.AthleteGridContent;
@@ -50,7 +51,6 @@ import app.owlcms.nui.shared.BreakDialog;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.utils.LoggerUtils;
-import app.owlcms.utils.NaturalOrderComparator;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -110,7 +110,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 
 	@Override
 	public String getMenuTitle() {
-		return getTranslation("Timekeeper") + OwlcmsSession.getFopNameIfMultiple();
+		return Translator.translate("Timekeeper") + OwlcmsSession.getFopNameIfMultiple();
 	}
 
 	/**
@@ -118,7 +118,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Timekeeper") + OwlcmsSession.getFopNameIfMultiple();
+		return Translator.translate("Timekeeper") + OwlcmsSession.getFopNameIfMultiple();
 	}
 
 	@Override
@@ -172,7 +172,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 		createTopBarGroupSelect();
 		createTopBarLeft();
 
-		this.introCountdownButton = new Button(getTranslation("introCountdown"), new Icon(VaadinIcon.TIMER), (e) -> {
+		this.introCountdownButton = new Button(Translator.translate("introCountdown"), new Icon(VaadinIcon.TIMER), (e) -> {
 			OwlcmsSession.withFop(fop -> {
 				BreakDialog dialog = new BreakDialog(BreakType.BEFORE_INTRODUCTION, CountdownType.TARGET, null, this);
 				dialog.open();
@@ -180,7 +180,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 		});
 		this.introCountdownButton.getElement().setAttribute("theme", "primary contrast");
 
-		this.startLiftingButton = new Button(getTranslation("startLifting"), new Icon(VaadinIcon.MICROPHONE), (e) -> {
+		this.startLiftingButton = new Button(Translator.translate("startLifting"), new Icon(VaadinIcon.MICROPHONE), (e) -> {
 			OwlcmsSession.withFop(fop -> {
 				UI.getCurrent().access(() -> createTopBar());
 				fop.fopEventPost(new FOPEvent.StartLifting(this));
@@ -188,7 +188,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 		});
 		this.startLiftingButton.getThemeNames().add("success primary");
 
-		this.showResultsButton = new Button(getTranslation("ShowResults"), new Icon(VaadinIcon.MEDAL), (e) -> {
+		this.showResultsButton = new Button(Translator.translate("ShowResults"), new Icon(VaadinIcon.MEDAL), (e) -> {
 			OwlcmsSession.withFop(fop -> {
 				UI.getCurrent().access(() -> createTopBar());
 				fop.fopEventPost(
@@ -310,7 +310,7 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 		// filter.
 		if (Config.getCurrent().featureSwitch("enableTimeKeeperSessionSwitch")) {
 			List<Group> groups = GroupRepository.findAll();
-			groups.sort(new NaturalOrderComparator<>());
+			groups.sort(Group.groupSelectionComparator);
 
 			OwlcmsSession.withFop(fop -> {
 				this.topBarMenu = new GroupSelectionMenu(groups, fop.getGroup(),
@@ -343,62 +343,60 @@ public class TimekeeperContent extends AthleteGridContent implements HasDynamicT
 	}
 
 	@Override
-	protected void syncWithFOP(boolean refreshGrid) {
-		OwlcmsSession.withFop((fop) -> {
-			Group fopGroup = fop.getGroup();
-			logger.debug("syncing FOP, group = {}, {}", fopGroup, LoggerUtils.whereFrom(2));
+	protected void syncWithFop(boolean refreshGrid, FieldOfPlay fop) {
+		Group fopGroup = fop.getGroup();
+		logger.debug("syncing FOP, group = {}, {}", fopGroup, LoggerUtils.whereFrom(2));
 
-			Athlete curAthlete2 = fop.getCurAthlete();
-			FOPState state = fop.getState();
-			this.removeAll();
-			if (state == FOPState.INACTIVE || (state == FOPState.BREAK && fop.getGroup() == null)) {
-				logger.debug("initial: {} {} {} {}", state, fop.getGroup(), curAthlete2,
-				        curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone());
-				getRouterLayout().setMenuTitle(getMenuTitle());
-				getRouterLayout().setMenuArea(createInitialBar());
-				getRouterLayout().updateHeader(true);
+		Athlete curAthlete2 = fop.getCurAthlete();
+		FOPState state = fop.getState();
+		this.removeAll();
+		if (state == FOPState.INACTIVE || (state == FOPState.BREAK && fop.getGroup() == null)) {
+			logger.debug("initial: {} {} {} {}", state, fop.getGroup(), curAthlete2,
+			        curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone());
+			getRouterLayout().setMenuTitle(getMenuTitle());
+			getRouterLayout().setMenuArea(createInitialBar());
+			getRouterLayout().updateHeader(true);
 
-				this.warning.setText(getTranslation("IdlePlatform"));
-				if (curAthlete2 == null || curAthlete2.getAttemptsDone() >= 6 || fop.getLiftingOrder().size() == 0) {
-					topBarWarning(fop.getGroup(), curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone(),
-					        fop.getState(), fop.getLiftingOrder());
-				}
-			} else {
-				logger.debug("active: {}", state);
-				getRouterLayout().setMenuTitle("");
-				getRouterLayout().setMenuArea(createTopBar());
-				getRouterLayout().updateHeader(true);
-				createBottom();
-
-				if (state == FOPState.BREAK) {
-					if (this.buttons != null) {
-						hideButtons();
-					}
-					if (this.decisions != null) {
-						this.decisions.setVisible(false);
-					}
-					busyBreakButton();
-				} else {
-					if (this.buttons != null) {
-						showButtons();
-					}
-					if (this.decisions != null) {
-						this.decisions.setVisible(true);
-					}
-					if (this.breakButton == null) {
-						// logger.debug("breakButton is null\n{}", LoggerUtils. stackTrace());
-						return;
-					}
-					this.breakButton.setText("");
-					quietBreakButton(Translator.translateOrElseEmpty("Pause"));
-				}
-				this.breakButton.setEnabled(true);
-
-				Athlete curAthlete = curAthlete2;
-				int timeRemaining = fop.getAthleteTimer().getTimeRemaining();
-				super.doUpdateTopBar(curAthlete, timeRemaining);
+			this.warning.setText(Translator.translate("IdlePlatform"));
+			if (curAthlete2 == null || curAthlete2.getAttemptsDone() >= 6 || fop.getLiftingOrder().size() == 0) {
+				topBarWarning(fop.getGroup(), curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone(),
+				        fop.getState(), fop.getLiftingOrder());
 			}
-		});
+		} else {
+			logger.debug("active: {}", state);
+			getRouterLayout().setMenuTitle("");
+			getRouterLayout().setMenuArea(createTopBar());
+			getRouterLayout().updateHeader(true);
+			createBottom();
+
+			if (state == FOPState.BREAK) {
+				if (this.buttons != null) {
+					hideButtons();
+				}
+				if (this.decisions != null) {
+					this.decisions.setVisible(false);
+				}
+				busyBreakButton();
+			} else {
+				if (this.buttons != null) {
+					showButtons();
+				}
+				if (this.decisions != null) {
+					this.decisions.setVisible(true);
+				}
+				if (this.breakButton == null) {
+					// logger.debug("breakButton is null\n{}", LoggerUtils. stackTrace());
+					return;
+				}
+				this.breakButton.setText("");
+				quietBreakButton(Translator.translateOrElseEmpty("Pause"));
+			}
+			this.breakButton.setEnabled(true);
+
+			Athlete curAthlete = curAthlete2;
+			int timeRemaining = fop.getAthleteTimer().getTimeRemaining();
+			super.doUpdateTopBar(curAthlete, timeRemaining);
+		}
 	}
 
 	private void createBottom() {

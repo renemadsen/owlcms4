@@ -489,12 +489,9 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* requested weight column */
 :host table.results tr td.request {
-    /*background-color: var(--RequestBackgroundColor);
-    color: var(--RequestTextColor);*/
-    background-color: #002A63;
-    border-radius: 5px 5px 5px 5px;
-    border: 0;
-    color: #ffffff;
+    --BlinkBackgroundColor: var(--RequestBackgroundColor);
+    background-color: var(--RequestBackgroundColor);
+    color: var(--RequestTextColor);
     font-style: italic;
     justify-content: center;
     margin-right: 5px;
@@ -608,7 +605,6 @@ td {
     margin: 0;
 }
 
-/* only dark has vspacer */
 :host .dark table.results tr.head th.vspacer,
 :host .dark table.results tr.head td.vspacer {
     width: var(--spacerWidth);
@@ -623,11 +619,18 @@ td {
     border: none;
 }
 
-:host table.results thead {
-    background-color: #002A63;
-    border-radius: 5px 5px 5px 5px;
-    border: 0;
-    color: #ffffff;
+:host .light table.results tr.head th.vspacer,
+:host .light table.results tr.head td.vspacer {
+    width: var(--spacerWidth);
+    background-color: var(--blockBackgroundColor);
+    border: none;
+}
+
+:host .light table.results tr th.vspacer,
+:host .light table.results tr td.vspacer {
+    width: var(--spacerWidth);
+    background-color: var(--blockBackgroundColor);
+    border: none;
 }
 
 :host table.results tr.head td,
@@ -681,11 +684,11 @@ th:nth-child(18) {border-radius: 0px 5px 5px 0px;}
     }
 
     50% {
-        background-color: var(--BackgroundColor);
+        background-color: var(--BlinkBackgroundColor, var(--BackgroundColor));
     }
 
     100% {
-        background-color: var(--BackgroundColor);
+        background-color: var(--BlinkBackgroundColor, var(--BackgroundColor));
     }
 }
 

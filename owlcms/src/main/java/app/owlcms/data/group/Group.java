@@ -10,10 +10,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.FormatStyle;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.persistence.Cacheable;
 import javax.persistence.CascadeType;
@@ -36,10 +42,13 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 
+import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AbstractLifterComparator;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.platform.Platform;
+import app.owlcms.init.OwlcmsSession;
 import app.owlcms.utils.DateTimeUtils;
 import app.owlcms.utils.IdUtils;
 import app.owlcms.utils.LoggerUtils;
@@ -54,9 +63,135 @@ import ch.qos.logback.classic.Logger;
 @Entity(name = "CompetitionGroup")
 @Cacheable
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id", scope = Group.class)
-@JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger" })
+@JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger", "athletes" })
 public class Group implements Comparable<Group> {
 
+	public record Range (Integer min, Integer max) {
+		public String getFormattedRange() {
+			if (min == Integer.MAX_VALUE && max == 0) {
+				return "";
+			} else if (min == max) {
+				return min.toString();
+			} else {
+				return min.toString()+" - "+max.toString();
+			}
+		}
+	};
+
+	@Transient
+	@JsonIgnore
+	public Range getStartingRange() {
+		int min = Integer.MAX_VALUE;
+		int max = 0;
+		for (Athlete a : getAthletes()) {
+			Integer q = a.getQualifyingTotal();
+			if (q == null) {
+				continue;
+			}
+			min = q < min ? q : min;
+			max = q > max ? q : max;
+		}
+		return new Range(min, max);
+	}
+
+	public void setFormattedRange(String unused) {
+
+	}
+
+	public String getFormattedRange() {
+		List<Athlete> athletes = getAthletes();
+		Boolean unanimous = true;
+		Double smallestWeightClass = null;
+		Double largestWeightClass = null;
+		String largestWeightClassLimitString = null;
+		String weightClassRange = null;
+		String bestSubCategory = null;
+		TreeMap<String, BWCatInfo> subCats = new TreeMap<>();
+
+		for (Athlete a : athletes) {
+			AgeGroup ageGroup = a.getAgeGroup();
+			if (ageGroup == null) {
+				continue;
+			}
+
+			String subCategory = a.getSubCategory();
+			if (subCategory.isBlank()) {
+				subCategory = null;
+			}
+
+			if (weightClassRange == null) {
+				smallestWeightClass = a.getCategory().getMaximumWeight();
+				largestWeightClass = a.getCategory().getMaximumWeight();
+				largestWeightClassLimitString = a.getCategory().getLimitString();
+				weightClassRange = a.getCategory().getLimitString();
+				bestSubCategory = subCategory;
+
+				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
+				subCats.put(bwi.getKey(), bwi);
+			} else {
+				if (smallestWeightClass == null
+				        || a.getCategory().getMaximumWeight() < smallestWeightClass) {
+					smallestWeightClass = a.getCategory().getMaximumWeight();
+				}
+
+				if (largestWeightClass == null
+				        || a.getCategory().getMaximumWeight() > largestWeightClass) {
+					largestWeightClass = a.getCategory().getMaximumWeight();
+					largestWeightClassLimitString = a.getCategory().getLimitString();
+				}
+
+				if (subCategory != null) {
+					if (bestSubCategory != null) {
+						int compare = subCategory.compareToIgnoreCase(bestSubCategory);
+
+						if (compare < 0) {
+							// A is better than B
+							bestSubCategory = subCategory;
+						}
+
+						unanimous = unanimous && (compare == 0);
+					} else {
+						// largest was null, if we are "A", still unanimous
+						int compare = "A".compareToIgnoreCase(subCategory);
+						bestSubCategory = subCategory;
+						unanimous = unanimous && (compare == 0);
+					}
+				} else {
+					if (bestSubCategory != null) {
+						// a null subcategory is considered to be the same as "A".
+						int compare = "A".compareToIgnoreCase(bestSubCategory);
+						unanimous = unanimous && (compare == 0);
+					} else {
+						// all null subCategories so far.
+						unanimous = true;
+					}
+				}
+
+				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
+				subCats.put(bwi.getKey(), bwi);
+
+				if (Math.abs(largestWeightClass - smallestWeightClass) < 0.1) {
+					// same
+					weightClassRange = a.getCategory().getLimitString();
+				} else {
+					weightClassRange = (int) Math.round(smallestWeightClass) + "-"
+					        + largestWeightClassLimitString;
+				}
+			}
+		}
+
+		if (unanimous) {
+			if (bestSubCategory == null) {
+				return weightClassRange;
+			} else {
+				return weightClassRange + " " + bestSubCategory;
+			}
+		} else {
+			return subCats.values().stream().map(v -> v.getFormattedString()).collect(Collectors.joining(", "));
+		}
+	}
+
+	private final static Logger logger = (Logger) LoggerFactory.getLogger(Group.class);
 	private final static NaturalOrderComparator<String> c = new NaturalOrderComparator<>();
 	private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm";
 	private final static DateTimeFormatter DATE_TIME_FORMATTER = new DateTimeFormatterBuilder().parseLenient()
@@ -106,11 +241,197 @@ public class Group implements Comparable<Group> {
 		return 0;
 	};
 
+	public static Comparator<Athlete> weighinTimeComparator = (lifter1, lifter2) -> {
+		Group lifter1Group = lifter1.getGroup();
+		Group lifter2Group = lifter2.getGroup();
+
+		int compare;
+		// null groups go to bottom
+		if (lifter1Group == null || lifter2Group == null) {
+			compare = ObjectUtils.compare(lifter1Group, lifter2Group, true);
+			return compare;
+		}
+
+		LocalDateTime lifter1Date = lifter1Group.getWeighInTime();
+		LocalDateTime lifter2Date = lifter2Group.getWeighInTime();
+		compare = ObjectUtils.compare(lifter1Date, lifter2Date, true);
+		AbstractLifterComparator.traceComparison("compareGroupWeighInTime", lifter1,
+		        lifter1.getGroup().getWeighInTime(),
+		        lifter2, lifter2.getGroup().getWeighInTime(), compare);
+		if (compare != 0) {
+			return compare;
+		}
+
+		// Platform p1 = lifter1Group.getPlatform();
+		// Platform p2 = lifter2Group.getPlatform();
+		// String name1 = p1 != null ? p1.getName() : null;
+		// String name2 = p2 != null ? p2.getName() : null;
+		// compare = ObjectUtils.compare(name1, name2, false);
+		// if (compare != 0) {
+		// // logger.trace("different platform {} {} {}", name1, name2,
+		// // LoggerUtils.whereFrom(10));
+		// return compare;
+		// }
+
+		String lifter1String = lifter1Group.getName();
+		String lifter2String = lifter2Group.getName();
+
+		if (lifter1String == null || lifter2String == null) {
+			compare = ObjectUtils.compare(lifter1String, lifter2String, true);
+		} else {
+			compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		}
+		compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		if (compare != 0) {
+			// logger.trace("different group {} {} {}", lifter1String, lifter2String,
+			// LoggerUtils.whereFrom(10));
+			return compare;
+		}
+
+		return 0;
+	};
+
+	private enum USAFlagOrder {
+		RED, WHITE, BLUE, STARS, STRIPES, GOLD, ROGUE
+	}
+
+	public static Comparator<Group> groupWeighinTimeComparator = (lifter1Group, lifter2Group) -> {
+
+		int compare;
+		if (lifter1Group == null || lifter2Group == null) {
+			compare = ObjectUtils.compare(lifter1Group, lifter2Group, true);
+			AbstractLifterComparator.traceComparison("compare group null", lifter1Group,
+			        lifter1Group,
+			        lifter2Group, lifter2Group, compare);
+			return compare;
+		}
+
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			var lifter1SessionBlock = lifter1Group.getSessionBlock();
+			var lifter2SessionBlock = lifter2Group.getSessionBlock();
+			// null sessionBlocks go last.
+			compare = ObjectUtils.compare(lifter1SessionBlock, lifter2SessionBlock, true);
+			if (compare != 0) {
+				AbstractLifterComparator.traceComparison("compare sessionBlock", lifter1Group,
+				        lifter1SessionBlock, lifter2Group, lifter2SessionBlock, compare);
+				return compare;
+			}
+
+			var lifter1Platform = lifter1Group.getPlatform();
+			var lifter1PlatformName = lifter1Platform != null ? lifter1Platform.getName() : null;
+			var lifter2Platform = lifter2Group.getPlatform();
+			var lifter2PlatformName = lifter2Platform != null ? lifter2Platform.getName() : null;
+
+			// null platform names go last.
+			if (lifter1PlatformName == null || lifter2PlatformName == null) {
+				compare = ObjectUtils.compare(lifter1PlatformName, lifter2PlatformName, true);
+				AbstractLifterComparator.traceComparison("compare platform null", lifter1Group,
+				        lifter1PlatformName, lifter2Group, lifter2PlatformName, compare);
+				return compare;
+			}
+
+			try {
+				var order1 = USAFlagOrder.valueOf(lifter1PlatformName.toUpperCase());
+				var order2 = USAFlagOrder.valueOf(lifter2PlatformName.toUpperCase());
+				compare = order1.compareTo(order2);
+				AbstractLifterComparator.traceComparison("compare flagOrder", lifter1Group,
+				        order1, lifter2Group, order2, compare);
+			} catch (Exception e) {
+				compare = ObjectUtils.compare(lifter1PlatformName, lifter2PlatformName);
+				AbstractLifterComparator.traceComparison("compare platformName", lifter1Group,
+				        lifter1PlatformName, lifter2Group, lifter2PlatformName, compare);
+			}
+			return compare;
+
+		}
+		LocalDateTime lifter1Date = lifter1Group.getWeighInTime();
+		LocalDateTime lifter2Date = lifter2Group.getWeighInTime();
+		compare = ObjectUtils.compare(lifter1Date, lifter2Date, true);
+		if (compare != 0) {
+			AbstractLifterComparator.traceComparison("compareGroupWeighInTime", lifter1Group,
+			        lifter1Group.getWeighInTime(), lifter2Group, lifter2Group.getWeighInTime(), compare);
+			return compare;
+		}
+
+		String lifter1String = lifter1Group.getName();
+		String lifter2String = lifter2Group.getName();
+
+		if (lifter1String == null || lifter2String == null) {
+			compare = ObjectUtils.compare(lifter1String, lifter2String, true);
+		} else {
+			compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		}
+		compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		if (compare != 0) {
+			// logger.trace("different group {} {} {}", lifter1String, lifter2String,
+			// LoggerUtils.whereFrom(10));
+			return compare;
+		}
+
+		return 0;
+	};
+	public static Comparator<Group> groupSelectionComparator = (lifter1Group, lifter2Group) -> {
+
+		int compare;
+		if (lifter1Group == null || lifter2Group == null) {
+			compare = ObjectUtils.compare(lifter1Group, lifter2Group, true);
+			return compare;
+		}
+
+		Boolean lifter1Done = lifter1Group.isDone();
+		Boolean lifter2Done = lifter2Group.isDone();
+		compare = ObjectUtils.compare(lifter1Done, lifter2Done, true);
+		if (compare != 0) {
+			AbstractLifterComparator.traceComparison("compareGroup isDone", lifter1Group,
+			        lifter1Group.isDone(),
+			        lifter2Group, lifter2Group.isDone(), compare);
+			return compare;
+		}
+
+		LocalDateTime lifter1Date = lifter1Group.getWeighInTime();
+		LocalDateTime lifter2Date = lifter2Group.getWeighInTime();
+		compare = ObjectUtils.compare(lifter1Date, lifter2Date, true);
+		if (compare != 0) {
+			AbstractLifterComparator.traceComparison("compareGroupWeighInTime", lifter1Group,
+			        lifter1Group.getWeighInTime(),
+			        lifter2Group, lifter2Group.getWeighInTime(), compare);
+			return compare;
+		}
+
+		String lifter1String = lifter1Group.getName();
+		String lifter2String = lifter2Group.getName();
+
+		if (lifter1String == null || lifter2String == null) {
+			compare = ObjectUtils.compare(lifter1String, lifter2String, true);
+		} else {
+			compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		}
+		compare = AbstractLifterComparator.noc.compare(lifter1String, lifter2String);
+		if (compare != 0) {
+			// logger.trace("different group {} {} {}", lifter1String, lifter2String,
+			// LoggerUtils.whereFrom(10));
+			return compare;
+		}
+
+		return 0;
+	};
+
 	public static DisplayGroup getEmptyDisplayGroup() {
 		return new DisplayGroup("?", "", null, "", "");
 	}
 
-	/** The platform. */
+	@Transient
+	@JsonIgnore
+	private DateTimeFormatter hourFormatter;
+	@Transient
+	@JsonIgnore
+	private DateTimeFormatter dayFormatter;
+	@Transient
+	@JsonIgnore
+	final DateTimeFormatter isoDateFormatter = DateTimeFormatter.ISO_LOCAL_DATE;
+	@Transient
+	@JsonIgnore
+	final DateTimeFormatter isoHourFormatter = DateTimeFormatter.ofPattern("HH:mm");
 	@ManyToOne(cascade = { CascadeType.MERGE }, optional = true, fetch = FetchType.EAGER)
 	@JsonIdentityReference(alwaysAsId = true)
 	Platform platform;
@@ -128,8 +449,6 @@ public class Group implements Comparable<Group> {
 	private String jury3;
 	private String jury4;
 	private String jury5;
-	@Transient
-	final private Logger logger = (Logger) LoggerFactory.getLogger(Group.class);
 	private String marshall;
 	private String marshal2;
 	private String name;
@@ -149,6 +468,8 @@ public class Group implements Comparable<Group> {
 	 */
 	public Group() {
 		setId(IdUtils.getTimeBasedId());
+		setHourFormatter(Locale.getDefault());
+		setDayFormatter(Locale.getDefault());
 	}
 
 	/**
@@ -162,6 +483,8 @@ public class Group implements Comparable<Group> {
 		final LocalDateTime now = LocalDateTime.now();
 		this.setWeighInTime(now);
 		this.setCompetitionTime(now);
+		setHourFormatter(Locale.getDefault());
+		setDayFormatter(Locale.getDefault());
 	}
 
 	/**
@@ -176,6 +499,43 @@ public class Group implements Comparable<Group> {
 		this.name = groupName;
 		this.setWeighInTime(weighin);
 		this.setCompetitionTime(competition);
+	}
+
+	@Transient
+	@JsonIgnore
+	Pattern pattern = Pattern.compile("(\\d+)\\s+(\\w+)");
+
+	@Transient
+	@JsonIgnore
+	public Integer getSessionBlock() {
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			Matcher matcher = pattern.matcher(this.getName());
+			if (matcher.find()) {
+				String number = matcher.group(1);
+				// String word = matcher.group(2);
+				try {
+					return Integer.parseInt(number);
+				} catch (NumberFormatException e) {
+					return 999;
+				}
+			}
+			return 999;
+		}
+		return 1;
+	}
+
+	@Transient
+	@JsonIgnore
+	public List<AgeGroupInfo> getAgeGroupInfo() {
+		List<AgeGroupInfo> ageGroupInfos = new AgeGroupInfoFactory().getAgeGroupInfos(this);
+		return ageGroupInfos;
+	}
+	
+	@Transient
+	@JsonIgnore
+	public List<AgeGroupInfo> getAgeGroupInfoByAge() {
+		List<AgeGroupInfo> ageGroupInfos = new AgeGroupInfoFactory().getAgeGroupInfos(this);
+		return ageGroupInfos.stream().sorted().toList();
 	}
 
 	/*
@@ -241,7 +601,7 @@ public class Group implements Comparable<Group> {
 	// @Override
 
 	public void doDone(boolean b) {
-		this.logger.debug("done? {} previous={} done={} {} [{}]", getName(), this.done, b,
+		Group.logger.debug("done? {} previous={} done={} {} [{}]", getName(), this.done, b,
 		        System.identityHashCode(this),
 		        LoggerUtils.whereFrom());
 		if (this.done != b) {
@@ -261,33 +621,6 @@ public class Group implements Comparable<Group> {
 		}
 		Group other = (Group) obj;
 		return getId() != null && getId().equals(other.getId());
-
-		// public boolean equals(Object obj) {
-		// if (this == obj) {
-		// return true;
-		// }
-		// if (obj == null) {
-		// return false;
-		// }
-		// if (getClass() != obj.getClass()) {
-		// return false;
-		// }
-		// Group other = (Group) obj;
-		// return Objects.equals(name, other.name)
-		// && Objects.equals(announcer, other.announcer) &&
-		// Objects.equals(competitionTime, other.competitionTime)
-		// && Objects.equals(id, other.id) && Objects.equals(jury1, other.jury1)
-		// && Objects.equals(jury2, other.jury2) && Objects.equals(jury3, other.jury3)
-		// && Objects.equals(jury4, other.jury4) && Objects.equals(jury5, other.jury5)
-		// && Objects.equals(marshall, other.marshall) && Objects.equals(platform,
-		// other.platform)
-		// && Objects.equals(referee1, other.referee1)
-		// && Objects.equals(referee2, other.referee2) && Objects.equals(referee3,
-		// other.referee3)
-		// && Objects.equals(technicalController, other.technicalController)
-		// && Objects.equals(timeKeeper, other.timeKeeper) &&
-		// Objects.equals(weighInTime, other.weighInTime);
-		// }
 	}
 
 	public String fullDump() {
@@ -303,8 +636,16 @@ public class Group implements Comparable<Group> {
 		        + ", technicalController2=" + this.technicalController2 + ", jury1=" + this.jury1 + ", jury2="
 		        + this.jury2
 		        + ", jury3=" + this.jury3 + ", jury4=" + this.jury4 + ", jury5=" + this.jury5 + ", logger="
-		        + this.logger + ", reserve="
+		        + Group.logger + ", reserve="
 		        + this.reserve + ", id=" + this.id + "]";
+	}
+
+	@Transient
+	@JsonIgnore
+	public List<Athlete> getAlphaAthletes() {
+		List<Athlete> athletes = AthleteRepository.findAllByGroupAndWeighIn(this, null);
+		athletes.sort((a, b) -> ObjectUtils.compare(a.getFullName(), b.getFullName()));
+		return athletes;
 	}
 
 	/**
@@ -335,7 +676,7 @@ public class Group implements Comparable<Group> {
 			LocalDateTime competitionTime2 = getCompetitionTime();
 			formatted = competitionTime2 == null ? "" : DATE_TIME_FORMATTER.format(competitionTime2);
 		} catch (Exception e) {
-			LoggerUtils.logError(this.logger, e);
+			LoggerUtils.logError(Group.logger, e);
 		}
 		return formatted;
 	}
@@ -355,6 +696,13 @@ public class Group implements Comparable<Group> {
 		return DateTimeUtils.dateFromLocalDateTime(this.competitionTime);
 	}
 
+	@Transient
+	@JsonIgnore
+	public Double getCompetitionTimeAsExcelDate() {
+		var value = DateTimeUtils.localDateTimeToExcelDate(this.competitionTime);
+		return value;
+	}
+
 	public String getDescription() {
 		return this.description;
 	}
@@ -366,6 +714,78 @@ public class Group implements Comparable<Group> {
 	 */
 	public Long getId() {
 		return this.id;
+	}
+
+	/**
+	 * Gets the session short date in ISO format
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getIntlStartDay() {
+		String formatted = "";
+		try {
+			LocalDateTime competitionTime2 = getCompetitionTime();
+			formatted = competitionTime2 == null ? "" : this.isoDateFormatter.format(competitionTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the competition start hour in ISO format
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getIntlStartHour() {
+		String formatted = "";
+		try {
+			LocalDateTime competitionTime2 = getCompetitionTime();
+			formatted = competitionTime2 == null ? "" : this.isoHourFormatter.format(competitionTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the session short date in ISO format
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getIntlWeighInDay() {
+		String formatted = "";
+		try {
+			LocalDateTime weighinTime2 = getWeighInTime();
+			formatted = weighinTime2 == null ? "" : this.isoDateFormatter.format(weighinTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the competition WeighIn hour in ISO format
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getIntlWeighInHour() {
+		String formatted = "";
+		try {
+			LocalDateTime weighinTime2 = getWeighInTime();
+			formatted = weighinTime2 == null ? "" : this.isoHourFormatter.format(weighinTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
 	}
 
 	/**
@@ -413,6 +833,95 @@ public class Group implements Comparable<Group> {
 	 */
 	public String getJury5() {
 		return this.jury5;
+	}
+
+	/**
+	 * Gets the session short date .
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getLocalizedStartDay() {
+		String formatted = "";
+		try {
+			LocalDateTime competitionTime2 = getCompetitionTime();
+			Locale locale = OwlcmsSession.getLocale();
+			if (!locale.equals(getDayFormatter().getLocale())) {
+				setDayFormatter(locale);
+			}
+			formatted = competitionTime2 == null ? "" : getDayFormatter().format(competitionTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the session short start time.
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getLocalizedStartHour() {
+		String formatted = "";
+		try {
+			LocalDateTime competitionTime2 = getCompetitionTime();
+			Locale locale = OwlcmsSession.getLocale();
+			if (!locale.equals(getHourFormatter().getLocale())) {
+				setHourFormatter(locale);
+			}
+			formatted = competitionTime2 == null ? "" : getHourFormatter().format(competitionTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the session short date .
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getLocalWeighInDay() {
+		String formatted = "";
+		try {
+			LocalDateTime weighinTime2 = getWeighInTime();
+			Locale locale = OwlcmsSession.getLocale();
+			if (!locale.equals(getDayFormatter().getLocale())) {
+				setDayFormatter(locale);
+			}
+
+			formatted = weighinTime2 == null ? "" : getDayFormatter().format(weighinTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
+	}
+
+	/**
+	 * Gets the session short WeighIn time.
+	 *
+	 * @return the competition time
+	 */
+	@Transient
+	@JsonIgnore
+	public String getLocalWeighInHour() {
+		String formatted = "";
+		try {
+			LocalDateTime weighinTime2 = getWeighInTime();
+			Locale locale = OwlcmsSession.getLocale();
+			if (!locale.equals(getHourFormatter().getLocale())) {
+				setHourFormatter(locale);
+			}
+			formatted = weighinTime2 == null ? "" : getHourFormatter().format(weighinTime2);
+		} catch (Exception e) {
+			LoggerUtils.logError(Group.logger, e);
+		}
+		return formatted;
 	}
 
 	public String getMarshal2() {
@@ -523,7 +1032,7 @@ public class Group implements Comparable<Group> {
 			LocalDateTime weighInTime2 = getWeighInTime();
 			formatted = weighInTime2 == null ? "" : DATE_TIME_FORMATTER.format(weighInTime2);
 		} catch (Exception e) {
-			LoggerUtils.logError(this.logger, e);
+			LoggerUtils.logError(Group.logger, e);
 		}
 		return formatted;
 	}
@@ -553,6 +1062,9 @@ public class Group implements Comparable<Group> {
 		return this.done;
 	}
 
+	public void setAlphaAthletes(List<Athlete> a) {
+	}
+
 	/**
 	 * Sets the announcer.
 	 *
@@ -560,6 +1072,9 @@ public class Group implements Comparable<Group> {
 	 */
 	public void setAnnouncer(String announcer) {
 		this.announcer = announcer;
+	}
+
+	public void setAthletes(List<Athlete> a) {
 	}
 
 	/**
@@ -731,7 +1246,35 @@ public class Group implements Comparable<Group> {
 		return getName();
 	}
 
+	DateTimeFormatter getDayFormatter() {
+		return this.dayFormatter;
+	}
+
+	DateTimeFormatter getHourFormatter() {
+		return this.hourFormatter;
+	}
+
+	void setDayFormatter(DateTimeFormatter dayFormatter) {
+		this.dayFormatter = dayFormatter;
+	}
+
+	void setHourFormatter(DateTimeFormatter hourFormatter) {
+		this.hourFormatter = hourFormatter;
+	}
+
+	private void setDayFormatter(Locale locale) {
+		setDayFormatter(DateTimeFormatter
+		        .ofLocalizedDate(FormatStyle.SHORT)
+		        .withLocale(locale));
+	}
+
 	private void setDone(boolean b) {
 		this.done = b;
+	}
+
+	private void setHourFormatter(Locale locale) {
+		setHourFormatter(DateTimeFormatter
+		        .ofLocalizedTime(FormatStyle.SHORT)
+		        .withLocale(locale));
 	}
 }

@@ -7,6 +7,7 @@
 package app.owlcms.spreadsheet;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,6 +23,7 @@ import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
@@ -39,7 +41,8 @@ public class RAthlete {
 
 	public static final String NoTeamMarker = "/NoTeam";
 	private Pattern legacyPattern;
-	Athlete a = new Athlete();
+	Athlete a;
+
 	final Logger logger = (Logger) LoggerFactory.getLogger(RAthlete.class);
 
 	{
@@ -47,6 +50,8 @@ public class RAthlete {
 	}
 
 	public RAthlete() {
+		a = new Athlete();
+		a.setCategoryFinished(false);
 	}
 
 	public Athlete getAthlete() {
@@ -79,28 +84,80 @@ public class RAthlete {
 			return;
 		}
 		s = CharMatcher.javaIsoControl().removeFrom(s);
-		String[] parts = s.split(Pattern.quote("|"));
+		if (s.contains("|")) {
+			String[] parts = s.split(Pattern.quote("|"));
+			doLegacyParts(s, parts);
+		} else {
+			getPartsWithSeparator(s);
+		}
+
+	}
+
+	private void doLegacyParts(String s, String[] parts) throws Exception {
 		if (parts.length >= 1) {
+			boolean teamMember = false;
 			String catName = parts[0].trim();
-			// check for team exclusion marker.
-			boolean teamMember = true;
-			if (catName.endsWith(NoTeamMarker)) {
-				catName = catName.substring(0, s.length() - NoTeamMarker.length());
-				teamMember = false;
+			if (!Config.getCurrent().featureSwitch("explicitTeams")) {
+				// teams are implicitly selected, check for team exclusion marker.
+				teamMember = true;
+				if (catName.endsWith(NoTeamMarker)) {
+					catName = catName.substring(0, s.length() - NoTeamMarker.length());
+					teamMember = false;
+				} else if (catName.endsWith("/")) {
+					catName = catName.substring(0, s.length() - "/".length());
+					teamMember = false;
+				}
 			}
 
 			Category c;
 			String catCode = Category.codeFromName(catName);
-			//logger.debug("keySet {}",RCompetition.getActiveCategories().keySet());
 			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
 				// exact match for a category. This is the athlete's registration category.
 				processEligibilityAndTeams(parts, c, teamMember);
 			} else {
 				// we have a short form category. infer from age and category limit
 				setCategoryHeuristics(s);
-				this.a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
+				final var tm = teamMember;
+				this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
 			}
 		}
+	}
+
+	private void getPartsWithSeparator(String s) throws Exception {
+		if (s == null || s.isBlank()) {
+			return;
+		}
+		// create a parts as in the legacy
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			s = s.replaceAll("(\\d+)\\s?kg", "$1");
+		}
+
+		String[] allParts = s.split(",|;|\\/");
+		List<String> partsList = Arrays.asList(allParts).stream().filter(s1 -> (s1 != null && !s1.isBlank()))
+		        .toList();
+		String[] parts;
+		if (partsList.size() == 1) {
+			parts = new String[1];
+			parts[0] = partsList.get(0);
+			doLegacyParts(s, parts);
+		} else if (partsList.size() >= 1) {
+			parts = new String[2];
+			parts[0] = allParts[0];
+			// brain-dead logic to reuse existing code. Should fix old to use new instead...
+			StringBuffer sb = new StringBuffer();
+			for (int i = 1; i < partsList.size(); i++) {
+				boolean notBlank = !partsList.get(i).isBlank();
+				if (i > 1 && notBlank) {
+					sb.append(";");
+				}
+				if (notBlank) {
+					sb.append(partsList.get(i).trim());
+				}
+			}
+			parts[1] = sb.toString();
+			doLegacyParts(s, parts);
+		}
+
 	}
 
 	/**
@@ -400,7 +457,8 @@ public class RAthlete {
 					teamMember = false;
 				}
 				Category c2;
-				if ((c2 = RCompetition.getActiveCategories().get(eligibleName.trim())) != null) {
+				String catCode = Category.codeFromName(eligibleName.trim());
+				if ((c2 = RCompetition.getActiveCategories().get(catCode)) != null) {
 					addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
 				} else {
 					throw new Exception(

@@ -254,7 +254,6 @@ public class Participation implements IRankHolder {
 
 	public void setSnatchRank(int snatchRank) {
 		this.snatchRank = snatchRank;
-		// logger.debug("snatchRank {}", long_dump());
 	}
 
 	public void setTeamCJRank(int teamCJRank) {

@@ -124,6 +124,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 	 * Instantiates a new main navigation content.
 	 */
 	public HomeNavigationContent() {
+		OwlcmsFactory.waitDBInitialized();
 		VerticalLayout intro = buildIntro();
 		intro.setSpacing(false);
 
@@ -147,7 +148,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 
 	@Override
 	public String getMenuTitle() {
-		return getTranslation("OWLCMS_Top");
+		return Translator.translate("OWLCMS_Top");
 	}
 
 	/**
@@ -155,7 +156,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("OWLCMS_Top");
+		return Translator.translate("OWLCMS_Top");
 	}
 
 	/**
@@ -186,7 +187,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		intro.setId("homeIntro");
 		IPInterfaceUtils urlFinder = new IPInterfaceUtils();
 		urlFinder.checkRequest();
-		addP(intro, getTranslation("SystemURL"));
+		addP(intro, Translator.translate("SystemURL"));
 		UnorderedList ul = new UnorderedList();
 		ArrayList<String> recommended = urlFinder.getRecommended();
 		for (String url : recommended) {
@@ -194,11 +195,11 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		}
 		ArrayList<String> wired = urlFinder.getWired();
 		for (String url : wired) {
-			ul.add(new ListItem(new Anchor(url, url), new NativeLabel(getTranslation("Wired"))));
+			ul.add(new ListItem(new Anchor(url, url), new NativeLabel(Translator.translate("Wired"))));
 		}
 		ArrayList<String> wireless = urlFinder.getWireless();
 		for (String url : wireless) {
-			ul.add(new ListItem(new Anchor(url, url), new NativeLabel(getTranslation("Wireless"))));
+			ul.add(new ListItem(new Anchor(url, url), new NativeLabel(Translator.translate("Wireless"))));
 		}
 		ArrayList<String> networking = urlFinder.getNetworking();
 		for (String url : networking) {
@@ -211,7 +212,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		addresses.addAll(networking);
 		if (addresses.isEmpty()) {
 			for (String url : urlFinder.getLocalUrl()) {
-				ul.add(new ListItem(new Anchor(url, url), new NativeLabel(getTranslation("LocalComputer"))));
+				ul.add(new ListItem(new Anchor(url, url), new NativeLabel(Translator.translate("LocalComputer"))));
 			}
 		}
 		intro.add(ul);
@@ -222,13 +223,13 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		hr.getStyle().set("margin-bottom", "2ex");
 		intro.add(hr);
 		addP(intro,
-		        getTranslation("LeftMenuNavigate")
-		                + getTranslation("PrepareCompatition_description", this.PREPARE_COMPETITION)
-		                + getTranslation("RunLiftingGroup_description", this.RUN_LIFTING_GROUP)
-		                + getTranslation("StartDisplays_description", this.START_DISPLAYS)
-		                + getTranslation("VideoStreaming_description", this.VIDEO_STREAMING)
-		                + getTranslation("CompetitionDocuments_description", this.RESULT_DOCUMENTS)
-		                + getTranslation("SeparateLaptops"));
+		        Translator.translate("LeftMenuNavigate")
+		                + Translator.translate("PrepareCompatition_description", this.PREPARE_COMPETITION)
+		                + Translator.translate("RunLiftingGroup_description", this.RUN_LIFTING_GROUP)
+		                + Translator.translate("StartDisplays_description", this.START_DISPLAYS)
+		                + Translator.translate("VideoStreaming_description", this.VIDEO_STREAMING)
+		                + Translator.translate("CompetitionDocuments_description", this.RESULT_DOCUMENTS)
+		                + Translator.translate("SeparateLaptops"));
 		intro.getStyle().set("margin-bottom", "-1em");
 		return intro;
 	}
@@ -244,7 +245,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		CompletableFuture<HttpResponse<String>> future = client1.sendAsync(request1, BodyHandlers.ofString());
 		try {
 			future
-			        .orTimeout(1000, TimeUnit.MILLISECONDS)
+			        .orTimeout(3000, TimeUnit.MILLISECONDS)
 			        .whenComplete((response, exception) -> {
 				        if (exception != null) {
 					        return;

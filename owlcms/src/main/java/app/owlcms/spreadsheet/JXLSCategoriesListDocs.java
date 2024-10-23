@@ -30,10 +30,4 @@ public class JXLSCategoriesListDocs extends JXLSWorkbookStreamSource {
 	public JXLSCategoriesListDocs() {
 		this.setExcludeNotWeighed(false);
 	}
-
-	// @Override
-	// public List<Athlete> getSortedAthletes() {
-	// List<Athlete> displayOrderCopy = AthleteSorter.displayOrderCopy(sortedAthletes);
-	// return displayOrderCopy;
-	// }
 }

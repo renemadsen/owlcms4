@@ -13,6 +13,7 @@ import java.util.Map;
 import org.slf4j.LoggerFactory;
 
 import com.github.appreciated.layout.FlexibleGridLayout;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
@@ -26,6 +27,7 @@ import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.DebugUtils;
 import app.owlcms.fieldofplay.FieldOfPlay;
+import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.home.HomeNavigationContent;
 import app.owlcms.nui.referee.RefContent;
@@ -52,49 +54,55 @@ public class LiftingNavigationContent extends BaseNavigationContent implements N
 	 * Competition Group Navigation
 	 */
 	public LiftingNavigationContent() {
-		logger.trace("LiftingNavigationContent constructor start");
+		DebugUtils.gc();
+	}
+	
+	@Override
+	protected void onAttach(AttachEvent attachEvent) {
 
-		Button weighIn = openInNewTabNoParam(WeighinContent.class, getTranslation("WeighIn_Title"));
+		super.onAttach(attachEvent);
+		
+		logger.trace("LiftingNavigationContent onAttach start");
+
+		Button weighIn = openInNewTabNoParam(WeighinContent.class, Translator.translate("WeighIn_Title"));
 		weighIn.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
 		weighIn.setIcon(new Icon(VaadinIcon.SCALE));
 		// weighIn.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(weighIn);
-		doGroup(getTranslation("WeighIn_Title"), grid3, this);
+		doGroup(Translator.translate("WeighIn_Title"), grid3, this);
 
-		Button announcer = openInNewTab(AnnouncerContent.class, getTranslation("Announcer"));
+		Button announcer = openInNewTab(AnnouncerContent.class, Translator.translate("Announcer"));
 		announcer.setIcon(new Icon(VaadinIcon.MICROPHONE));
 		announcer.setTabIndex(2);
 		announcer.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
 		announcer.setThemeName(FOP, isAttached());
-		Button marshall = openInNewTab(MarshallContent.class, getTranslation("Marshall"));
-		Button timekeeper = openInNewTab(TimekeeperContent.class, getTranslation("Timekeeper"));
-		Button technical = openInNewTab(TCContent.class, getTranslation("PlatesCollarBarbell"));
+		Button marshall = openInNewTab(MarshallContent.class, Translator.translate("Marshall"));
+		Button timekeeper = openInNewTab(TimekeeperContent.class, Translator.translate("Timekeeper"));
+		Button technical = openInNewTab(TCContent.class, Translator.translate("PlatesCollarBarbell"));
 
 		VerticalLayout intro = new VerticalLayout();
-		addP(intro, getTranslation("AnnouncerSelectsGroup") + getTranslation("ChangesGroupEverywhere")
-		        + getTranslation("AnnouncerEtc"));
+		addP(intro, Translator.translate("AnnouncerSelectsGroup") + Translator.translate("ChangesGroupEverywhere")
+		        + Translator.translate("AnnouncerEtc"));
 		intro.getStyle().set("margin-bottom", "0");
 
 		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(announcer, marshall, timekeeper, technical);
-		doGroup(getTranslation("Scoreboard.LiftingOrder"), intro, grid1, this);
+		doGroup(Translator.translate("Scoreboard.LiftingOrder"), intro, grid1, this);
 
-		Button referee = openInNewTab(RefContent.class, getTranslation("Referee_Mobile_Device"));
-		Button jury = openInNewTab(JuryContent.class, getTranslation("Jury_Console"));
+		Button referee = openInNewTab(RefContent.class, Translator.translate("Referee_Mobile_Device"));
+		Button jury = openInNewTab(JuryContent.class, Translator.translate("Jury_Console"));
 		FlexibleGridLayout grid2 = HomeNavigationContent.navigationGrid(referee, jury);
-		doGroup(getTranslation("Referees_Jury"), grid2, this);
-
-		DebugUtils.gc();
+		doGroup(Translator.translate("Referees_Jury"), grid2, this);
 	}
 
 	@Override
 	public String getMenuTitle() {
-		return getTranslation("RunLiftingGroup");
+		return Translator.translate("RunLiftingGroup");
 	}
 
 	@Override
 	public String getPageTitle() {
 		String fopNameIfMultiple = OwlcmsSession.getFopNameIfMultiple();
-		return getTranslation("ShortTitle.Lifting") + (!fopNameIfMultiple.isBlank() ? (" - " + fopNameIfMultiple) : "");
+		return Translator.translate("ShortTitle.Lifting") + (!fopNameIfMultiple.isBlank() ? (" - " + fopNameIfMultiple) : "");
 	}
 
 	/*

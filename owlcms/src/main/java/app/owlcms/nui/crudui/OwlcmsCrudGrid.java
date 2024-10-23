@@ -25,6 +25,7 @@ import com.vaadin.flow.component.grid.GridSortOrder;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.notification.Notification;
 
+import app.owlcms.i18n.Translator;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
 
@@ -36,13 +37,13 @@ import ch.qos.logback.classic.Logger;
 @SuppressWarnings("serial")
 public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 
-	private static final int DOUBLE_CLICK_MS_DELTA = 1000;
-	final private static Logger logger = (Logger) LoggerFactory.getLogger(OwlcmsCrudGrid.class);
+	protected static final int DOUBLE_CLICK_MS_DELTA = 1000;
+	public final static Logger logger = (Logger) LoggerFactory.getLogger(OwlcmsCrudGrid.class);
 
 	// private OwlcmsCrudFormFactory<T> owlcmsCrudFormFactory;
 	private OwlcmsGridLayout owlcmsGridLayout;
 	private boolean clickable = true;
-	private long clicked = 0L;
+	protected long clicked = 0L;
 
 	/**
 	 * Instantiates a new owlcms crudGrid crudGrid.
@@ -108,10 +109,27 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 			throw e2;
 		}
 	}
+	
+	protected void deleteButtonClicked(T domainObject) {
+		try {
+			this.deleteOperation.perform(domainObject);
+			refreshGrid();
+		} catch (CrudOperationException e1) {
+			refreshGrid();
+		} catch (Exception e2) {
+			refreshGrid();
+			throw e2;
+		}
+	}
 
 	protected void deleteCallBack() {
 		this.getOwlcmsGridLayout().hideForm();
 		this.deleteButtonClicked();
+	}
+	
+	protected void deleteCallBack(T domainObject) {
+		this.getOwlcmsGridLayout().hideForm();
+		this.deleteButtonClicked(domainObject);
 	}
 
 	@Override
@@ -169,32 +187,31 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 	 * Inits the toolbar.
 	 */
 	protected void initToolbar() {
-		this.findAllButton = new Button(getTranslation("RefreshList"), VaadinIcon.REFRESH.create(),
+		this.findAllButton = new Button(Translator.translate("RefreshList"), VaadinIcon.REFRESH.create(),
 		        e -> findAllButtonClicked());
-		this.findAllButton.getElement().setAttribute("title", getTranslation("RefreshList"));
+		this.findAllButton.getElement().setAttribute("title", Translator.translate("RefreshList"));
 		this.crudLayout.addToolbarComponent(this.findAllButton);
 
 		this.addButton = new Button(VaadinIcon.PLUS.create(), e -> addButtonClicked());
-		getAddButton().setText(getTranslation("Add"));
+		getAddButton().setText(Translator.translate("Add"));
 		getAddButton().addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
-		this.addButton.getElement().setAttribute("title", getTranslation("Add"));
+		this.addButton.getElement().setAttribute("title", Translator.translate("Add"));
 		this.crudLayout.addToolbarComponent(this.addButton);
 
 		this.updateButton = new Button(VaadinIcon.PENCIL.create(), e -> updateButtonClicked());
-		this.updateButton.getElement().setAttribute("title", getTranslation("Update"));
+		this.updateButton.getElement().setAttribute("title", Translator.translate("Update"));
 		// crudLayout.addToolbarComponent(updateButton);
 
 		this.deleteButton = new Button(VaadinIcon.TRASH.create(), e -> deleteButtonClicked());
-		this.deleteButton.getElement().setAttribute("title", getTranslation("Delete"));
+		this.deleteButton.getElement().setAttribute("title", Translator.translate("Delete"));
 		// crudLayout.addToolbarComponent(deleteButton);
 
-		updateButtons();
+		//updateButtons();
 	}
 
 	protected void saveCallBack(OwlcmsCrudGrid<T> owlcmsCrudGrid, String successMessage, CrudOperation operation, T domainObject) {
 		try {
 			//logger.debug("postOperation {}", domainObject);
-			owlcmsCrudGrid.grid.asSingleSelect().clear();
 			owlcmsCrudGrid.getOwlcmsGridLayout().hideForm();
 			refreshGrid();
 			Notification.show(successMessage);
@@ -222,7 +239,7 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 			        saveCallBack(this, successMessage, operation, domainObject);
 		        },
 		        deleteButtonClickEvent -> {
-			        deleteCallBack();
+			        deleteCallBack(domainObject);
 		        });
 
 		String caption = owlcmsCrudFormFactory.buildCaption(operation, domainObject);
