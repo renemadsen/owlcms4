@@ -22,12 +22,14 @@ import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.dom.DomEvent;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.server.InputStreamFactory;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.shared.Registration;
 
+import app.owlcms.servlet.StopProcessingException;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -68,6 +70,7 @@ public class LazyDownloadButton extends Button {
 	private Anchor anchor;
 	private Supplier<String> fileNameCallback;
 	private InputStreamFactory inputStreamCallback;
+	private Notification notification;
 
 	public LazyDownloadButton() {
 	}
@@ -144,7 +147,6 @@ public class LazyDownloadButton extends Button {
 					anchorElement.setAttribute("download", true);
 					anchorElement.getStyle().set("display", "none");
 					component.getElement().appendChild(this.anchor.getElement());
-
 					anchorElement.addEventListener("click",
 					        event1 -> fireEvent(new DownloadStartsEvent(this, true, event1)));
 				}
@@ -155,6 +157,10 @@ public class LazyDownloadButton extends Button {
 					try {
 						InputStream inputStream = getInputStreamCallback().createInputStream();
 						optionalUI.ifPresent(ui -> ui.access(() -> {
+							if (notification != null) {
+								notification.open();
+							}
+							
 							StreamResource href = new StreamResource(getFileNameCallback().get(), () -> inputStream);
 							href.setCacheTime(0);
 							this.anchor.setHref(href);
@@ -164,9 +170,10 @@ public class LazyDownloadButton extends Button {
 							}
 							this.anchor.getElement().callJsFunction("click");
 						}));
-
 					} catch (Exception e) {
-						throw new RuntimeException(e);
+						if (! (e instanceof StopProcessingException)) {
+							throw new RuntimeException(e);
+						}
 					}
 				});
 				newSingleThreadExecutor.shutdown();
@@ -212,5 +219,13 @@ public class LazyDownloadButton extends Button {
 				}
 			});
 		}
+	}
+
+	public Notification getNotification() {
+		return notification;
+	}
+
+	public void setNotification(Notification notification) {
+		this.notification = notification;
 	}
 }

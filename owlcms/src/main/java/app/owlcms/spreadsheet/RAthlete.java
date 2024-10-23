@@ -41,7 +41,8 @@ public class RAthlete {
 
 	public static final String NoTeamMarker = "/NoTeam";
 	private Pattern legacyPattern;
-	Athlete a = new Athlete();
+	Athlete a;
+
 	final Logger logger = (Logger) LoggerFactory.getLogger(RAthlete.class);
 
 	{
@@ -49,6 +50,8 @@ public class RAthlete {
 	}
 
 	public RAthlete() {
+		a = new Athlete();
+		a.setCategoryFinished(false);
 	}
 
 	public Athlete getAthlete() {
@@ -125,10 +128,8 @@ public class RAthlete {
 			return;
 		}
 		// create a parts as in the legacy
-		if (Config.getCurrent().featureSwitch("usaw")) {
-			s = s.replaceAll("kg", "");
-			s = s.replaceAll("NAT ", "");
-			s = s.replaceAll("ADAPTIVE", "ADP");
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			s = s.replaceAll("(\\d+)\\s?kg", "$1");
 		}
 
 		String[] allParts = s.split(",|;|\\/");

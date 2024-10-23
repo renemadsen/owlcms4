@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.IRankHolder;
@@ -60,6 +61,24 @@ public class PAthlete extends Athlete implements IRankHolder {
 		this.c = a2.getCategory();
 		this.p = a2.getMainRankings();
 		this.originalParticipation = p;
+	}
+
+	@Override
+	public Boolean getCategoryFinished() {
+		var allUnfinished = AthleteRepository.getAllUnfinishedCategories();
+		String code = c.getCode();
+		boolean contains = allUnfinished.contains(code);
+		return !contains;
+	}
+
+	@Override
+	public Boolean isCategoryFinished() {
+		return getCategoryFinished();
+	}
+
+	@Override
+	public void setCategoryFinished(Boolean done) {
+		a.setCategoryFinished(done);
 	}
 
 	/**
@@ -125,7 +144,8 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public AgeGroup getAgeGroup() {
-		return this.p.getCategory().getAgeGroup();
+		Category category = getCategory();
+		return category != null ? category.getAgeGroup() : null;
 	}
 
 	@Override
@@ -185,7 +205,8 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public String getCategoryCode() {
-		return this.a.getCategoryCode();
+		Category category = getCategory();
+		return category != null ? category.getCode() : null;
 	}
 
 	@Override
@@ -390,7 +411,8 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public String getDisplayCategory() {
-		return this.p.getCategory().getDisplayName();
+		Category category = this.getCategory();
+		return category != null ? category.getDisplayName() : null;
 	}
 
 	@Override
@@ -609,7 +631,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public Double getBestLifterScore() {
 		return this.a.getBestLifterScore();
 	}
-	
+
 	@Override
 	public int getBestLifterRank() {
 		return this.a.getBestLifterRank();
@@ -659,12 +681,12 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public Double getSmhfForDelta() {
 		return this.a.getSmhfForDelta();
 	}
-	
+
 	@Override
 	public Double getSmhf() {
 		return this.a.getSmhf();
 	}
-	
+
 	@Override
 	public Double getQAge() {
 		return this.a.getQAge();
@@ -674,7 +696,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public int getSmhfRank() {
 		return this.a.getSmhfRank();
 	}
-	
+
 	@Override
 	public int getqAgeRank() {
 		return this.a.getqAgeRank();
@@ -988,7 +1010,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public void setSmhfRank(int i) {
 		this.a.setSmhfRank(i);
 	}
-	
+
 	@Override
 	public void setqAgeRank(int i) {
 		this.a.setqAgeRank(i);

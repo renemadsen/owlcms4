@@ -8,6 +8,9 @@
 package app.owlcms.publicresults;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.text.ParseException;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -16,9 +19,11 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
 import com.google.common.util.concurrent.Runnables;
+import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.i18n.Translator;
 import app.owlcms.servlet.EmbeddedJetty;
+import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
 import app.owlcms.utils.StartupUtils;
 import ch.qos.logback.classic.Logger;
@@ -30,9 +35,26 @@ public class Main {
 
     public final static Logger logger = (Logger) LoggerFactory.getLogger(Main.class);
 
-    private static Integer serverPort;
+    public static MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
 
     public static String productionMode;
+    
+    private static Integer serverPort;
+    
+    public static void logSessionMemUsage(String message, VaadinSession session) {
+        MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
+        MemoryUsage nonHeapMemoryUsage = memoryMXBean.getNonHeapMemoryUsage();
+        int megaB = 1024 * 1024;
+        message = message != null && !message.isBlank() ? message + " " : "";
+        logger.info("{}sessions: {}, heap {}/{} nonHeap {}/{} {}",
+                message,
+                AppShell.getActiveSessions().get(),
+                heapMemoryUsage.getUsed()/megaB,
+                heapMemoryUsage.getCommitted()/megaB,
+                nonHeapMemoryUsage.getUsed()/megaB,
+                nonHeapMemoryUsage.getCommitted()/megaB,
+                session != null ? System.identityHashCode(session) : "");
+    }
 
     /**
      * The main method.
@@ -41,7 +63,6 @@ public class Main {
      * @throws Exception the exception
      */
     public static void main(String... args) throws Exception {
-
         try {
             init();
             new EmbeddedJetty(new CountDownLatch(0), "publicresults")
@@ -50,7 +71,7 @@ public class Main {
                     .setInitData(Runnables::doNothing)
                     .run(serverPort, "/");
         } catch (Exception e) {
-            e.printStackTrace();
+            LoggerUtils.logError(logger, e);
         } finally {
         }
     }
@@ -72,6 +93,14 @@ public class Main {
      * @throws ParseException
      */
     protected static void init() throws IOException, ParseException {
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread t, Throwable e) {
+                System.out.println("Caught " + e);
+            }
+        });
+        periodicTasks();
+        
         // Configure logging -- must take place before anything else
         // Redirect java.util.logging logs to SLF4J
         SLF4JBridgeHandler.removeHandlersForRootLogger();
@@ -96,7 +125,6 @@ public class Main {
 
         // technical initializations
         // System.setProperty("java.net.preferIPv4Stack", "true");
-
 
     }
 
@@ -143,6 +171,19 @@ public class Main {
         StartupUtils.setServerPort(serverPort);
 
         overrideDisplayLanguage();
+    }
+
+    private static void periodicTasks() {
+        new Thread(() -> {
+            while (true) {
+                String message = "";
+                try {
+                    logSessionMemUsage(message, null);
+                    Thread.sleep(60 * 1000);
+                } catch (InterruptedException e) {
+                }
+            }
+        }).start();
     }
 
 }

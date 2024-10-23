@@ -21,7 +21,6 @@ import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -54,6 +53,7 @@ public class JXLSResultSheet extends JXLSWorkbookStreamSource {
 	@Override
 	public List<Athlete> getSortedAthletes() {
 		if (this.sortedAthletes != null) {
+			logger.debug("JXLSResultSheets provided sorted athletes");
 			// we are provided with an externally computed list.
 			if (this.resultsByCategory) {
 				// no need to unwrap, each athlete is a wrapper PAthlete with a participation category.
@@ -67,6 +67,7 @@ public class JXLSResultSheet extends JXLSWorkbookStreamSource {
 				return this.sortedAthletes;
 			}
 		}
+		logger.debug("JXLSResultSheets no sorted athletes");
 		final Group currentGroup = getGroup();
 		Category currentCategory = getCategory();
 		Championship currentAgeDivision = getChampionship();
@@ -128,11 +129,6 @@ public class JXLSResultSheet extends JXLSWorkbookStreamSource {
 	 */
 	@Override
 	protected void postProcess(Workbook workbook) {
-		final Group currentCompetitionSession = getGroup();
-		if (currentCompetitionSession == null
-		        && !Competition.getCurrent().getProtocolTemplateFileName().contains("USAW")) {
-			zapCellPair(workbook, 3, 9);
-		}
 		createStandardFooter(workbook);
 	}
 

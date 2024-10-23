@@ -15,11 +15,6 @@ jobs:
         id: build
         run: docker build . -t dvfdocker/owlcms4:latest
         shell: bash
-      - run: docker save dvfdocker/owlcms4:latest -o owlcms4.tar
-      - uses: actions/upload-artifact@v3
-        with:
-          name: owlcms4
-          path: owlcms4.tar
   test:
     runs-on: ubuntu-latest
     steps:
@@ -28,8 +23,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Show mvn information
-        run: mvn --version
       - name: Go offline using the pom.xml
         run: mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true
       - name: Build

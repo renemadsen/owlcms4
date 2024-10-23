@@ -54,6 +54,7 @@ import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
@@ -70,8 +71,8 @@ import ch.qos.logback.classic.Logger;
 import net.sf.jxls.transformer.XLSTransformer;
 
 /**
- * Encapsulate a spreadsheet as a StreamSource so that it can be used as a source of data when the user clicks on a
- * link. This class converts the output stream to an input stream that the vaadin framework can consume.
+ * Encapsulate a spreadsheet as a StreamSource so that it can be used as a source of data when the user clicks on a link. This class converts the output stream
+ * to an input stream that the vaadin framework can consume.
  */
 @SuppressWarnings("serial")
 public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, InputStreamFactory {
@@ -79,11 +80,27 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	final private static Logger jexlLogger = (Logger) LoggerFactory.getLogger("org.apache.commons.jexl2.JexlEngine");
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(JXLSWorkbookStreamSource.class);
 	final private static Logger tagLogger = (Logger) LoggerFactory.getLogger("net.sf.jxls.tag.ForEachTag");
+	private static ThreadLocal<Ranking> bestLifterRankingSystem = InheritableThreadLocal.withInitial(() -> null);
+
 	static {
 		logger.setLevel(Level.INFO);
 		jexlLogger.setLevel(Level.ERROR);
 		tagLogger.setLevel(Level.ERROR);
 	}
+
+	public static Ranking getBestLifterRankingTL() {
+		Ranking blss = bestLifterRankingSystem.get();
+		if (blss == null) {
+			blss = Competition.getCurrent().getScoringSystem();
+		}
+		return blss;
+	}
+
+	protected static void setBestLifterRankingTL(Ranking bestLifterRankingValue) {
+		logger.debug("**** setting {}", bestLifterRankingValue);
+		bestLifterRankingSystem.set(bestLifterRankingValue);
+	}
+
 	protected List<Athlete> sortedAthletes;
 	private Championship championship;
 	private String ageGroupPrefix;
@@ -98,6 +115,10 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	private String fileExtension;
 	private boolean emptyOk = false;
 	private Integer pageLength = null;
+	private Ranking bestLifterScoringSystem;
+	private Integer lastLine;
+	private Integer firstMergeLine;
+	private List<Integer> mergeColumnList;
 
 	public JXLSWorkbookStreamSource() {
 		this.ui = UI.getCurrent();
@@ -108,14 +129,14 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	/**
 	 * Read the xls template and write the processed XLS file out.
 	 *
-	 * @see com.vaadin.flow.server.StreamResourceWriter#accept(java.io.OutputStream,
-	 *      com.vaadin.flow.server.VaadinSession)
+	 * @see com.vaadin.flow.server.StreamResourceWriter#accept(java.io.OutputStream, com.vaadin.flow.server.VaadinSession)
 	 */
 	@SuppressWarnings("unchecked")
 	@Override
 	public void accept(OutputStream stream, VaadinSession session) throws IOException {
 		try {
 			session.lock();
+			logger.debug("*** getting {}", getBestLifterScoringSystem());
 			writeStream(stream);
 		} catch (Throwable t) {
 			logger.error(LoggerUtils./**/stackTrace(t));
@@ -147,11 +168,34 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		}
 	}
 
-	/**
-	 * @return the ageDivision
-	 */
-	public Championship getChampionship() {
-		return this.championship;
+	public void extractVariables(String comment) {
+		logger.debug("comment = {}", comment);
+		comment = comment.replaceAll("[\\r\\n\\s]", "");
+
+		// Pattern to match jx:area(lastCell="X1")
+		Pattern pattern1 = Pattern.compile("jx:area\\(lastCell=\"([A-Za-z])(\\d+)\"\\)");
+		Matcher matcher1 = pattern1.matcher(comment);
+		if (matcher1.find()) {
+			logger.debug("last line = {}", matcher1.group(2));
+			setLastLine(Integer.parseInt(matcher1.group(2)));
+		}
+
+		// Pattern to match owlcms:fixMerges(4, [1, 2, 3]) with optional spaces
+		Pattern pattern2 = Pattern.compile("owlcms:fixMerges\\((\\d+),\\[(.*?)\\]\\)");
+		Matcher matcher2 = pattern2.matcher(comment);
+		if (matcher2.find()) {
+			logger.debug("firstMergeLine = {}", matcher2.group(1));
+			setFirstMergeLine(Integer.parseInt(matcher2.group(1)));
+			String columns = matcher2.group(2);
+
+			// Convert columns to a list of integers
+			String[] columnsArray = columns.split("\\s*,\\s*");
+			setMergeColumnList(new ArrayList<>());
+			for (String column : columnsArray) {
+				logger.debug("column: {}", column.trim());
+				getMergeColumnList().add(Integer.parseInt(column.trim()));
+			}
+		}
 	}
 
 	/**
@@ -161,8 +205,19 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return this.ageGroupPrefix;
 	}
 
+	public Ranking getBestLifterScoringSystem() {
+		return this.bestLifterScoringSystem;
+	}
+
 	public Category getCategory() {
 		return this.category;
+	}
+
+	/**
+	 * @return the ageDivision
+	 */
+	public Championship getChampionship() {
+		return this.championship;
 	}
 
 	public Consumer<String> getDoneCallback() {
@@ -171,6 +226,10 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 
 	public String getFileExtension() {
 		return this.fileExtension;
+	}
+
+	public Integer getFirstMergeLine() {
+		return this.firstMergeLine;
 	}
 
 	public Group getGroup() {
@@ -182,8 +241,24 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		}
 	}
 
+	public Integer getLastLine() {
+		return this.lastLine;
+	}
+
+	public List<Integer> getMergeColumnList() {
+		return this.mergeColumnList;
+	}
+
+	public Integer getPageLength() {
+		return this.pageLength;
+	}
+
 	public HashMap<String, Object> getReportingBeans() {
 		return this.reportingBeans;
+	}
+
+	public int getSizeLimit() {
+		return Integer.MAX_VALUE;
 	}
 
 	public List<Athlete> getSortedAthletes() {
@@ -209,6 +284,16 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return tryList;
 	}
 
+	public InputStream getTemplate(Locale locale) throws IOException, Exception {
+		if (this.inputStream != null) {
+			logger.debug("explicitly set template {}", this.inputStream);
+			return new BufferedInputStream(this.inputStream);
+		}
+		String templateFileName2 = getTemplateFileName();
+		InputStream resourceAsStream = ResourceWalker.getFileOrResource(templateFileName2);
+		return new BufferedInputStream(resourceAsStream);
+	}
+
 	public String getTemplateFileName() {
 		return this.templateFileName;
 	}
@@ -221,10 +306,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return this.excludeNotWeighed;
 	}
 
-	public void setChampionship(Championship championship) {
-		this.championship = championship;
-	}
-
 	/**
 	 * @param ageGroupPrefix the ageGroupPrefix to set
 	 */
@@ -232,8 +313,16 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		this.ageGroupPrefix = ageGroupPrefix;
 	}
 
+	public void setBestLifterScoringSystem(Ranking computeScoringSystem) {
+		this.bestLifterScoringSystem = computeScoringSystem;
+	}
+
 	public void setCategory(Category category) {
 		this.category = category;
+	}
+
+	public void setChampionship(Championship championship) {
+		this.championship = championship;
 	}
 
 	public void setDoneCallback(Consumer<String> action) {
@@ -253,6 +342,10 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		this.fileExtension = extension;
 	}
 
+	public void setFirstMergeLine(Integer firstMergeLine) {
+		this.firstMergeLine = firstMergeLine;
+	}
+
 	public void setGroup(Group group) {
 		this.group = group;
 	}
@@ -261,12 +354,83 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		this.inputStream = is;
 	}
 
+	public void setLastLine(Integer lastLine) {
+		this.lastLine = lastLine;
+	}
+
+	// private boolean checkJxls3(Workbook tempWorkbook) throws IOException {
+	// boolean jxls3 = false;
+	// Sheet sheet = tempWorkbook.getSheetAt(0); // Get the first sheet
+	// Row row = sheet.getRow(0); // Get the first row (0-based)
+	// if (row != null) {
+	// Cell cell = row.getCell(0); // Get the first cell in the row (0-based)
+	// if (cell != null) {
+	// Comment comment = cell.getCellComment();
+	// jxls3 = (comment != null && comment.getString().getString().contains("jx:area"));
+	// if (comment != null) {
+	// String plainComment = comment.getString().getString();
+	// String regex = "lastCell=\"[A-Za-z](.*?)\"";
+	// Pattern pattern = Pattern.compile(regex);
+	// Matcher matcher = pattern.matcher(plainComment);
+	// if (matcher.find()) {
+	// String lastLine = matcher.group(1);
+	// try {
+	// this.setPageLength(Integer.parseInt(lastLine));
+	// } catch (NumberFormatException e) {
+	// LoggerUtils.logError(logger, e, true);
+	// }
+	// }
+	// }
+	// }
+	//
+	// }
+	// return jxls3;
+	// }
+
+	public void setMergeColumnList(List<Integer> columnsList) {
+		this.mergeColumnList = columnsList;
+	}
+
+	public void setPageLength(Integer pageLength) {
+		this.pageLength = pageLength;
+	}
+
 	public void setReportingBeans(HashMap<String, Object> jXLSBeans) {
 		this.reportingBeans = jXLSBeans;
 	}
 
 	public void setSortedAthletes(List<Athlete> sortedAthletes) {
 		this.sortedAthletes = sortedAthletes;
+	}
+
+	public void setTemplateFileName(String templateFileName) {
+		this.templateFileName = templateFileName;
+	}
+
+	@SuppressWarnings("unchecked")
+	public void writeStream(OutputStream stream) throws IOException {
+		File tempFile = null;
+		try {
+			InputStream template;
+			Locale locale = OwlcmsSession.getLocale();
+			template = getTemplate(locale);
+			tempFile = File.createTempFile("jxlsTemplate", ".tmp");
+			FileUtils.copyInputStreamToFile(template, tempFile);
+			Workbook workbook = WorkbookFactory.create(tempFile);
+			if (checkJxls3(workbook)) {
+				jxls3Transform(stream, tempFile);
+			} else {
+				jxls1Transform(stream, workbook);
+			}
+		} catch (Exception e) {
+			LoggerUtils.logError(logger, e);
+			return;
+		} finally {
+			if (tempFile != null) {
+				tempFile.delete();
+			}
+		}
+
 	}
 
 	/**
@@ -302,10 +466,34 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		// do nothing, to be overridden as needed,
 	}
 
+	protected void createStandardFooter(Workbook workbook) {
+		// Get the current date and time
+		LocalDateTime now = LocalDateTime.now();
+
+		// Get the default locale
+		Locale currentLocale = OwlcmsSession.getLocale();
+
+		// Get a date formatter for the short date format in the current locale
+		String shortDatePattern = DateTimeUtils.localizedShortDatePattern(currentLocale);
+		DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(shortDatePattern, currentLocale);
+
+		// Get a time formatter for the short time format in the current locale
+		DateTimeFormatter timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(currentLocale);
+
+		// Format the current date and time
+		String formattedDate = now.format(dateFormatter);
+		String formattedTime = now.format(timeFormatter);
+
+		Footer footer = workbook.getSheetAt(0).getFooter();
+
+		footer.setLeft(Translator.translate("Results.producedBy", "owlcms", OwlcmsFactory.getVersion()));
+		footer.setCenter(Translator.translate("Results.dateTime", formattedDate, formattedTime));
+		footer.setRight(Translator.translate("Results.pageOf", HeaderFooter.page(), HeaderFooter.numPages()));
+	}
+
 	/**
-	 * Try the possible variations of a template based on locale. For "/templates/start/startList", ".xls", and a locale
-	 * of fr_CA, the following names will be tried /templates/start/startList_fr_CA.xls
-	 * /templates/start/startList_fr.xls /templates/start/startList_en.xls
+	 * Try the possible variations of a template based on locale. For "/templates/start/startList", ".xls", and a locale of fr_CA, the following names will be
+	 * tried /templates/start/startList_fr_CA.xls /templates/start/startList_fr.xls /templates/start/startList_en.xls
 	 *
 	 * @param templateName
 	 * @param extension
@@ -339,16 +527,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			}
 		}
 		throw new IOException("no template found for : " + templateName + extension + " tried with suffix " + tryList);
-	}
-
-	protected InputStream getTemplate(Locale locale) throws IOException, Exception {
-		if (this.inputStream != null) {
-			logger.debug("explicitly set template {}", this.inputStream);
-			return new BufferedInputStream(this.inputStream);
-		}
-		String templateFileName2 = getTemplateFileName();
-		InputStream resourceAsStream = ResourceWalker.getFileOrResource(templateFileName2);
-		return new BufferedInputStream(resourceAsStream);
 	}
 
 	protected void init() {
@@ -396,32 +574,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		getReportingBeans().put("sessions", sessions);
 	}
 
-	@SuppressWarnings("unchecked")
-	protected void writeStream(OutputStream stream) throws IOException {
-		File tempFile = null;
-		try {
-			InputStream template;
-			Locale locale = OwlcmsSession.getLocale();
-			template = getTemplate(locale);
-			tempFile = File.createTempFile("jxlsTemplate", ".tmp");
-			FileUtils.copyInputStreamToFile(template, tempFile);
-			Workbook workbook = WorkbookFactory.create(tempFile);
-			if (checkJxls3(workbook)) {
-				jxls3Transform(stream, tempFile);
-			} else {
-				jxls1Transform(stream, workbook);
-			}
-		} catch (Exception e) {
-			LoggerUtils.logError(logger, e);
-			return;
-		} finally {
-			if (tempFile != null) {
-				tempFile.delete();
-			}
-		}
-
-	}
-
 	private boolean checkJxls3(Workbook tempWorkbook) throws IOException {
 		boolean jxls3 = false;
 		Sheet sheet = tempWorkbook.getSheetAt(0); // Get the first sheet
@@ -430,25 +582,21 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			Cell cell = row.getCell(0); // Get the first cell in the row (0-based)
 			if (cell != null) {
 				Comment comment = cell.getCellComment();
-				jxls3 = (comment != null && comment.getString().getString().contains("jx:area"));
-				if (comment != null) {
-					String plainComment = comment.getString().getString();
-					String regex = "lastCell=\"[A-Za-z](.*?)\"";
-					Pattern pattern = Pattern.compile(regex);
-					Matcher matcher = pattern.matcher(plainComment);
-					if (matcher.find()) {
-						String lastLine = matcher.group(1);
-						try {
-							this.setPageLength(Integer.parseInt(lastLine));
-						} catch (NumberFormatException e) {
-							LoggerUtils.logError(logger, e, true);
-						}
+				if (comment != null && comment.getString().getString().contains("jx:area")) {
+					jxls3 = true;
+
+					extractVariables(comment.getString().getString());
+					if (getLastLine() != null) {
+						this.setPageLength(getLastLine());
 					}
 				}
 			}
-
 		}
 		return jxls3;
+	}
+
+	private boolean isSizeOk(int size) {
+		return size < getSizeLimit();
 	}
 
 	private void jxls1Transform(OutputStream stream, Workbook workbook) {
@@ -460,10 +608,10 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			@SuppressWarnings("unchecked")
 			List<Athlete> athletes = (List<Athlete>) reportingInfo.get("athletes");
 			if (athletes != null && (athletes.size() == 0 ? isEmptyOk() : isSizeOk(athletes.size()))) {
-				logger.info("before transformWorkbook");
+				logger.info("{} before transformWorkbook", this.getTemplateFileName());
 				long start = System.currentTimeMillis();
 				transformer.transformWorkbook(workbook, reportingInfo);
-				logger.info("after transformWorkbook ({} ms)",System.currentTimeMillis()-start);
+				logger.info("{} after transformWorkbook ({} ms)", this.getTemplateFileName(), System.currentTimeMillis() - start);
 				if (workbook != null) {
 					postProcess(workbook);
 				}
@@ -471,14 +619,16 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			} else {
 				String noAthletes = Translator.translate("NoAthletes");
 				logger./**/warn("no athletes: empty report.");
-				this.ui.access(() -> {
-					Notification notif = new Notification();
-					notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
-					notif.setPosition(Position.TOP_STRETCH);
-					notif.setDuration(3000);
-					notif.setText(noAthletes);
-					notif.open();
-				});
+				if (this.ui != null) {
+					this.ui.access(() -> {
+						Notification notif = new Notification();
+						notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
+						notif.setPosition(Position.TOP_STRETCH);
+						notif.setDuration(3000);
+						notif.setText(noAthletes);
+						notif.open();
+					});
+				}
 				workbook = new HSSFWorkbook();
 				workbook.createSheet().createRow(1).createCell(1).setCellValue(noAthletes);
 			}
@@ -499,14 +649,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		}
 	}
 
-	private boolean isSizeOk(int size) {
-		return size < getSizeLimit();
-	}
-
-	public int getSizeLimit() {
-		return Integer.MAX_VALUE;
-	}
-
 	private void jxls3Transform(OutputStream stream, File templateFile) {
 		Workbook workbook = null;
 		File tempFile = null;
@@ -515,19 +657,24 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			HashMap<String, Object> reportingInfo = getReportingBeans();
 			@SuppressWarnings("unchecked")
 			List<Athlete> athletes = (List<Athlete>) reportingInfo.get("athletes");
-			int size = athletes != null ? athletes.size() : 0 ;
+			int size = athletes != null ? athletes.size() : 0;
 			logger.debug("reportingInfo sessions {} athletes: {}", reportingInfo.get("sessions"), size);
 			if (size == 0 ? isEmptyOk() : isSizeOk(size)) {
 				tempFile = File.createTempFile("jxlsOutput", ".xlsx");
+				logger.info("starting jxls3 processing for {}", templateFile);
+				long start = System.currentTimeMillis();
 				JxlsPoi.fill(new FileInputStream(templateFile), JxlsStreaming.STREAMING_OFF, reportingInfo, tempFile);
+				logger.info("processing done: {}ms", System.currentTimeMillis() - start);
 				workbook = WorkbookFactory.create(tempFile);
-				logger.debug("after workbook3 {}", workbook);
 				if (workbook != null) {
+					start = System.currentTimeMillis();
+					logger.info("postProcessing");
 					postProcess(workbook);
+					logger.info("postProcessing done: {}ms", System.currentTimeMillis() - start);
 				}
 			} else {
 				String message;
-				if (athletes.size() == 0) {
+				if (athletes == null || athletes.size() == 0) {
 					message = Translator.translate("NoAthletes");
 					logger./**/warn("no athletes: empty report.");
 				} else {
@@ -563,43 +710,6 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			}
 			logger.debug("wrote stream3");
 		}
-	}
-
-	private void setPageLength(int int1) {
-		this.pageLength = int1;
-	}
-
-	public Integer getPageLength() {
-		return pageLength;
-	}
-
-	public void setPageLength(Integer pageLength) {
-		this.pageLength = pageLength;
-	}
-
-	protected void createStandardFooter(Workbook workbook) {
-		// Get the current date and time
-        LocalDateTime now = LocalDateTime.now();
-
-        // Get the default locale
-        Locale currentLocale = OwlcmsSession.getLocale();
-
-        // Get a date formatter for the short date format in the current locale
-		String shortDatePattern = DateTimeUtils.localizedShortDatePattern(currentLocale);
-		DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern(shortDatePattern, currentLocale);
-
-        // Get a time formatter for the short time format in the current locale
-        DateTimeFormatter timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(currentLocale);
-
-        // Format the current date and time
-        String formattedDate = now.format(dateFormatter);
-        String formattedTime = now.format(timeFormatter);
-
-		Footer footer = workbook.getSheetAt(0).getFooter();
-
-		footer.setLeft(Translator.translate("Results.producedBy", "owlcms", OwlcmsFactory.getVersion()));
-		footer.setCenter(Translator.translate("Results.dateTime", formattedDate, formattedTime));
-		footer.setRight(Translator.translate("Results.pageOf",HeaderFooter.page(),HeaderFooter.numPages()));
 	}
 
 }

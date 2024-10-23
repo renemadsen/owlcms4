@@ -1,35 +1,31 @@
-> [!WARNING]
+> [!IMPORTANT]
 >
-> - This is a **beta release**, used for testing and translation. ***Some features could be non-functional***.
-> - Beta releases are **not** normally used in actual competitions, except when a new feature is required. Use extreme care in testing if you intend to do so.
+> - You should test all releases, with actual data, *several days* before a competition.
+> - It is always wise to export your current database before updating.
 
-- Preliminary releases change log
-  - (beta02) `Scores-*.xlsx` templates can be used as a simple Final package.  Category rankings by the age-group scoring system -- defaults to TOTAL. The Best Lifter page uses the global scoring system selected for the competition.  Team scores are based on the age-group scoring system.
-  - (beta02) Added Qage score for Masters: Qpoints * Masters age factor.  Works with the `Scores-*.xlsx` templates.
-  - (beta01) Documentation: added page for Score-based rankings using Age-Based All Bodyweight categories.
-  - (beta01) Fixed AgeGroups export to include scoring system
-  - (alpha03) Expose raw lift type and attempt number in video feed
-  - (alpha03) Removed translation steps for championship names now that the AgeGroups file allows defining arbitrary ones.
-  - (alpha03) The results scoreboard now shows the Score and Score Rank column if any category has age group scoring enabled.  The global settings for showing scores and score ranks are no longer needed for this use case.
-  - (alpha03) Huebner Age-adjusted totals are now supported. This adjusts the total based on age and body weight for athletes aged under 20 and under 115kg.
-    - Note: the body weight is interpolated, whereas the on-line calculator from Huebner does rounding.
-  - (alpha02) Updated to Vaadin 24.4.7.
-- Publicresults
-  - When a user opens a scoreboard and a timer is running, the timer is now immediately synchronized
-  - If the publicresults application is restarted, and sessions are in a break, the remaining time is now immediately synchronized
-- Score-based Rankings
-  - Initial support for Age-Based, All Body weights Categories (ABAB), with ranking based on a scoring system.  See [Score-based Rankings](https://jflamy.github.io/owlcms4/#/ScoreBasedCompetitions) in the documentation.
-    - Typical use: create categories where all Masters in the same age group compete together in a category, from 0 to 999 kg bodyweight, based on their SM(H)F score.
-    - Other possible scenario: All youth in a given age group compete against one another based on Sinclair.
-    - **Note**: the Medals sheets and displays do NOT take the scoring into account.  Use the `Score` templates the Session or Competition eligibility category reports to get the rankings and award medals.
-  - Huebner "Age Factors"  are now supported. These multiplicative factors adjust the total based on age and body weight for athletes aged under 20 and under 115kg.
-    - Note: the body weight is interpolated, whereas the current on-line calculator from Huebner does rounding.  The online calculator is meant to be updated to also use interpolation.
-  - Huebner GAMX scoring system now supported
-    - This scoring system aims to provide compatibility between men and women scores
-  - There can be both the open bodyweight age groups and the normal age groups in the same meet.  Just assign the desired ranking method to each age group.
-    - The results scoreboard shows a Score and Rank column when a scoring system is selected for any of the age groups.
-    - The TOTAL is used as score for groups that do not have a Scoring System.
-  - `Scores-*.xlsx` templates were added for final package/team rankings for an age group or championship using a scoring system form medals.
+- Maintenance log:
+  - 53.0.2: When producing the final package/competition book, if no championship was selected the results were not produced by eligibility categories as they should have.
+  - 53.0.2: Final package templates fixed to use the translated code for extra/out-of-competition/invited athletes
+  - 53.0.1: Technical change to the build process. Software is identical to 53.0.0
+  
+- Selectable scoring systems for [Best Lifter](https://jflamy.github.io/owlcms4/#/ResultDocuments?id=competition-results) in a championship and [Score-based Medals](https://jflamy.github.io/owlcms4/#/ScoreBasedCompetitions) (see the links for documentation),
+  - On the competition results page, it is possible to select a scoring system that will be shown in the grid.  This allows computing the best athlete for a championship using a different scoring system (for example, using Q-youth age-adjusted totals for a Youth Championship)
+  - The standard templates have been updated to use the Best Athlete scoring system selected if one is picked (the default is the competition global best athlete scoring system)
+  - The names have been aligned with what Dr. Huebner uses in her online calculators (Q-Youth, previously HP points or Age Factors, and Q-Masters, previously Q-age).
+- Jury Sheets for examinations:
+  - There are now two jury sheets in the default configuration.  One without the examination results, one with.  To print the examination version, use the `Print Entire Workbook` option (the examination results are in the second tab)
 
+- Children Categories Bar Rules
+  - The feature flag `lightBarU13` can be used to use a 15kg bar for boys in the U11 and U13 categories.  If an athlete needs the 20kg bar, the "Non-Standard bar" feature can be used to override. This is the same as removing the 20kg bar for younger boys age groups. 
+- Support for Q-masters results
+  - Q-masters is like SM(H)F but based on Q-points instead of Sinclair.  It is Q-points * the same age factor as SM(H)F
+  - The default templates for Masters protocols, result sheets and competition books now show the Q-masters value in addition to the SM(H)F.
+- Import of External Session Results: the following is now possible
+  - If a session needs to be run outside or in another building a) perform weigh-in normally and enter data normally in the main database. b) Export the main database and load it into the owlcms running in the other building c) Run the session, export the remote database c) Use the new feature at the bottom of the Results page to selectively read back the lifts from the remote session.
+  - Only the lift information is read back.  Note that owlcms follows the rules and will determine winners according to the lifting order that would have been followed had all sessions taken place normally.
+- jxls3 Templates
+  - In the top cell, where `jx:area` is given, it is now possible to add a directive of the form `owlcms:fixMerges(4, [1, 2, 3])`  This would merge cells vertically in columns 1, 2, 3, starting with row 4.  The cells are merged from the non-empty value down to the next non-empty cell.  This is a workaround for a limitation/bug in jxls3.  See the `templates/schedule/DaySchedule.xlsx` file for an example.
+- Locale: fixed a race condition where pages would load before it was determined that the application should switch to English because there is no translation for the local language.
+- Event Publishing: fixed issue with liftType published during event forwarding to public results and video information feeds.
 
-For other recent changes, see [version 50 release notes](https://github.com/owlcms/owlcms4/releases/tag/50.0.0)
+For other recent changes, see [version 51 release notes](https://github.com/owlcms/owlcms4/releases/tag/50.0.0) and [version 52 release notes](https://github.com/owlcms/owlcms4/releases/tag/52.0.6)

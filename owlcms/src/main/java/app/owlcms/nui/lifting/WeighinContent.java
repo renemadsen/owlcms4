@@ -81,6 +81,7 @@ import app.owlcms.nui.shared.OwlcmsContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSCardsWeighIn;
 import app.owlcms.spreadsheet.JXLSJurySheet;
+import app.owlcms.spreadsheet.JXLSResultSheet;
 import app.owlcms.spreadsheet.JXLSWeighInSheet;
 import app.owlcms.spreadsheet.PAthlete;
 import app.owlcms.utils.LoggerUtils;
@@ -1090,15 +1091,15 @@ public class WeighinContent extends BaseContent
 		JXLSDownloader startingWeightsButton = new JXLSDownloader(
 		        () -> {
 					generateStartNumbers();
-			        JXLSWeighInSheet rs = new JXLSWeighInSheet();
+					JXLSResultSheet rs = new JXLSResultSheet(false);
 			        // group may have been edited since the page was loaded
 			        Group curGroup = getGroupFilter().getValue();
 			        rs.setGroup(curGroup != null ? GroupRepository.getById(curGroup.getId()) : null);
 			        return rs;
 		        },
 		        resourceDirectoryLocation,
-		        Competition::getComputedStartingWeightsSheetTemplateFileName,
-		        Competition::setStartingWeightsSheetTemplateFileName,
+		        Competition::getEmptyProtocolTemplateFileName,
+		        Competition::setEmptyProtocolTemplateFileName,
 		        title,
 		        Translator.translate("Download"));
 		return startingWeightsButton.createDownloadButton();
@@ -1117,8 +1118,8 @@ public class WeighinContent extends BaseContent
 			        return rs;
 		        },
 		        resourceDirectoryLocation,
-		        Competition::getComputedStartingWeightsSheetTemplateFileName,
-		        Competition::setStartingWeightsSheetTemplateFileName,
+		        Competition::getWeighInFormTemplateFileName,
+		        Competition::setWeighInFormTemplateFileName,
 		        title,
 		        Translator.translate("Download"));
 		return startingWeightsButton.createDownloadButton();

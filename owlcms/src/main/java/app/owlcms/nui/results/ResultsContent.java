@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.LoggerFactory;
@@ -90,9 +91,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		jexlLogger.setLevel(Level.ERROR);
 	}
 
-	public static Grid<Athlete> createResultGrid() {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
-
+	public static Grid<Athlete> createResultGrid(Ranking scoringSystem) {
 		Grid<Athlete> grid = new Grid<>(Athlete.class, false);
 		grid.getThemeNames().add("row-stripes");
 		ThemeList themes = grid.getThemeNames();
@@ -132,7 +131,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 		grid.addColumn(new NumberRenderer<>(a -> Ranking.getRankingValue(a, scoringSystem), "%.2f",
 		        OwlcmsSession.getLocale(), "0.00"))
 		        .setSortProperty("score").setHeader(Translator.translate("Ranking." + scoringSystem))
-		        .setComparator(new WinningOrderComparator(Ranking.QPOINTS, true));
+		        .setComparator(new WinningOrderComparator(scoringSystem, true));
 
 		if (scoringSystem != Ranking.BW_SINCLAIR) {
 			grid.addColumn(
@@ -179,7 +178,7 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	public AthleteCrudGrid createCrudGrid(OwlcmsCrudFormFactory<Athlete> crudFormFactory) {
-		Grid<Athlete> grid = createResultGrid();
+		Grid<Athlete> grid = createResultGrid(Competition.getCurrent().getScoringSystem());
 
 		OwlcmsGridLayout gridLayout = new OwlcmsGridLayout(Athlete.class);
 		AthleteCrudGrid crudGrid = new AthleteCrudGrid(Athlete.class, gridLayout, crudFormFactory, grid) {
@@ -261,20 +260,46 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 
 		List<Athlete> rankedAthletes = AthleteSorter.assignCategoryRanks(currentGroup);
 
+		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
+		@SuppressWarnings("unchecked")
+		Set<String> unfinishedCategories = AthleteRepository.allUnfinishedCategories();
+		//logger.debug("ResultsContent unfinished categories {}", unfinishedCategories);
+
 		if (currentGroup != null) {
 			rankedAthletes = AthleteSorter.displayOrderCopy(rankedAthletes).stream()
 			        .filter(a -> a.getGroup() != null ? a.getGroup().equals(currentGroup) : false)
 			        .filter(a -> a.getGender() != null
 			                ? (currentGender != null ? currentGender.equals(a.getGender()) : true)
 			                : false)
+					.map(a -> {
+						if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+							a.setCategoryFinished(false);
+						} else {
+							a.setCategoryFinished(true);
+						}
+						return a;
+					})
 			        .collect(Collectors.toList());
 		} else {
 			rankedAthletes = AthleteSorter.displayOrderCopy(rankedAthletes).stream()
 			        .filter(a -> a.getGender() != null
 			                ? (currentGender != null ? currentGender.equals(a.getGender()) : true)
 			                : false)
+					.map(a -> {
+						if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+							a.setCategoryFinished(false);
+						} else {
+							a.setCategoryFinished(true);
+						}
+						return a;
+					})
+					.peek(a -> {
+						logger.debug("{}, {}", a.isCategoryFinished(), a.getFullName());
+					})
 			        .collect(Collectors.toList());
 		}
+
+
 
 		Boolean medals = this.medalsOnly.getValue();
 		if (medals != null && medals) {
@@ -585,24 +610,24 @@ public class ResultsContent extends AthleteGridContent implements HasDynamicTitl
 	private void highlight(Button button) {
 		button.addThemeVariants(ButtonVariant.LUMO_SUCCESS, ButtonVariant.LUMO_PRIMARY);
 	}
-	
+
 	public static String formatBlankRank(Integer total) {
 		if (total == null || total == 0) {
 			return "&nbsp;";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
-			return Translator.translate("Results.Extra/Invited"); 
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}
 	}
-	
+
 	public static String formatScoreboardRank(Integer total) {
 		if (total == null || total == 0) {
 			return "-";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
-			return Translator.translate("Results.Extra/Invited"); 
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}

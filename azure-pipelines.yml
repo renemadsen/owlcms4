@@ -1,10 +1,10 @@
 trigger:
   - none
-  
+
 parameters:
   - name: Revision
     type: string
-    default: 51.0.0-rc01
+    default: 53.0.2
   - name: SkipTests
     type: string
     default: 'false'
@@ -20,6 +20,8 @@ variables:
   # ReleaseRepoCredentials contains github users and tokens
   - group: ReleaseRepoCredentials
   - template: src/main/azure-pipelines/variables-releaseRepoCredentials.yml
+    parameters:
+      rev: ${{ parameters.Revision }}
   - name: MavenCacheFolder
     value: $(Pipeline.Workspace)/.m2/repository
   - name: MavenOpts
@@ -120,48 +122,40 @@ jobs:
       - script: |
           # publish docs and pom.xml back to origin only for stable releases
           git push https://$(repoToken)@github.com/$(repoUser)/owlcms4.git $(Build.SourceBranchName) --force
-        condition: or(eq(variables['Build.SourceBranchName'], 'main51'),eq(variables['Build.SourceBranchName'], 'main50'))
+        condition: not(contains(variables['Revision'], '-'))
         displayName: sync dev doc
       - script: |
           # publish sources and docs to prerelease repo
           # library group ReleaseRepoCredentials contains github users and tokens
           git push https://$(releaseToken)@github.com/$(releaseUser)/owlcms4$(RELEASE_SUFFIX).git $(Build.SourceBranchName):master --force
-        condition: or(eq(variables['Build.SourceBranchName'], 'dev51'), eq(variables['Build.SourceBranchName'], 'dev50'))
+        condition: contains(variables['Revision'], '-')
         displayName: sync prerelease repo
       - script: |
           # publish sources and docs to release repo
           # library group ReleaseRepoCredentials contains github users and tokens
           git push https://$(releaseToken)@github.com/$(releaseUser)/owlcms4.git $(Build.SourceBranchName):master --force
-        condition: or(eq(variables['Build.SourceBranchName'], 'main51'),eq(variables['Build.SourceBranchName'], 'main50'))
+        condition: not(contains(variables['Revision'], '-'))
         displayName: sync release repo
       # all releases are marked as "isPreRelease: false" else we cannot have a generic link to the latest prerelease.
-      # the repo and name determines the maturity status.  
-      - task: GitHubRelease@0
+      # the repo and name determines the maturity status.
+      - task: GitHubRelease@1
         displayName: Release on Github
         inputs:
-          ${{ if eq(variables['Build.SourceBranchName'], 'dev51') }}:
+          ${{ if contains(variables['Revision'], '-') }}:
             gitHubConnection: github.com_jflamy-dev
             repositoryName: $(RELEASE_USER)/owlcms4$(RELEASE_SUFFIX)
             isPreRelease: false
-          ${{ if eq(variables['Build.SourceBranchName'], 'main51') }}:
-            gitHubConnection: github.com_jflamy-dev
-            repositoryName: $(RELEASE_USER)/owlcms4$(RELEASE_SUFFIX)
-            isPreRelease: false
-          ${{ if eq(variables['Build.SourceBranchName'], 'dev50') }}:
-            gitHubConnection: github.com_jflamy-dev
-            repositoryName: $(RELEASE_USER)/owlcms4$(RELEASE_SUFFIX)
-            isPreRelease: false
-          ${{ if eq(variables['Build.SourceBranchName'], 'main50') }}:
+          ${{ if not(contains(variables['Revision'], '-')) }}:
             gitHubConnection: github.com_jflamy-dev
             repositoryName: $(RELEASE_USER)/owlcms4$(RELEASE_SUFFIX)
             isPreRelease: false
           action: "create" # Options: create, edit, delete
           target: master # all our releases are on the master branch of the release repos.
-          tagSource: "manual"
+          tagSource: "userSpecifiedTag"
           title: $(Revision)
           tag: $(Revision)
-          releaseNotesSource: "file"
-          releaseNotesFile: $(Build.SourcesDirectory)/ReleaseNotes.md # Optional
+          releaseNotesSource: "filePath"
+          releaseNotesFilePath: $(Build.SourcesDirectory)/ReleaseNotes.md # Optional
           assets: |
             $(Pipeline.Workspace)/OwlcmsZip/*
             $(Pipeline.Workspace)/PublicResultsZip/*
@@ -169,4 +163,3 @@ jobs:
             $(Pipeline.Workspace)/PublicResultsSetup/*
           assetUploadMode: "delete" # Optional. Options: delete, replace
           addChangeLog: false # Optional
-        

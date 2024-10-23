@@ -44,7 +44,6 @@ import app.owlcms.uievents.DecisionEvent;
 import app.owlcms.uievents.DecisionEventType;
 import app.owlcms.uievents.UpdateEvent;
 import app.owlcms.utils.StartupUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import elemental.json.Json;
 import elemental.json.JsonArray;
@@ -66,12 +65,6 @@ public class ResultsPR extends LitTemplate
         implements DisplayParameters, HasDynamicTitle, SafeEventBusRegistrationPR {
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(ResultsPR.class);
-    final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
-
-    static {
-        logger.setLevel(Level.INFO);
-        uiEventLogger.setLevel(Level.INFO);
-    }
 
     @Id("timer-pr")
     private AthleteTimerElementPR timer; // Flow creates it

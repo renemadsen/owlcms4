@@ -31,6 +31,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @WebServlet("/update")
 public class UpdateReceiverServlet extends HttpServlet implements Traceable {
@@ -69,7 +70,6 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
     private String secret = StartupUtils.getStringParam("updateKey");
 
     public UpdateReceiverServlet() {
-        this.getLogger().setLevel(Level.DEBUG);
     }
 
     /**
@@ -91,6 +91,10 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
         try {
+            HttpSession session = req.getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
             String updateKey = req.getParameter("updateKey");
             if (updateKey == null || !updateKey.equals(this.secret)) {
                 this.getLogger().error("denying access from {} expected {} got {} ", req.getRemoteHost(), this.secret,
@@ -108,10 +112,10 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
             }
 
             if (StartupUtils.isDebugSetting()) {
-                this.getLogger().setLevel(Level.DEBUG);
+                this.getLogger().setLevel/**/(Level.DEBUG);
                 Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
                 if (StartupUtils.isTraceSetting()) {
-                    this.getLogger()./**/trace("update received from {}", ProxyUtils.getClientIp(req));
+                    this.getLogger().trace("update received from {}", ProxyUtils.getClientIp(req));
                     tracePairs(pairs);
                 }
             }
@@ -192,7 +196,7 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
                 // short time range, is this a duplicate?
                 UpdateEvent prevUpdate = updateCache.get(fopName);
                 if (prevUpdate != null && updateEvent.getHashCode() == prevUpdate.getHashCode()) {
-                    this.getLogger()./**/warn("duplicate event ignored");
+                    this.getLogger().debug("duplicate event ignored");
                 } else {
                     updateCache.put(fopName, updateEvent);
                     eventBus.post(updateEvent);

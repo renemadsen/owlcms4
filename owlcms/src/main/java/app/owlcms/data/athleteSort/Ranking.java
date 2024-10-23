@@ -26,7 +26,7 @@ public enum Ranking {
 	ROBI("Robi"), // IWF ROBI
 	QPOINTS("QPoints"), // Huebner QPoints.
 	GAMX("GAMX"), // Global Adjusted Mixed (Huebner)
-	AGEFACTORS("ageFactors"),
+	AGEFACTORS("QYouth"),
 	QAGE("QAge") // QPoints * SMHF age factors
 	;
 	
@@ -137,6 +137,26 @@ public enum Ranking {
 			case AGEFACTORS:
 			case QAGE:
 				return Translator.translate("Ranking." + rankingType);
+			default:
+				throw new UnsupportedOperationException("not a score ranking " + rankingType);
+		}
+	}
+	
+	public static String getScoringExplanation(Ranking rankingType) {
+		if (rankingType == null) {
+			return Translator.translate("Score");
+		}
+		switch (rankingType) {
+			case ROBI:
+			case CUSTOM:
+			case BW_SINCLAIR:
+			case CAT_SINCLAIR:
+			case SMM:
+			case GAMX:
+			case QPOINTS:
+			case AGEFACTORS:
+			case QAGE:
+				return Translator.translate("RankingExplanation." + rankingType);
 			default:
 				throw new UnsupportedOperationException("not a score ranking " + rankingType);
 		}

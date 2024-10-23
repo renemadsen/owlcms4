@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.i18n.Translator;
 import ch.qos.logback.classic.Logger;
 
 public class AgeGroupInfoFactory {
@@ -14,6 +15,9 @@ public class AgeGroupInfoFactory {
 
 	public List<AgeGroupInfo> getAgeGroupInfos(Group group) {
 		List<Athlete> athletes = group.getAthletes();
+		if (athletes == null || athletes.isEmpty()) {
+			return List.of();
+		}
 		TreeMap<AgeGroup, AgeGroupInfo> ageGroupMap = new TreeMap<>();
 		for (Athlete a : athletes) {
 			AgeGroup ageGroup = a.getAgeGroup();
@@ -35,18 +39,18 @@ public class AgeGroupInfoFactory {
 				agi.setLargestWeightClassLimitString(a.getCategory().getLimitString());
 				agi.setWeightClassRange(a.getCategory().getLimitString());
 				agi.setBestSubCategory(subCategory);
-				
+
 				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
 				agi.addToList(bwi.getKey(), bwi);
 
-				
+
 				ageGroupMap.put(ageGroup, agi);
 				//logger.debug("created ageGroup {} {}", ageGroup, agi.isUnanimous());
 			} else {
 				//logger.debug("found ageGroup {} {} {}", ageGroup, agi.getNbAthletes(), agi.isUnanimous());
 				agi.setNbAthletes(agi.getNbAthletes() + 1);
 				if (agi.getSmallestWeightClass() == null
-				        || a.getCategory().getMinimumWeight() < agi.getSmallestWeightClass()) {
+				        || a.getCategory().getMaximumWeight() < agi.getSmallestWeightClass()) {
 					agi.setSmallestWeightClass(a.getCategory().getMaximumWeight());
 				}
 				if (agi.getLargestWeightClass() == null
@@ -81,7 +85,7 @@ public class AgeGroupInfoFactory {
 						agi.setUnanimous(true);
 					}
 				}
-				
+
 				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
 				agi.addToList(bwi.getKey(), bwi);
 
@@ -89,8 +93,9 @@ public class AgeGroupInfoFactory {
 					// same
 					agi.setWeightClassRange(a.getCategory().getLimitString());
 				} else {
-					agi.setWeightClassRange((int) Math.round(agi.getSmallestWeightClass()) + "-"
-					        + agi.getLargestWeightClassLimitString());
+					String weightClassRange = Translator.translate("Range.LowerUpper",
+							(int) Math.round(agi.getSmallestWeightClass()),agi.getLargestWeightClassLimitString());
+					agi.setWeightClassRange(weightClassRange);
 				}
 			}
 

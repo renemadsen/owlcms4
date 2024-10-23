@@ -7,11 +7,11 @@
 package app.owlcms.spreadsheet;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.apache.poi.ss.usermodel.Header;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.LoggerFactory;
@@ -19,11 +19,11 @@ import org.slf4j.LoggerFactory;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -56,23 +56,57 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 	@Override
 	public List<Athlete> getSortedAthletes() {
 		if (this.sortedAthletes != null) {
+			// logger.debug("YYYYYYYYYYYY sorted athletes {}",LoggerUtils.whereFrom());
 			// we are provided with an externally computed list.
 			if (this.resultsByCategory) {
-				// no need to unwrap, each athlete is a wrapper PAthlete with a participation category.
+				// we to complete all the athletes with their participations, before filtering.
+				// logger.debug("YYYYYYYYYYYY category athletes");
+				this.sortedAthletes = mapToParticipations(this.sortedAthletes);
+
+				// if there are age group-specific scoring systems, this can be different than the total
+				// usual ordering.
+				// logger.debug("YYYYYYYYYYYY ranking order {}", rankingOrder());
+				logger.debug("eligible getSortedAthletes {}", this.sortedAthletes.size());
 				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), false);
-				logger.debug("eligible getSortedAthletes {}",this.sortedAthletes.size());
+				// logger.debug("YYYYYYYYYYYY eligible getSortedAthletes {}", this.sortedAthletes.size());
 				return this.sortedAthletes;
 			} else {
-				// we need the athlete with the original registration category inside the PAthlete
-				// sometimes we are given the actual original athletes, so we are careful.
-				List<Athlete> unwrappedAthletes = unwrapAthletesAsNeeded(this.sortedAthletes);
-				Set<Athlete> noDuplicates = new HashSet<>(unwrappedAthletes);
-				this.sortedAthletes = new ArrayList<>(noDuplicates);
+				// logger.debug("YYYYYYYYYYYY unique athletes");
+				// we need to expand all the participations before we filter down.
+				List<Athlete> allParticipations = mapToParticipations(this.sortedAthletes);
+
+				// keep the the most specific category from the championship
+				List<Athlete> uniqueAthletes = allParticipations.stream()
+				        .sorted((a, b) -> {
+					        int compare = ObjectUtils.compare(a.getLotNumber(), b.getLotNumber(), true);
+					        if (compare != 0)
+						        return compare;
+					        return Category.specificityComparator.compare(a.getCategory(), b.getCategory());
+				        })
+				        .filter(p -> {
+					        // logger.debug("{} {}",p.getLastName(),((PAthlete)p)._getOriginalParticipation().getCategory().getAgeGroup());
+					        if (getChampionship() != null && p.getAgeGroup() != null) {
+						        return getChampionship().equals(p.getAgeGroup().getChampionship());
+					        } else {
+						        return true;
+					        }
+				        })
+				        .collect(Collectors.toMap(
+				                Athlete::getLotNumber,
+				                athlete -> athlete,
+				                (existing, replacement) -> existing))
+				        .values()
+				        .stream()
+				        .collect(Collectors.toList());
+
+				// re-sort the athletes
+				this.sortedAthletes = new ArrayList<>(uniqueAthletes);
 				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), false);
-				logger.debug("registration getSortedAthletes {}",this.sortedAthletes.size());
+				logger.debug("registration getSortedAthletes {}", this.sortedAthletes.size());
 				return this.sortedAthletes;
 			}
 		}
+		logger.debug("XXXXXXXXXXXXXXXXXXXX  no sorted athletes");
 		final Group currentGroup = getGroup();
 		Category currentCategory = getCategory();
 		Championship currentAgeDivision = getChampionship();
@@ -81,7 +115,12 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 
 		// get all the PAthletes for the current group - athletes show as many times as
 		// they have participations.
-		List<Athlete> pAthletes = unwrapAthletesAsNeeded(rankedAthletes);
+		List<Athlete> pAthletes = mapToParticipations(rankedAthletes);
+
+		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
+		@SuppressWarnings("unchecked")
+		Set<String> unfinishedCategories = AthleteRepository.allUnfinishedCategories();
+		logger.debug("JXLSWinningSheet unfinished categories {}", unfinishedCategories);
 
 		// @formatter:off
         List<Athlete> athletes = AthleteSorter.resultsOrderCopy(pAthletes, rankingOrder(), false).stream()
@@ -120,7 +159,15 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
                                     currentAgeGroupPrefix.equals(ageGroupPrefix2)
                                     : false)
                             : true);
-                    })
+				})
+				.map(a -> {
+					if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+						a.setCategoryFinished(false);
+					} else {
+						a.setCategoryFinished(true);
+					}
+					return a;
+				})
                 //.peek(a -> logger.debug("   {}",a))
                 .collect(Collectors.toList());
         return athletes;
@@ -134,17 +181,15 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 	/*
 	 * (non-Javadoc)
 	 *
-	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
-	 * postProcess(org.apache.poi.ss.usermodel.Workbook)
+	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource# postProcess(org.apache.poi.ss.usermodel.Workbook)
 	 */
 	@Override
 	protected void postProcess(Workbook workbook) {
-		final Group currentCompetitionSession = getGroup();
 		String c = getChampionship() != null ? getChampionship().getName() : null;
 		String ag = getAgeGroupPrefix();
 		Header header = workbook.getSheetAt(0).getHeader();
-		
-		//header.setLeft(Competition.getCurrent().getCompetitionName());
+
+		// header.setLeft(Competition.getCurrent().getCompetitionName());
 		if (c != null && ag != null) {
 			header.setCenter(c + "\u2013" + ag);
 		} else if (c != null) {
@@ -156,29 +201,30 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 		}
 
 		createStandardFooter(workbook);
-		
-		String resultsTemplateFileName = Competition.getCurrent().getResultsTemplateFileName();
-		boolean isUSAW = resultsTemplateFileName != null && resultsTemplateFileName.toLowerCase().contains("usaw");	
-		if (currentCompetitionSession == null && !isUSAW) {
-			// remove information cells from standard template
-			zapCellPair(workbook, 3, 9);
-		}
 	}
 
-	private List<Athlete> unwrapAthletesAsNeeded(List<Athlete> rankedAthletes) {
+	public List<Athlete> mapToParticipations(List<Athlete> rankedAthletes) {
 		List<Athlete> pAthletes;
 		if (this.resultsByCategory) {
 			pAthletes = new ArrayList<>(rankedAthletes.size() * 2);
 			for (Athlete a : rankedAthletes) {
-				for (Participation p : a.getParticipations()) {
-					pAthletes.add(new PAthlete(p));
+				Athlete pa = a;
+				if (a instanceof PAthlete) {
+					pa = ((PAthlete) a)._getAthlete();
+				}
+				for (Participation p : pa.getParticipations()) {
+					PAthlete e = new PAthlete(p);
+					// logger.debug("pa {} participation {} paCat {}", pa.getFullName(), p.getCategory().getCode(), e.getCategory().getCode());
+					pAthletes.add(e);
 				}
 			}
 		} else {
 			// we sometimes get pAthletes and but here we need the wrapped athlete.
 			pAthletes = rankedAthletes.stream()
-			        // .peek(r -> { logger.debug("{} {}", r.getShortName(), r.getClass().getSimpleName()); })
-			        .map(r -> r instanceof PAthlete ? ((PAthlete) r)._getAthlete() : r)
+			        .peek(r -> {
+				        // logger.debug("{} {}", r.getShortName(), r.getClass().getSimpleName());
+			        })
+			        .map(r -> r instanceof PAthlete ? r : new PAthlete(r))
 			        .collect(Collectors.toList());
 		}
 		return pAthletes;

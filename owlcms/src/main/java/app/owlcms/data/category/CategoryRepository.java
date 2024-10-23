@@ -110,6 +110,7 @@ public class CategoryRepository {
 
 	public static List<Category> doFindEligibleCategories(Athlete a, Gender gender, Integer ageFromFields, Double bw,
 	        int qualifyingTotal) {
+		
 		List<Category> allEligible = CategoryRepository.findByGenderAgeBW(gender, ageFromFields, null);
 		if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Molnar")) {
 			logger.trace("allEligible bw={} {} -- {}", bw, allEligible.size(), LoggerUtils.whereFrom());
@@ -121,12 +122,6 @@ public class CategoryRepository {
 
 		allEligible = allEligible.stream()
 		        .filter(c -> (qualifyingTotal >= c.getQualifyingTotal()))
-		        .peek(c -> {
-			        if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Molnar"))
-				        logger.trace("{} {} bw {}  c.getMinimumWeight {} c.getMaximumWeight {} ---> {}",
-				                a, c, bw, c.getMinimumWeight(), c.getMaximumWeight(),
-				                (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())));
-		        })
 		        .filter(c -> (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())))
 		        .collect(Collectors.toList());
 		return allEligible;
@@ -418,7 +413,7 @@ public class CategoryRepository {
 	public static void resetCodeMap() {
 		synchronized (allCategories) {
 			findActive().stream()
-			.peek(c -> logger.warn/**/("adding {} + {}", c.getDisplayName(), c.getNameWithAgeGroup()))
+			//.peek(c -> logger.debug("adding {} + {}", c.getDisplayName(), c.getNameWithAgeGroup()))
 			.forEach(c -> {
 				allCategories.put(c.getDisplayName(), c);
 				allCategories.put(c.getNameWithAgeGroup(), c);

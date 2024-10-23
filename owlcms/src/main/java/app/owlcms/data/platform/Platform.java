@@ -10,6 +10,7 @@ import java.io.Serializable;
 import java.util.List;
 
 import javax.persistence.Cacheable;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Transient;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.annotation.JsonIdentityInfo;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.vaadin.flow.server.VaadinSession;
 
@@ -138,9 +140,7 @@ public class Platform implements Serializable, Comparable<Platform> {
 	private Integer nbS_5 = 1;
 
 	// bars
-	private boolean nonStandardBar;
 	private Integer nonStandardBarWeight = 0;
-//	private Integer officialBar = 0;
 	private Integer nbB_5 = 0;
 	private Integer nbB_10 = 0;
 	private Integer nbB_15 = 1;
@@ -154,7 +154,16 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	private Boolean showTimer = false;
 	private String soundMixerName;
-	private Boolean nonStandardBarAvailable = false;
+	
+	// nonStandardBar needed for backward compatibility (old column is present in imports)
+	@SuppressWarnings("unused")
+	@JsonIgnore
+	private Boolean nonStandardBar = false;
+	
+	// unfortunate choice of name in old code base, needed for imports to work.
+	@Column(name="nonStandardBarAvailable")
+	@JsonProperty("nonStandardBarAvailable")
+	private Boolean useNonStandardBar = false;
 
 	/**
 	 * Instantiates a new platform. Used for import, no default values.
@@ -485,14 +494,12 @@ public class Platform implements Serializable, Comparable<Platform> {
 		return 31;
 	}
 
-	@Transient
-	@JsonIgnore
-	public boolean isNonStandardBar() {
-		return this.nonStandardBar;
+	public Boolean isUseNonStandardBar() {
+		return getUseNonStandardBar();
 	}
-
-	public Boolean isNonStandardBarAvailable() {
-		return this.nonStandardBarAvailable != null ? this.nonStandardBar : false;
+	
+	public Boolean getUseNonStandardBar() {
+		return Boolean.TRUE.equals(useNonStandardBar);
 	}
 
 	/**
@@ -500,10 +507,6 @@ public class Platform implements Serializable, Comparable<Platform> {
 	 */
 	public void setId(Long id) {
 		this.id = id;
-	}
-
-	public void setNonStandardBar(boolean nonStandardBar) {
-		this.nonStandardBar = nonStandardBar;
 	}
 
 	/**
@@ -650,8 +653,9 @@ public class Platform implements Serializable, Comparable<Platform> {
 		this.nbS_5 = nbS_5;
 	}
 
-	public void setNonStandardBarAvailable(Boolean nonStandardBarAvailable) {
-		this.nonStandardBarAvailable = nonStandardBarAvailable;
+	public void setUseNonStandardBar(Boolean nonStandardBarAvailable) {
+		logger.debug("nsba {} ({})",true, System.identityHashCode(this));
+		this.useNonStandardBar = nonStandardBarAvailable;
 	}
 
 	/**

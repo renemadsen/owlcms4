@@ -36,4 +36,5 @@ database/owlcms.mv.db
 /fly.toml
 /mqttData/
 .idea
+owlcms/.vaadin-node-tasks.lock
 *.iml
