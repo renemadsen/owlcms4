@@ -1855,11 +1855,7 @@ public class Athlete {
 	 * @return the gender
 	 */
 	public Gender getGender() {
-		if (this.gender == null) {
-			return Gender.I;
-		} else {
-			return this.gender;
-		}
+		return this.gender;
 	}
 
 	/**

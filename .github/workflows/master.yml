@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: 'microsoft'
       - name: Go offline using the pom.xml
         run: mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true
       - name: Build

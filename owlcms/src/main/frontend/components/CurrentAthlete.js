@@ -12,10 +12,10 @@ class CurrentAthlete extends LitElement {
   }
 
   render() {
-    return html`
+    return html` 
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/colors" + (this.autoversion ?? "")}.css"/>
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/currentathlete" + (this.autoversion ?? "")}.css"/>
-
+     
       <div class="${this.wrapperClasses()}">
         <div class="waiting" style="${this.waitingStyles()}">
           <!-- div class="competitionName">[[competitionName]]</div><br -->
@@ -23,25 +23,22 @@ class CurrentAthlete extends LitElement {
         </div>
 
         <div class="attemptBar" style="${this.attemptBarStyles()}">
-        <table class="bg">
-          <tr>
-            <td class="startNumber" style="${this.startNumberStyles()}">
-              <div>${this.startNumber}</div>
-            </td>
-            <td class="fullName">
-              <span>${this.fullName}</span>
-              <span class="clubName">
-                (${this.teamName})
-              </span>
-            </td>
-            <td class="weight">
-              <span >${this.weight}<span style="font-size: 100%" >${this.t?.KgSymbol}</span></span>
-            </td>
-            <td class="decisionBox">
-              <decision-element id="decisions" style="padding:1ex"></decision-element>
-            </td>
-          </tr>
-        </table>
+          <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
+          <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
+          <div class="clubName ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
+          <div class="attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
+          <div class="weight" style="${this.weightStyles()}">
+            <span >${this.weight}<span style="font-size: 75%" >&nbsp;${this.t?.KgSymbol}</span></span>
+          </div>
+          <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
+            <timer-element id="timer"></timer-element>
+          </div>
+          <div class="timer breakTime" style="${this.breakTimerStyles()}">
+            <timer-element id="breakTimer"></timer-element>
+          </div>
+          <div class="decisionBox" style="${this.decisionStyles()}">
+            <decision-element id="decisions" style="padding:1ex"></decision-element>
+          </div>
           <div class="attempts" style="${this.attemptStyles()}">
             <table class="results" id="resultsDiv">
               ${(this.athletes ?? []).map(
@@ -62,6 +59,11 @@ class CurrentAthlete extends LitElement {
                                 <div>${attempt.stringValue}</div>
                               </td>
                             `)}
+                          <td class="showRank">
+                            <div>
+                              ${this.t?.Rank} <b>${item.snatchRank}</b>
+                            </div>
+                          </td>
                           <td class="spacer">&nbsp;</td>
                           <td class="liftName">
                             <div
@@ -74,12 +76,20 @@ class CurrentAthlete extends LitElement {
                                 <div>${attempt.stringValue}</div>
                               </td>
                             `)}
+                          <td class="showRank">
+                            <div>
+                              ${this.t?.Rank} <b>${item.cleanJerkRank}</b>
+                            </div>
+                          </td>
                           <td class="spacer">&nbsp;</td>
                           <td class="liftName">
                             <div id="totalNameTd" style="${this.decisionHiddenStyles()}" .innerHTML="${this.t?.Total}"></div>
                           </td>
                           <td class="total" style="${this.decisionHiddenStyles()}">
                             <div id="totalCellTd" style="${this.decisionHiddenStyles()}">${item.total}</div>
+                          </td>
+                          <td class="totalRank">
+                            <div id="totalRankTd" style="${this.decisionHiddenStyles()}">${this.t?.Rank} <b>${item.totalRank}</b> </div>
                           </td>
                         </tr>
                       `
@@ -148,20 +158,19 @@ class CurrentAthlete extends LitElement {
   }
 
   fullNameStyles() {
-    return  "display: " + ((this.mode === "WAIT") ? "none" : "block");
+    return  "display: " + ((this.mode === "WAIT") ? "none" : "grid");
   }
 
   teamNameStyles() {
-    return "display: " + ((this.isBreak()) ? "none" : "block");
+    return "display: " + ((this.isBreak()) ? "none" : "grid");
   }
 
   attemptStyles() {
-    return "display: grid; visibility: " + ((this.isBreak()) ? "; visibility: hidden" : "visible");
+    return "display: grid; visibility: " + ((this.isBreak()) ? "; visibility: hidden" : "");
   }
 
   startNumberStyles() {
-    return "display: none";
-    //return "display: " + (this.isBreak() ? "none" : "grid");
+    return "display: " + (this.isBreak() ? "none" : "grid");
   }
 
   weightStyles() {

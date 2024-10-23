@@ -11,8 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.nui.displays.top.TopTeamsSinclairPage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 

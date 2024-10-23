@@ -397,6 +397,7 @@ public class WeighinContent extends BaseContent
 		// that the order will match the weigh-in form even if the current
 		// athlete has moved up a weight class. Otherwise just find the next
 		// athlete based on current order.
+
 		// quick workaround: a "no show" is indicated by removing the session.
 		Double curWeight = current.getBodyWeight();
 		if (curWeight != null || current.getGroup() == null) {

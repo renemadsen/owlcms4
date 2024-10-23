@@ -10,7 +10,7 @@
     */
     --nameWidth: 0.8fr;
     --clubWidth: 0.2fr;
-    --tableWidthRatio: 100%;
+    --tableWidthRatio: 90%;
     --defaultLeaderFillerHeight: 1.75em;
 
     /* left column width: adjust depending on how you name groups */
@@ -66,14 +66,14 @@
 }
 
 .blockPositioningWrapper {
-    /*background-color: var(--blockBackgroundColor);*/
+    background-color: var(--blockBackgroundColor);
     padding: 0.75em;
     margin-top: 1em;
     flex-grow: 0;
 }
 
 .filler {
-    /*background-color: var(--blockBackgroundColor);*/
+    background-color: var(--blockBackgroundColor);
     /* min-height: 1.5em; */
 }
 

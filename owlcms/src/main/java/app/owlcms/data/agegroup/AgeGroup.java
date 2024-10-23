@@ -301,11 +301,7 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	}
 
 	public Gender getGender() {
-		if (this.gender == null) {
-			return Gender.I;
-		} else {
-			return this.gender;
-		}
+		return this.gender;
 	}
 
 	public Long getId() {
