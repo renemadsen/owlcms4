@@ -71,7 +71,7 @@ public class BreakTimerElement extends TimerElement {
 	@AllowInert
 	@ClientCallable
 	public void clientSyncTime(String fopName) {
-		if (Config.getCurrent().featureSwitch("serverTimers")) {
+		if (!Config.getCurrent().featureSwitch("oldTimers")) {
 			return;
 		}
 		OwlcmsSession.withFop(fop -> {
@@ -93,7 +93,7 @@ public class BreakTimerElement extends TimerElement {
 	@AllowInert
 	@ClientCallable
 	public void clientTimeOver(String fopName) {
-		if (Config.getCurrent().featureSwitch("serverTimers")) {
+		if (!Config.getCurrent().featureSwitch("oldTimers")) {
 			return;
 		}
 		OwlcmsSession.withFop(fop -> {
@@ -118,7 +118,7 @@ public class BreakTimerElement extends TimerElement {
 	@AllowInert
 	@ClientCallable
 	public void clientTimerStarting(String fopName, double remainingTime, double lateMillis, String from) {
-		if (Config.getCurrent().featureSwitch("serverTimers")) {
+		if (!Config.getCurrent().featureSwitch("oldTimers")) {
 			return;
 		}
 		// logger.debug("timer {} starting on client: remaining = {}, late={}, roundtrip={}", from, remainingTime,
@@ -134,7 +134,7 @@ public class BreakTimerElement extends TimerElement {
 	@AllowInert
 	@ClientCallable
 	public void clientTimerStopped(String fopName, double remainingTime, String from) {
-		if (Config.getCurrent().featureSwitch("serverTimers")) {
+		if (!Config.getCurrent().featureSwitch("oldTimers")) {
 			return;
 		}
 		// do not stop the server-side timer, otherwise we create an infinite loop.
@@ -195,12 +195,12 @@ public class BreakTimerElement extends TimerElement {
 
 	@Subscribe
 	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
-		syncWithFopTimer();
+		syncWithFopTimer(e.getFop());
 	}
 
 	@Override
-	public void syncWithFopTimer() {
-		OwlcmsSession.withFop(fop -> {
+	public void syncWithFopTimer(FieldOfPlay fop) {
+		//OwlcmsSession.withFop(fop -> {
 			init(fop.getName());
 			// sync with current status of FOP
 			IProxyTimer breakTimer = getFopTimer(fop);
@@ -231,7 +231,7 @@ public class BreakTimerElement extends TimerElement {
 					// }
 				}
 			}
-		});
+		//});
 	}
 
 	@Override
@@ -248,8 +248,9 @@ public class BreakTimerElement extends TimerElement {
 			// we listen on uiEventBus; this method ensures we stop when detached.
 			this.uiEventLogger.trace("&&& breakTimerElement register {} {}", this.parentName, LoggerUtils.whereFrom());
 			uiEventBusRegister(this, fop);
+			syncWithFopTimer(fop);
 		});
-		syncWithFopTimer();
+
 	}
 
 	private String formatDuration(Integer milliseconds) {

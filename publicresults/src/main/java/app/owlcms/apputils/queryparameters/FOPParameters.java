@@ -27,7 +27,6 @@ import com.vaadin.flow.router.QueryParameters;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.utils.URLUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 public interface FOPParameters extends HasUrlParameter<String> {
@@ -56,8 +55,8 @@ public interface FOPParameters extends HasUrlParameter<String> {
 
     public default HashMap<String, List<String>> readParams(Location location,
             Map<String, List<String>> parametersMap) {
-        logger.debug("location {} getLocation {}", location.getPathWithQueryParameters(),
-                getLocation().getPathWithQueryParameters());
+//        logger.debug("location {} getLocation {}", location.getPathWithQueryParameters(),
+//                getLocation().getPathWithQueryParameters());
 
         HashMap<String, List<String>> newParameterMap = new HashMap<>(parametersMap);
 
@@ -146,7 +145,6 @@ public interface FOPParameters extends HasUrlParameter<String> {
      */
     @Override
     public default void setParameter(BeforeEvent event, @OptionalParameter String unused) {
-        logger.setLevel(Level.INFO);
         Location location = event.getLocation();
         QueryParameters queryParameters = location.getQueryParameters();
         Map<String, List<String>> parametersMap = queryParameters.getParameters();
@@ -154,7 +152,7 @@ public interface FOPParameters extends HasUrlParameter<String> {
 
         // change the URL to reflect the updated parameters
         Location location2 = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
-        logger.debug("setParameter {}", location2);
+        //logger.debug("setParameter {}", location2);
         event.getUI().getPage().getHistory().replaceState(null, location2);
     }
 
@@ -196,7 +194,7 @@ public interface FOPParameters extends HasUrlParameter<String> {
 
         Location location2 = new Location(location.getPath(), new QueryParameters(parametersMap));
         ui.getPage().getHistory().replaceState(null, location2);
-        logger.debug("location2 = {}", location2.getPathWithQueryParameters());
+        //logger.debug("location2 = {}", location2.getPathWithQueryParameters());
         setLocation(location2);
         storeReturnURL();
     }

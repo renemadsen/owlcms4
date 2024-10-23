@@ -34,6 +34,7 @@ import app.owlcms.apputils.queryparameters.ResultsParameters;
 import app.owlcms.components.elements.AthleteTimerElement;
 import app.owlcms.components.elements.BreakTimerElement;
 import app.owlcms.components.elements.DecisionElement;
+import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.LiftDefinition.Changes;
 import app.owlcms.data.athlete.LiftInfo;
@@ -45,6 +46,7 @@ import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
+import app.owlcms.data.team.Team;
 import app.owlcms.displays.video.StylesDirSelection;
 import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.fieldofplay.FieldOfPlay;
@@ -122,6 +124,7 @@ public class Results extends LitTemplate
 		this.uiEventLogger.setLevel(Level.INFO);
 		OwlcmsFactory.waitDBInitialized();
 		this.getElement().setProperty("autoversion", StartupUtils.getAutoVersion());
+		this.getElement().setProperty("scoreboardType", this.getClass().getSimpleName());
 	}
 
 	/**
@@ -129,7 +132,7 @@ public class Results extends LitTemplate
 	 */
 	@Override
 	public void doBreak(UIEvent event) {
-		//this.logger.debug("Results doBreak {}", LoggerUtils.stackTrace());
+		// this.logger.debug("Results doBreak {}", LoggerUtils.stackTrace());
 		OwlcmsSession.withFop(fop -> UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), this.getElement());
 
@@ -405,17 +408,11 @@ public class Results extends LitTemplate
 			prop = this.athleteToFlag.get(a);
 		} else {
 			String team = a.getTeam();
-			String teamFileName = URLUtils.sanitizeFilename(team);
 
 			if (this.teamFlags && !team.isBlank()) {
-				prop = URLUtils.getImgTag("flags/", teamFileName, ".svg");
-				if (prop == null) {
-					prop = URLUtils.getImgTag("flags/", teamFileName, ".png");
-					if (prop == null) {
-						prop = URLUtils.getImgTag("flags/", teamFileName, ".jpg");
-					}
-				}
+				prop = Team.getImgTag(team, "");
 			}
+
 			// prop can be null, will be tested with ContainsKey
 			this.athleteToFlag.put(a, prop);
 			// ja.put("teamLength", team.isBlank() ? "" : (team.length()*1.2) + "ch");
@@ -494,7 +491,7 @@ public class Results extends LitTemplate
 			this.getElement().setProperty("decisionVisible", true);
 			Athlete a = e.getAthlete();
 			// -1 because if decision in on snatch 3 we don't want to show CJ
-			updateDisplay(computeLiftType(a.getAttemptsDone() - 1), OwlcmsSession.getFop());
+			updateDisplay(computeLiftType(a.getAttemptsDone() - 1), e.getFop());
 		});
 	}
 
@@ -505,7 +502,7 @@ public class Results extends LitTemplate
 			setDisplay();
 			this.getElement().setProperty("decisionVisible", false);
 			Athlete a = e.getAthlete();
-			updateDisplay(computeLiftType(a.getAttemptsDone() - 1), OwlcmsSession.getFop());
+			updateDisplay(computeLiftType(a.getAttemptsDone() - 1), e.getFop());
 		});
 	}
 
@@ -543,7 +540,7 @@ public class Results extends LitTemplate
 		uiLog(e);
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			Athlete a = e.getAthlete();
-			this.displayOrder = getOrder(OwlcmsSession.getFop());
+			this.displayOrder = getOrder(e.getFop());
 			this.liftsDone = AthleteSorter.countLiftsDone(this.displayOrder);
 			doUpdate(a, e);
 		});
@@ -590,6 +587,7 @@ public class Results extends LitTemplate
 			Athlete curAthlete = fop.getCurAthlete();
 			if (curAthlete != null && curAthlete.getGender() != null) {
 				this.getElement().setProperty("categoryName", curAthlete.getCategory().getDisplayName());
+
 				if (Competition.getCurrent().isSinclair()) {
 					Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
 					List<Athlete> sortedAthletes = new ArrayList<>(
@@ -701,7 +699,7 @@ public class Results extends LitTemplate
 			}
 		}
 
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = e.getFop();
 		if (!leaveTopAlone) {
 			if (a != null) {
 				Group group = fop.getGroup();
@@ -726,15 +724,13 @@ public class Results extends LitTemplate
 		updateDisplay(computeLiftType(fop.getCurAthlete()), fop);
 	}
 
-	protected String formatInt(Integer total) {
-		if (total == null || total == 0) {
+	protected String formatInt(Integer value) {
+		if (value == null || value == 0) {
 			return "-";
-		} else if (total == -1) {
-			return "inv.";// invited lifter, not eligible.
-		} else if (total < 0) {
-			return "(" + Math.abs(total) + ")";
+		} else if (value < 0) {
+			return "(" + Math.abs(value) + ")";
 		} else {
-			return total.toString();
+			return value.toString();
 		}
 	}
 
@@ -742,7 +738,8 @@ public class Results extends LitTemplate
 		if (total == null || total == 0) {
 			return "&nbsp;";
 		} else if (total == -1) {
-			return "inv.";// invited lifter, not eligible.
+			// invited lifter, not eligible.
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}
@@ -756,10 +753,14 @@ public class Results extends LitTemplate
 	protected void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank, FieldOfPlay fop) {
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
+		String fullName;
 		if (isAbbreviatedName()) {
-			ja.put("fullName", a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "");
+			fullName = a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "";
 		} else {
-			ja.put("fullName", a.getFullName() != null ? a.getFullName() : "");
+			fullName = a.getFullName() != null ? a.getFullName() : "";
+		}
+		if (!a.isEligibleForIndividualRanking() && !fullName.isBlank()) {
+			fullName = Translator.translate("Scoreboard.Extra/Invited", fullName);
 		}
 		ja.put("teamName", a.getTeam() != null ? a.getTeam() : "");
 		ja.put("yearOfBirth", a.getYearOfBirth() != null ? a.getYearOfBirth().toString() : "");
@@ -780,6 +781,7 @@ public class Results extends LitTemplate
 		} else {
 			this.logger.error("main rankings null for {}", a);
 		}
+		ja.put("attemptNumber", formatInt(a.getAttemptsDone() + 1));
 		ja.put("group", a.getGroup().getName());
 		ja.put("subCategory", a.getSubCategory());
 
@@ -804,6 +806,18 @@ public class Results extends LitTemplate
 					highlight = "";
 			}
 		}
+		Athlete previousAthlete = fop.getPreviousAthlete();
+		// we use the start number because athlete equality is tricky due to participations.
+		if (isJury() && previousAthlete != null && a.getStartNumber().equals(previousAthlete.getStartNumber())) {
+			highlight = highlight + " previous";
+			// add marker by using a unicode character defined in the translation file
+			fullName = Translator.translate("PreviousAthleteOnJuryScoreboard", fullName);
+		}
+		if (!a.isEligibleForIndividualRanking()) {
+			highlight = highlight + " outOfCompetition";
+		}
+		ja.put("fullName", fullName);
+
 		// logger.debug("{} {} {}", a.getShortName(), fop.getState(), highlight);
 		ja.put("classname", highlight);
 
@@ -910,6 +924,10 @@ public class Results extends LitTemplate
 										highlight = "";
 								}
 							}
+							Athlete previousAthlete = fop.getPreviousAthlete();
+							if (isJury() && previousAthlete != null && a.getShortName().equals(previousAthlete.getShortName())) {
+								highlight = highlight + " previous";
+							}
 							jri.put("liftStatus", "request");
 							if (notDone) {
 								jri.put("className", highlight);
@@ -977,7 +995,7 @@ public class Results extends LitTemplate
 			this.displayOrder = getOrder(fop);
 
 			this.liftsDone = AthleteSorter.countLiftsDone(this.displayOrder);
-			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this));
+			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this, fop));
 			// we listen on uiEventBus.
 			this.uiEventBus = uiEventBusRegister(this, fop);
 
@@ -989,10 +1007,10 @@ public class Results extends LitTemplate
 		getElement().setProperty("showLiftRanks",
 		        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
 		getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showSinclair",
-		        Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
-		getElement().setProperty("showSinclairRank",
-		        Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
+		// getElement().setProperty("showSinclair",
+		// Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
+		// getElement().setProperty("showSinclairRank",
+		// Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
 
 		if (!isSilenced() || !isDownSilenced()) {
 			SoundUtils.enableAudioContextNotification(this.getElement());
@@ -1008,9 +1026,7 @@ public class Results extends LitTemplate
 				translations.put(curKey.replace("Scoreboard.", ""), Translator.translate(curKey));
 			}
 		}
-
-		String scoringTitle = Ranking.getScoringTitle(Competition.getCurrent().getScoringSystem());
-		translations.put("ScoringTitle", scoringTitle != null ? scoringTitle : Translator.translate("Sinclair"));
+		translations.put("ScoringTitle", Translator.translate("Score"));
 		this.getElement().setPropertyJson("t", translations);
 	}
 
@@ -1035,7 +1051,7 @@ public class Results extends LitTemplate
 		this.getElement().setPropertyJson("athletes",
 		        getAthletesJson(this.displayOrder, fop.getLiftingOrder(), fop));
 
-		List<Athlete> order = getOrder(OwlcmsSession.getFop());
+		List<Athlete> order = getOrder(fop);
 		int resultLines = (order != null ? order.size() : 0) + countSubsets(order);
 		boolean done = fop.getState() == FOPState.BREAK && fop.getBreakType() == BreakType.GROUP_DONE;
 
@@ -1054,15 +1070,55 @@ public class Results extends LitTemplate
 	}
 
 	private String computedScore(Athlete a) {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
-		double value = Ranking.getRankingValue(a, scoringSystem);
-		String score = value > 0.001 ? String.format("%.3f", value) : "-";
-		return score;
+		AgeGroup ageGroup = a.getAgeGroup();
+		Ranking ageGroupScoringSystem = ageGroup != null ? ageGroup.getComputedScoringSystem() : null;
+		//logger.debug("a {} agegroup {} scoring {}", a.getLastName(), a.getAgeGroup(), a.getAgeGroup().getScoringSystem());
+		
+		Competition current = Competition.getCurrent();
+		boolean sinclair = current.isSinclair();
+		Competition current2 = Competition.getCurrent();
+		boolean displayGlobal = current2.isDisplayScores();
+		Competition current3 = Competition.getCurrent();
+		Ranking scoringSystem = current3.getScoringSystem();
+		
+		if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+			double value = Ranking.getRankingValue(a, Ranking.CUSTOM);
+			String score;
+			if (ageGroupScoringSystem == Ranking.TOTAL) {
+				score = value > 0.001 ? String.format("%.0f", value) : "-";
+			} else {
+				score = value > 0.001 ? String.format("%.3f", value) : "-";
+			}
+			return score;
+		} else {
+			double value = Ranking.getRankingValue(a, scoringSystem);
+			String score = value > 0.001 ? String.format("%.3f", value) : "-";
+			return score;
+		}
 	}
 
 	private String computedScoreRank(Athlete a) {
-		Integer value = Ranking.getRanking(a, Competition.getCurrent().getScoringSystem());
-		return value != null && value > 0 ? "" + value : "-";
+		Ranking ageGroupScoringSystem = a.getAgeGroup().getComputedScoringSystem();
+		
+		Competition current = Competition.getCurrent();
+		boolean sinclair = current.isSinclair();
+		Competition current2 = Competition.getCurrent();
+		boolean displayGlobal = current2.isDisplayScoreRanks();
+		Competition current3 = Competition.getCurrent();
+		Ranking scoringSystem = current3.getScoringSystem();
+		
+		if (a.isEligibleForIndividualRanking()) {
+			if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+				Integer value = Ranking.getRanking(a, Ranking.CUSTOM);
+				return value != null && value > 0 ? "" + value : "-";
+			} else {
+				Integer value = Ranking.getRanking(a, scoringSystem);
+				return value != null && value > 0 ? "" + value : "-";
+			}
+		} else {
+			return Translator.translate("Results.Extra/Invited");
+		}
+
 	}
 
 	private String computeLiftType(Athlete a) {
@@ -1089,7 +1145,7 @@ public class Results extends LitTemplate
 			doEmpty();
 		} else {
 			OwlcmsSession.withFop(fop -> {
-				this.getElement().setProperty("fullName", getTranslation("Group_number_results", g.toString()));
+				this.getElement().setProperty("fullName", Translator.translate("Group_number_results", g.toString()));
 			});
 		}
 	}
@@ -1105,14 +1161,36 @@ public class Results extends LitTemplate
 	}
 
 	private void resultsInit() {
+		// Ranking ageGroupRanking[] = { null };
+		boolean scoring[] = { false };
 		OwlcmsSession.withFop(fop -> {
-			this.logger.trace("{}Starting result board on FOP {}", FieldOfPlay.getLoggingName(fop));
 			setId("scoreboard-" + fop.getName());
 			this.curGroup = fop.getGroup();
 			setWideTeamNames(false);
 			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
+
+			List<Athlete> athletes = fop.getDisplayOrder();
+			if (athletes != null && athletes.size() > 0) {
+				// Ranking scoringSystem = athletes.get(0).getAgeGroup().getScoringSystem();
+				// boolean unanimous = athletes.stream().allMatch(s -> {
+				// Ranking scoringSystem2 = s.getAgeGroup().getScoringSystem();
+				// return scoringSystem != null && scoringSystem.equals(scoringSystem2);
+				// });
+				// if (unanimous) {
+				// ageGroupRanking[0] = scoringSystem;
+				// }
+				boolean any = athletes.stream().map(a -> a.getAgeGroup().getScoringSystem())
+				        .anyMatch(s -> s != null && s != Ranking.TOTAL);
+				scoring[0] = any;
+			}
 		});
 		setTranslationMap();
+		if (scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair()) {
+			this.getElement().setProperty("showSinclair", true);
+		}
+		if (scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair()) {
+			this.getElement().setProperty("showSinclairRank", true);
+		}
 		this.displayOrder = ImmutableList.of();
 	}
 
@@ -1183,12 +1261,12 @@ public class Results extends LitTemplate
 
 	private void syncWithFOP() {
 		OwlcmsSession.withFop(fop -> {
-			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this));
+			syncWithFOP(new UIEvent.SwitchGroup(fop.getGroup(), fop.getState(), fop.getCurAthlete(), this, fop));
 		});
 	}
 
 	private void syncWithFOP(UIEvent.SwitchGroup e) {
-		switch (OwlcmsSession.getFop().getState()) {
+		switch (e.getFop().getState()) {
 			case INACTIVE:
 				doEmpty();
 				break;
@@ -1196,11 +1274,13 @@ public class Results extends LitTemplate
 				if (e.getGroup() == null) {
 					doEmpty();
 				} else {
+					resultsInit();
 					doUpdate(e.getAthlete(), e);
 					doBreak(e);
 				}
 				break;
 			default:
+				resultsInit();
 				setDisplay();
 				doUpdate(e.getAthlete(), e);
 		}
@@ -1229,6 +1309,10 @@ public class Results extends LitTemplate
 			}
 			setGroupNameProperty("");
 		}
+	}
+
+	public boolean isJury() {
+		return false;
 	}
 
 }

@@ -35,9 +35,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
-import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -119,6 +118,7 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	private Integer qualificationTotal;
 	@Column(columnDefinition = "boolean default false")
 	private Boolean alreadyGendered = false;
+	private Ranking scoringSystem;
 
 	public AgeGroup() {
 	}
@@ -173,15 +173,16 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		
 		compare = ObjectUtils.compare(this.maxAge, o.getMaxAge());
 		if (compare != 0) {
-			//logger.trace("(agegroup minage) {} {} {}", compare, this.minAge, o.getMinAge());
+			//logger.trace("(agegroup maxage) {} {} {}", compare, this.maxAge, o.getMaxAge());
 			return compare;
 		}
 		
 		compare = ObjectUtils.compare(this.minAge, o.getMinAge());
 		if (compare != 0) {
-			//logger.trace("(agegroup maxage) {} {} {}", compare, this.maxAge, o.getMaxAge());
+			//logger.trace("(agegroup minage) {} {} {}", compare, this.minAge, o.getMinAge());
 			return compare;
 		}
+
 		return compare;
 	}
 	
@@ -190,9 +191,6 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 			return ObjectUtils.compare(a, b, true);
 		}
 
-		if (a == null) {
-			return 0; // we are equal
-		}
 		int compare = ObjectUtils.compare(a.getGender(), b.getGender());
 		if (compare != 0) {
 			//logger.debug("agegroup gender {} {} {} ", a.getGender(), compare > 0 ? ">" : "<",  b.getGender());
@@ -433,10 +431,11 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	}
 
 	private String getTranslatedCode(String code2) {
-		String translatedCode = Translator.translateOrElseNull(
-		        "AgeGroup." + code2,
-		        OwlcmsSession.getLocale());
-		return translatedCode != null ? translatedCode : code2;
+//		String translatedCode = Translator.translateOrElseNull(
+//		        "AgeGroup." + code2,
+//		        OwlcmsSession.getLocale());
+//		return translatedCode != null ? translatedCode : code2;
+		return code2;
 	}
 
 	public void setAlreadyGendered(boolean b) {
@@ -449,6 +448,21 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 	public String getChampionshipName() {
 		return championshipName;
+	}
+
+	public Ranking getComputedScoringSystem() {
+		if (scoringSystem == null) {
+			return Ranking.TOTAL;
+		}
+		return scoringSystem;
+	}
+	
+	public Ranking getScoringSystem() {
+		return scoringSystem;
+	}
+
+	public void setScoringSystem(Ranking setScoringSystem) {
+		this.scoringSystem = setScoringSystem;
 	}
 
 }

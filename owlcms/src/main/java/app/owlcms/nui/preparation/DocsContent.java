@@ -22,6 +22,9 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Hr;
 import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.Notification.Position;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.router.BeforeEvent;
@@ -85,6 +88,17 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	 * {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
 	 */
 	public DocsContent() {
+	}
+
+	@Override
+	public void clearFilters() {
+		this.getAgeGroupFilter().clear();
+		this.getChampionshipFilter().clear();
+		this.getCategoryFilter().clear();
+		this.getGenderFilter().clear();
+		this.getPlatformFilter().clear();
+		this.getLastNameFilter().clear();
+		this.getWeighedInFilter().clear();
 	}
 
 	/**
@@ -156,6 +170,16 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		return this.categoryFilter;
 	}
 
+	/**
+	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location,
+	 *      java.util.Map)
+	 */
+
+	@Override
+	public Category getCategoryValue() {
+		return super.getCategoryValue();
+	}
+
 	@Override
 	public List<String> getChampionshipAgeGroupPrefixes() {
 		return this.championshipAgeGroupPrefixes;
@@ -196,7 +220,11 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation("Preparation.PrecompDocsTitle");
+		return Translator.translate("Preparation.PrecompDocsTitle");
+	}
+
+	public ComboBox<Platform> getPlatformFilter() {
+		return platformFilter;
 	}
 
 	@Override
@@ -207,80 +235,6 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	@Override
 	public boolean isIgnoreGroupFromURL() {
 		return false;
-	}
-
-	/**
-	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location,
-	 *      java.util.Map)
-	 */
-//	@Override
-//	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
-//		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
-//
-//		List<String> ageDivisionParams = params1.get("ad");
-//		try {
-//			String ageDivisionName = (ageDivisionParams != null
-//			        && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0) : null);
-//			Championship valueOf = Championship.of(ageDivisionName);
-//			if (valueOf != null) {
-//				setChampionship(valueOf);
-//				this.getChampionshipFilter().setValue(valueOf);
-//			}
-//		} catch (Exception e) {
-//			setChampionship(null);
-//			this.getChampionshipFilter().setValue(null);
-//		}
-//		// remove if now null
-//		String value = getChampionship() != null ? getChampionship().getName() : null;
-//		updateParam(params1, "ad", value);
-//
-//		List<String> ageGroupParams = params1.get("ag");
-//		// no age group is the default
-//		String ageGroupPrefix = (ageGroupParams != null && !ageGroupParams.isEmpty() ? ageGroupParams.get(0) : null);
-//		setAgeGroupPrefix(ageGroupPrefix);
-//		this.getAgeGroupFilter().setValue(ageGroupPrefix);
-//		String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
-//		updateParam(params1, "ag", value2);
-//
-//		List<String> groupParams = params1.get("group");
-//		// no age group is the default
-//		String groupString = (groupParams != null && !groupParams.isEmpty() ? groupParams.get(0) : null);
-//		Group groupValue = groupString != null ? GroupRepository.findByName(groupString) : null;
-//		setGroup(groupValue);
-//		getGroupFilter().setValue(groupValue);
-//		updateParam(params1, "group", groupString);
-//
-//		List<String> genderParams = params1.get("gender");
-//		// no age group is the default
-//		String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
-//		Gender genderValue = genderString != null ? Gender.valueOf(genderString) : null;
-//		setGender(genderValue);
-//		this.getGenderFilter().setValue(genderValue);
-//		updateParam(params1, "gender", genderString);
-//
-//		List<String> catParams = params1.get("cat");
-//		String catParam = (catParams != null && !catParams.isEmpty() ? catParams.get(0) : null);
-//		catParam = catParam != null ? URLDecoder.decode(catParam, StandardCharsets.UTF_8) : null;
-//		this.setCategory(CategoryRepository.findByCode(catParam));
-//		String catValue = getCategoryValue() != null ? getCategoryValue().toString() : null;
-//		updateParam(params1, "cat", catValue);
-//
-//		List<String> platformParams = params1.get("platform");
-//		String platformParam = (platformParams != null && !platformParams.isEmpty() ? platformParams.get(0) : null);
-//		platformParam = platformParam != null ? URLDecoder.decode(platformParam, StandardCharsets.UTF_8) : null;
-//		this.setPlatform(platformParam != null ? PlatformRepository.findByName(platformParam) : null);
-//		// logger.debug("reading param platform {}", platformParam);
-//		this.getPlatformFilter().setValue(this.getPlatform());
-//		updateParam(params1, "platform", platformParam != null ? platformParam : null);
-//
-//		// logger.debug("params {}", params1);
-//		setUrlParameterMap(params1);
-//		return params1;
-//	}
-
-	@Override
-	public Category getCategoryValue() {
-		return super.getCategoryValue();
 	}
 
 	@Override
@@ -368,6 +322,10 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
+	public void setPlatformFilter(ComboBox<Platform> platformFilter) {
+		this.platformFilter = platformFilter;
+	}
+
 	public void updateURLLocation(UI ui, Location location, Group newGroup) {
 		// change the URL to reflect fop group
 		Map<String, List<String>> params = new HashMap<>(
@@ -393,7 +351,28 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
 			        List<Athlete> athletesFindAll = athletesFindAll(true);
-			        cardsXlsWriter.setSortedAthletes(athletesFindAll);
+			        String message = null;
+			        if (athletesFindAll.size() > cardsXlsWriter.getSizeLimit()) {
+				        message = Translator.translate("TooManyAthletes", cardsXlsWriter.getSizeLimit());
+				        logger./**/warn("too many athletes : no report");
+			        } else if (athletesFindAll.size() == 0) {
+				        message = Translator.translate("NoAthletes");
+				        logger./**/warn("no athletes: empty report.");
+			        }
+			        final String m = message;
+			        if (message != null) {
+				        this.getUI().get().access(() -> {
+					        Notification notif = new Notification();
+					        notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
+					        notif.setPosition(Position.TOP_STRETCH);
+					        notif.setDuration(3000);
+					        notif.setText(m);
+					        notif.open();
+				        });
+				        return null;
+			        } else {
+				        cardsXlsWriter.setSortedAthletes(athletesFindAll);
+			        }
 			        return cardsXlsWriter;
 		        },
 		        resourceDirectoryLocation,
@@ -460,9 +439,10 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 			        startingXlsWriter.setGroup(
 			                getGroup() != null ? GroupRepository.getById(getGroup().getId()) : null);
 			        // get current version of athletes.
-			        startingXlsWriter.setPostProcessor(null);
 			        List<Athlete> athletesFindAll = athletesFindAll(true);
 			        startingXlsWriter.setSortedAthletes(athletesFindAll);
+					startingXlsWriter.setPostProcessor(null);
+
 			        return startingXlsWriter;
 		        },
 		        resourceDirectoryLocation,
@@ -510,8 +490,8 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 			        return rs;
 		        },
 		        resourceDirectoryLocation,
-		        Competition::getComputedStartingWeightsSheetTemplateFileName,
-		        Competition::setStartingWeightsSheetTemplateFileName,
+		        Competition::getWeighInFormTemplateFileName,
+		        Competition::setWeighInFormTemplateFileName,
 		        title,
 		        Translator.translate("Download"));
 		return startingWeightsButton.createDownloadButton();
@@ -540,7 +520,7 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		if (this.getPlatformFilter() == null) {
 			this.setPlatformFilter(new ComboBox<>());
 		}
-		this.getPlatformFilter().setPlaceholder(getTranslation("Platform"));
+		this.getPlatformFilter().setPlaceholder(Translator.translate("Platform"));
 		List<Platform> agItems1 = PlatformRepository.findAll();
 		this.getPlatformFilter().setItems(agItems1);
 		// platformFilter.setItemLabelGenerator((ad) -> Translator.translate("Division."
@@ -563,17 +543,6 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 		crudGrid.getCrudLayout().addFilterComponent(clearFilters);
 	}
 
-	@Override
-	public void clearFilters() {
-		this.getAgeGroupFilter().clear();
-		this.getChampionshipFilter().clear();
-		this.getCategoryFilter().clear();
-		this.getGenderFilter().clear();
-		this.getPlatformFilter().clear();
-		this.getLastNameFilter().clear();
-		this.getWeighedInFilter().clear();
-	}
-
 	/**
 	 * We do not connect to the event bus, and we do not track a field of play (non-Javadoc)
 	 *
@@ -581,14 +550,6 @@ public class DocsContent extends RegistrationContent implements HasDynamicTitle,
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-	}
-
-	public ComboBox<Platform> getPlatformFilter() {
-		return platformFilter;
-	}
-
-	public void setPlatformFilter(ComboBox<Platform> platformFilter) {
-		this.platformFilter = platformFilter;
 	}
 
 }

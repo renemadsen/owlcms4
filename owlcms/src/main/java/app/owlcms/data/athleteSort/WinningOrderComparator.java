@@ -69,10 +69,52 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 				return compareQPointsResultOrder(lifter1, lifter2);
 			case GAMX:
 				return compareGamxResultOrder(lifter1, lifter2);
-			default:
+			case AGEFACTORS:
+				return compareAgeAdjustedTotalOrder(lifter1, lifter2);
+			case QAGE:
+				return compareQAgeResultOrder(lifter1, lifter2);
+			case SNATCH_CJ_TOTAL:
 				throw new UnsupportedOperationException("Unsupported ranking type " + this.rankingType);
 		}
+		return 0;
 	}
+
+	/**
+	 * Determine who ranks first on AgeFactor-adjusted total.
+	 *
+	 * @param lifter1 the lifter 1
+	 * @param lifter2 the lifter 2
+	 * @return the int
+	 */
+	public int compareAgeAdjustedTotalOrder(Athlete lifter1, Athlete lifter2) {
+		int compare = 0;
+		compare = ObjectUtils.compare(lifter1.getGender(), lifter2.getGender());
+		if (compare != 0) {
+			return compare;
+		}
+		compare = compareAgeAdjustedTotal(lifter1, lifter2);
+		traceComparison("gamx", lifter1, lifter2, compare);
+		if (compare != 0) {
+			return compare;
+		}
+
+		return tieBreak(lifter1, lifter2, true);
+	}
+
+	public int compareAgeAdjustedTotal(Athlete lifter1, Athlete lifter2) {
+		Double lifter1Value = lifter1.getAgeAdjustedTotal();
+		Double lifter2Value = lifter2.getAgeAdjustedTotal();
+		final Double notWeighed = 0D;
+		if (lifter1Value == null) {
+			lifter1Value = notWeighed;
+		}
+		if (lifter2Value == null) {
+			lifter2Value = notWeighed;
+		}
+		// bigger adjusted total comes first
+		return -lifter1Value.compareTo(lifter2Value);
+	}
+
 
 	/**
 	 * Determine who ranks first. the Athlete who reached total first is ranked first.
@@ -105,7 +147,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 
 		if (!ignoreCategories) {
 			compare = compareCategory(lifter1, lifter2);
-			traceComparison("compareCategory", lifter1, lifter2, compare);
+			traceComparison("compareCategory", lifter1.getShortName(), lifter1.getCategoryCode(), lifter1.getShortName(), lifter2.getCategoryCode(), compare);
 			if (compare != 0) {
 				return compare;
 			}
@@ -113,7 +155,8 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 
 		compare = compareBestCleanJerk(lifter1, lifter2);
 		if (compare != 0) {
-			traceComparison("compareBestCleanJerk", lifter1, lifter2, compare);
+			traceComparison("compareBestCleanJerk", lifter1.getShortName(), lifter1.getBestCleanJerk(), lifter1.getBestCleanJerk(), lifter2.getCategoryCode(),
+			        compare);
 			return -compare; // smaller is less good
 		}
 
@@ -123,8 +166,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	/**
 	 * Determine who ranks first. If the body weights are the same, the Athlete who reached total first is ranked first.
 	 *
-	 * This variant allows judges to award a score based on a formula, with bonuses or penalties, manually. Used for the
-	 * U12 championship in Quebec.
+	 * This variant allows judges to award a score based on a formula, with bonuses or penalties, manually. Used for the U12 championship in Quebec.
 	 *
 	 * @param lifter1          the lifter 1
 	 * @param lifter2          the lifter 2
@@ -202,8 +244,31 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		compare = compareBodyWeight(lifter1, lifter2);
 		traceComparison("qpoints compareBodyWeight", lifter1, lifter2, compare);
 		return compare; // smaller Athlete wins
-
 	}
+	
+	/**
+	 * Determine who ranks first on QPoints points.
+	 *
+	 * @param lifter1 the lifter 1
+	 * @param lifter2 the lifter 2
+	 * @return the int
+	 */
+	public int compareQAgeResultOrder(Athlete lifter1, Athlete lifter2) {
+		int compare = 0;
+		compare = ObjectUtils.compare(lifter1.getGender(), lifter2.getGender());
+		if (compare != 0) {
+			return compare;
+		}
+		compare = compareQAge(lifter1, lifter2);
+		traceComparison("qPoints", lifter1, lifter2, compare);
+		if (compare != 0) {
+			return compare;
+		}
+		compare = compareBodyWeight(lifter1, lifter2);
+		traceComparison("qage compareBodyWeight", lifter1, lifter2, compare);
+		return compare; // smaller Athlete wins
+	}
+
 
 	/**
 	 * Determine who ranks first on Robi points.
@@ -268,7 +333,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		}
 
 		compare = compareSmfForDelta(lifter1, lifter2);
-		traceComparison("smm", lifter1, lifter2, compare);
+		traceComparison("smhf", lifter1, lifter2, compare);
 		if (compare != 0) {
 			return compare;
 		}
@@ -295,7 +360,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 
 		if (!ignoreCategories) {
 			compare = compareCategory(lifter1, lifter2);
-			traceComparison("snatch category", lifter1, lifter2, compare);
+			traceComparison("snatch category", lifter1.getLastName(), lifter1.getCategoryCode(), lifter2.getLastName(), lifter1.getCategoryCode(), compare);
 			if (compare != 0) {
 				return compare;
 			}
@@ -368,6 +433,12 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		int compare = 0;
 
 		if (!ignoreCategories) {
+			compare = compareAgeGroup(lifter1, lifter2);
+			traceComparison("compareAgeGroup", lifter1.getShortName(), lifter1.getAgeGroupDisplayName(), lifter1.getShortName(),
+			        lifter2.getAgeGroupDisplayName(), compare);
+			if (compare != 0) {
+				return compare;
+			}
 			compare = compareCategory(lifter1, lifter2);
 			traceComparison("categories", lifter1, lifter2, compare);
 			if (compare != 0) {
@@ -407,9 +478,9 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	private int compareBestCleanJerkTime(Athlete lifter1, Athlete lifter2) {
 		LocalDateTime bestCleanJerkAttemptTime1 = lifter1.getBestCleanJerkAttemptTime();
 		LocalDateTime bestCleanJerkAttemptTime2 = lifter2.getBestCleanJerkAttemptTime();
-//			logger.trace("tieBreak {} {}={} {} {}={} {}", LoggerUtils.stackTrace(),
-//			        lifter1.getShortName(), lifter1.getBestCleanJerk(), bestCleanJerkAttemptTime1,
-//			        lifter2.getShortName(), lifter2.getBestCleanJerk(), bestCleanJerkAttemptTime2);
+		// logger.trace("tieBreak {} {}={} {} {}={} {}", LoggerUtils.stackTrace(),
+		// lifter1.getShortName(), lifter1.getBestCleanJerk(), bestCleanJerkAttemptTime1,
+		// lifter2.getShortName(), lifter2.getBestCleanJerk(), bestCleanJerkAttemptTime2);
 		int compare = ObjectUtils.compare(bestCleanJerkAttemptTime1, bestCleanJerkAttemptTime2);
 		// traceComparison("best clean jerk ", lifter1, lifter2, compare);
 		return compare;
@@ -420,8 +491,8 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	}
 
 	/**
-	 * Compare competition session start times for two athletes. A null session time is considered to be at the
-	 * beginning of time, earlier than any non-null time.
+	 * Compare competition session start times for two athletes. A null session time is considered to be at the beginning of time, earlier than any non-null
+	 * time.
 	 *
 	 * @param lifter1
 	 * @param lifter2
@@ -473,10 +544,11 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		}
 
 		if (lifter1 != null && lifter2 != null && lifter1.getGroup() != lifter2.getGroup()) {
-		compare = compareCompetitionSessionTime(lifter1, lifter2);
+			compare = compareCompetitionSessionTime(lifter1, lifter2);
 			traceComparison("tiebreak compareCompetitionSessionTime", lifter1, lifter2, compare);
-		if (compare != 0) {
-			return compare; // earlier group time wins
+			if (compare != 0) {
+				return compare; // earlier group time wins
+			}
 		}
 		}
 

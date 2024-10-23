@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.TimerTask;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.SynchronousQueue;
@@ -35,6 +36,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.persistence.EntityManager;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.Mixer;
 
@@ -50,6 +52,7 @@ import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
+import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athlete.LiftDefinition;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
@@ -82,6 +85,7 @@ import app.owlcms.fieldofplay.FOPEvent.TimeStarted;
 import app.owlcms.fieldofplay.FOPEvent.TimeStopped;
 import app.owlcms.fieldofplay.FOPEvent.WeightChange;
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.monitors.EventForwarder;
 import app.owlcms.monitors.IUnregister;
@@ -105,11 +109,10 @@ import elemental.json.JsonValue;
 /**
  * This class describes one field of play at runtime.
  *
- * It encapsulates the in-memory data structures used to describe the state of the competition and links them to the
- * database descriptions of the group and platform.
+ * It encapsulates the in-memory data structures used to describe the state of the competition and links them to the database descriptions of the group and
+ * platform.
  *
- * The main method is {@link #handleFOPEvent(FOPEvent)} which implements a state automaton and processes events received
- * on the event bus.
+ * The main method is {@link #handleFOPEvent(FOPEvent)} which implements a state automaton and processes events received on the event bus.
  *
  * @author owlcms
  */
@@ -119,6 +122,18 @@ public class FieldOfPlay implements IUnregister {
 	public static final int REVERSAL_DELAY = 3000;
 	private static final int DEFAULT_BREAK_DURATION = 10 * 60 * 1000;
 	private static final int WAKEUP_DURATION_MS = 20000;
+
+	/**
+	 * @param fieldOfPlay
+	 * @return the name
+	 */
+	public static String getLoggingName(FieldOfPlay fieldOfPlay) {
+		return "FOP "
+		        + (fieldOfPlay != null ? fieldOfPlay.name
+		                /* +System.identityHashCode(fieldOfPlay) */
+		                : "-")
+		        + "    ";
+	}
 
 	/**
 	 * Instantiates a new field of play state. This constructor is only used for testing using mock timers.
@@ -207,17 +222,26 @@ public class FieldOfPlay implements IUnregister {
 	private AgeGroup videoAgeGroup;
 	private List<Athlete> resultsOrder;
 	private boolean cjBreakDisplayed;
-	private MQTTMonitor mqttMonitor = null;
 	private EventForwarder eventForwarder;
 	private JuryDecision toBeAnnouncedJuryDecision;
+	private FieldOfPlay existingFOP;
 	private Queue<FOPEvent.WeightChange> deferredWeightChanges = new LinkedList<>();
+	private Athlete nextAthlete;
+	private TimerTask decisionDisplayTimer;
+	private boolean singleReferee;
+	private Sound finalWarningSound;
+	private Sound initialWarningSound;
+	private Sound timeOverSound;
+	private boolean useCollarsIfAvailable;
+	private int barWeight;
+	private boolean lightBarInUse;
 
 	public FieldOfPlay() {
 	}
 
 	/**
-	 * Instantiates a new field of play state. When using this constructor {@link #init(List, IProxyTimer)} must later
-	 * be used to provide the athletes and set the athleteTimer
+	 * Instantiates a new field of play state. When using this constructor {@link #init(List, IProxyTimer)} must later be used to provide the athletes and set
+	 * the athleteTimer
 	 *
 	 * @param group     the group (to get details such as name, and to reload athletes)
 	 * @param platform2 the platform (to get details such as name)
@@ -226,13 +250,21 @@ public class FieldOfPlay implements IUnregister {
 		this.name = platform2.getName();
 		initEventBuses();
 
+		this.existingFOP = OwlcmsFactory.getFOPByName(this.name);
+		if (this.existingFOP != null) {
+			RuntimeException exc = new RuntimeException("FOP " + this.name + " already exists");
+			LoggerUtils.logError(this.logger, exc, true);
+			throw exc;
+		}
+
 		// check if refereeing devices connected via MQTT are in use
 		String paramMqttServer = Config.getCurrent().getParamMqttServer();
 		boolean mqttInternal = Config.getCurrent().getParamMqttInternal();
 
+		OwlcmsFactory.getFopByName().put(this.name, this);
+
 		if (mqttInternal || paramMqttServer != null) {
-			MQTTMonitor mm = new MQTTMonitor(this);
-			setMqttMonitor(mm);
+			MQTTMonitor mm = MQTTMonitor.initMQTTMonitorByName(this.name, this);
 			mm.start();
 		}
 
@@ -241,11 +273,11 @@ public class FieldOfPlay implements IUnregister {
 		this.setPlatform(platform2);
 
 		this.fopEventBus.register(this);
-		this.setEventForwarder(new EventForwarder(this));
+		this.setEventForwarder(EventForwarder.initEventForwarderByName(this.name, this));
 	}
 
 	public void broadcast(String string) {
-		pushOutUIEvent(new UIEvent.Broadcast(string, this));
+		pushOutUIEvent(new UIEvent.Broadcast(string, this, this));
 	}
 
 	public boolean computeShowAllGroupRecords() {
@@ -368,6 +400,10 @@ public class FieldOfPlay implements IUnregister {
 		return this.eventForwarder;
 	}
 
+	public EventBus getEventForwardingBus() {
+		return this.eventForwardingBus;
+	}
+
 	/**
 	 * @return the fopEventBus
 	 */
@@ -425,24 +461,12 @@ public class FieldOfPlay implements IUnregister {
 		return this.logger;
 	}
 
-	/**
-	 * @param fieldOfPlay
-	 * @return the name
-	 */
-	public static String getLoggingName(FieldOfPlay fieldOfPlay) {
-		return "FOP "
-		        + (fieldOfPlay != null ? fieldOfPlay.name
-		                /* +System.identityHashCode(fieldOfPlay) */
-		                : "-")
-		        + "    ";
-	}
-
 	public TreeMap<String, TreeSet<Athlete>> getMedals() {
 		return this.medals;
 	}
 
 	public MQTTMonitor getMqttMonitor() {
-		return this.mqttMonitor;
+		return MQTTMonitor.getMqttMonitorByName(this.getName());
 	}
 
 	/**
@@ -461,10 +485,6 @@ public class FieldOfPlay implements IUnregister {
 	 */
 	public Platform getPlatform() {
 		return this.platform;
-	}
-
-	public EventBus getEventForwardingBus() {
-		return this.eventForwardingBus;
 	}
 
 	/**
@@ -573,19 +593,18 @@ public class FieldOfPlay implements IUnregister {
 	/**
 	 * Handle field of play events.
 	 *
-	 * FOP (Field of Play) events inform us of what is happening (e.g. athleteTimer started by timekeeper, decision
-	 * given by official, etc.) The current state determines what we do with the event. Typically, we update the state
-	 * of the field of play (e.g. time is now running) and we issue commands to the listening user interfaces (e.g.
-	 * start or stop time being displayed, show the decision, etc.)
+	 * FOP (Field of Play) events inform us of what is happening (e.g. athleteTimer started by timekeeper, decision given by official, etc.) The current state
+	 * determines what we do with the event. Typically, we update the state of the field of play (e.g. time is now running) and we issue commands to the
+	 * listening user interfaces (e.g. start or stop time being displayed, show the decision, etc.)
 	 *
-	 * A given user interface will issue a FOP event. This method reacts to the event by updating state, and we issue
-	 * the resulting user interface commands on the @link uiEventBus.
+	 * A given user interface will issue a FOP event. This method reacts to the event by updating state, and we issue the resulting user interface commands on
+	 * the @link uiEventBus.
 	 *
 	 * All UIEvents are normally sent by this class, with two exceptions:
 	 *
-	 * - Timer events are sent by separate Timer objets that implement IProxyTimer. These classes remember the time and
-	 * broadcast to all listening timers. - Some UI Classes send UIEvents to themselves, or sub-components, as a way to
-	 * propagate UI State changes (for example, propagating the reset of decision lights).
+	 * - Timer events are sent by separate Timer objets that implement IProxyTimer. These classes remember the time and broadcast to all listening timers. -
+	 * Some UI Classes send UIEvents to themselves, or sub-components, as a way to propagate UI State changes (for example, propagating the reset of decision
+	 * lights).
 	 *
 	 * @param e the event
 	 */
@@ -630,7 +649,7 @@ public class FieldOfPlay implements IUnregister {
 				pushOutUIEvent(new UIEvent.Notification(null, this,
 				        UIEvent.Notification.Level.ERROR,
 				        "BreakButton.cannotInterruptBreak",
-				        3000));
+				        3000, this));
 				return;
 			}
 			// exception: wait until a decision has been registered to process jury
@@ -753,9 +772,9 @@ public class FieldOfPlay implements IUnregister {
 					        e.getOrigin(),
 					        false,
 					        this.getBreakType(),
-					        this.getCountdownType()));
+					        this.getCountdownType(), this));
 				} else if (e instanceof FOPEvent.BreakDone) {
-					pushOutUIEvent(new UIEvent.BreakDone(e.getOrigin(), getBreakType()));
+					pushOutUIEvent(new UIEvent.BreakDone(e.getOrigin(), getBreakType(), this));
 					// logger.trace("break done {} {} \n{}", this.getName(), e.getFop().getName(),
 					// e.getStackTrace());
 					BreakType breakType = getBreakType();
@@ -801,7 +820,7 @@ public class FieldOfPlay implements IUnregister {
 					doForceTime((ForceTime) e);
 				} else {
 					pushOutUIEvent(new UIEvent.Notification(this.getCurAthlete(), e.getOrigin(), e, this.state,
-					        UIEvent.Notification.Level.ERROR));
+					        UIEvent.Notification.Level.ERROR, this));
 					// unexpectedEventInState(e, CURRENT_ATHLETE_DISPLAYED);
 				}
 				break;
@@ -836,9 +855,10 @@ public class FieldOfPlay implements IUnregister {
 				} else if (e instanceof ForceTime) {
 					doForceTime((ForceTime) e);
 				} else if (e instanceof TimeStarted) {
-					// do nothing
-					this.logger.debug("{}ignoring start clock when clock is running.",
-					        FieldOfPlay.getLoggingName(this));
+					if (!getAthleteTimer().isRunning()) {
+						// don't start if already running
+						getAthleteTimer().start();
+					}
 					return;
 				} else {
 					unexpectedEventInState(e, TIME_RUNNING);
@@ -899,9 +919,13 @@ public class FieldOfPlay implements IUnregister {
 					doPossiblySoloRefereeUpdate(e);
 				} else if (e instanceof WeightChange) {
 					// we need to defer the weight change event until the decision has been shown
-					this.logger.debug("{}weight change during down {} {} {}",FieldOfPlay.getLoggingName(this), e.getAthlete(), this.getPreviousAthlete(),
+					this.logger.debug("{}weight change during down {} {} {}", FieldOfPlay.getLoggingName(this),
+					        e.getAthlete(), this.getPreviousAthlete(),
 					        this.getCurAthlete());
-					deferredWeightChanges.add((WeightChange) e);
+					this.deferredWeightChanges.add((WeightChange) e);
+				} else if (e instanceof TimeStarted) {
+					// needed if decision has been given too early (e.g. bar did not reach the knees but reds given)
+					restartTimer(e);
 				} else {
 					unexpectedEventInState(e, DOWN_SIGNAL_VISIBLE);
 				}
@@ -914,29 +938,28 @@ public class FieldOfPlay implements IUnregister {
 				} else if (e instanceof DecisionFullUpdate) {
 					// late update
 					pushOutUIEvent(new UIEvent.Notification(this.getCurAthlete(), e.getOrigin(), e, this.state,
-					        UIEvent.Notification.Level.ERROR));
+					        UIEvent.Notification.Level.ERROR, this));
 				} else if (e instanceof DecisionUpdate) {
 					// late update
 					pushOutUIEvent(new UIEvent.Notification(this.getCurAthlete(), e.getOrigin(), e, this.state,
-					        UIEvent.Notification.Level.ERROR));
+					        UIEvent.Notification.Level.ERROR, this));
 				} else if (e instanceof WeightChange) {
 					// we need to defer the weight change event until the decision has been shown
-					this.logger.debug("{}weight change during decision visible {} {} {}", FieldOfPlay.getLoggingName(this), e.getAthlete(),
+					this.logger.debug("{}weight change during decision visible {} {} {}",
+					        FieldOfPlay.getLoggingName(this), e.getAthlete(),
 					        this.getPreviousAthlete(),
 					        this.getCurAthlete());
-					deferredWeightChanges.add((WeightChange) e);
+					this.deferredWeightChanges.add((WeightChange) e);
 				} else if (e instanceof DecisionReset) {
 					// process the deferred weight changes
-					if (!deferredWeightChanges.isEmpty()) {
-						this.logger.debug("{}processing deferred weight changes",FieldOfPlay.getLoggingName(this));
+					if (!this.deferredWeightChanges.isEmpty()) {
+						this.logger.debug("{}processing deferred weight changes", FieldOfPlay.getLoggingName(this));
 						boolean resultChange = false;
-						Iterator<WeightChange> iterator = deferredWeightChanges.iterator();
-						while (iterator.hasNext()) {
-							WeightChange wc = iterator.next();
+						for (WeightChange wc : this.deferredWeightChanges) {
 							resultChange = resultChange || wc.isResultChange();
 						}
 						recomputeLiftingOrder(true, resultChange);
-						deferredWeightChanges.clear();
+						this.deferredWeightChanges.clear();
 					}
 					doDecisionReset(e);
 					if (this.deferredBreak != null) {
@@ -950,22 +973,15 @@ public class FieldOfPlay implements IUnregister {
 		}
 	}
 
-	private void checkDeferredWeightChanges() {
-		if (!deferredWeightChanges.isEmpty()) {
-			// decision reset did not happen, we have pending weight changes.
-			logger.error("*** Can't happen: Weight changes during down/decision display, but no decision reset");
-			recomputeLiftingOrder(true, true);
+	private void restartTimer(FOPEvent e) {
+		cancelWakeUpRef();
+		if (decisionDisplayTimer != null) {
+			decisionDisplayTimer.cancel();
 		}
-	}
-
-	private void doPossiblySoloRefereeUpdate(FOPEvent e) {
-		if (((DecisionUpdate) e).getRefIndex() < 0) {
-			boolean goodLift = ((DecisionUpdate) e).isDecision();
-			simulateDecision(new ExplicitDecision(e.getAthlete(), e.getStackTrace(), isAnnouncerDecisionImmediate(), goodLift, goodLift, goodLift));
-		} else {
-			updateRefereeDecisions((DecisionUpdate) e);
-			uiShowUpdateOnJuryScreen(e);
-		}
+		resetDecisions();
+		pushOutUIEvent(new UIEvent.DecisionReset(getCurAthlete(), this, this));
+		transitionToLifting(e, group, announcerDecisionImmediate);
+		fopEventPost(new FOPEvent.TimeStarted(this));
 	}
 
 	public void init(List<Athlete> athletes, IProxyTimer timer, IProxyTimer breakTimer, boolean alreadyLoaded) {
@@ -978,7 +994,6 @@ public class FieldOfPlay implements IUnregister {
 		this.setCurAthlete(null);
 		this.setClockOwner(null);
 		this.setClockOwnerInitialTimeAllowed(0);
-		this.setPreviousAthlete(null);
 		this.setLiftingOrder(athletes);
 		List<AgeGroup> allAgeGroups = AgeGroupRepository.findAgeGroups(getGroup());
 		this.ageGroupMap = new LinkedHashMap<>();
@@ -995,6 +1010,12 @@ public class FieldOfPlay implements IUnregister {
 		if (athletes != null && athletes.size() > 0) {
 			done = recomputeLiftingOrder(true, true);
 		}
+
+		// get the correct previous athlete
+		LiftOrderReconstruction lor = new LiftOrderReconstruction(this);
+		LiftOrderInfo lastLift = lor.getLastLift();
+		this.setPreviousAthlete(lastLift != null ? lastLift.getAthlete() : null);
+
 		if (done) {
 			pushOutDone();
 		} else {
@@ -1113,35 +1134,39 @@ public class FieldOfPlay implements IUnregister {
 		}
 	}
 
-	public synchronized boolean recomputeLiftingOrder(boolean currentDisplayAffected, boolean resultChange) {
-		// this is where lifting order is actually recomputed
-		recomputeOrderAndRanks(resultChange);
-		if (getCurAthlete() == null) {
-			return true;
-		}
+	public boolean recomputeLiftingOrder(boolean currentDisplayAffected, boolean resultChange) {
+		Competition comp = Competition.getCurrent();
+		// because of recalculation of ranks, if same category is lifting on two FOPs, strange things can happen
+		// if done in parallel. Force sequence.
+		synchronized (comp) {
+			recomputeOrderAndRanks(resultChange);
+			if (getCurAthlete() == null) {
+				return true;
+			}
 
-		int timeAllowed = getTimeAllowed();
-		Integer attemptsDone = getCurAthlete().getAttemptsDone();
-		this.logger.debug("{}recomputed lifting order curAthlete={} prevlifter={} time={} attemptsDone={} [{}]",
-		        FieldOfPlay.getLoggingName(this),
-		        getCurAthlete() != null ? getCurAthlete().getFullName() : "",
-		        getPreviousAthlete() != null ? getPreviousAthlete().getFullName() : "",
-		        timeAllowed,
-		        attemptsDone,
-		        LoggerUtils.whereFrom());
-		if (currentDisplayAffected) {
-			getAthleteTimer().setTimeRemaining(timeAllowed, false);
-		} else {
-			// logger.debug("not affected {}", LoggerUtils.stackTrace());
+			int timeAllowed = getTimeAllowed();
+			Integer attemptsDone = getCurAthlete().getAttemptsDone();
+			this.logger.debug("{}recomputed lifting order curAthlete={} prevlifter={} time={} attemptsDone={} [{}]",
+			        FieldOfPlay.getLoggingName(this),
+			        getCurAthlete() != null ? getCurAthlete().getFullName() : "",
+			        getPreviousAthlete() != null ? getPreviousAthlete().getFullName() : "",
+			        timeAllowed,
+			        attemptsDone,
+			        LoggerUtils.whereFrom());
+			if (currentDisplayAffected) {
+				getAthleteTimer().setTimeRemaining(timeAllowed, false);
+			} else {
+				// logger.debug("not affected {}", LoggerUtils.stackTrace());
+			}
+			// for the purpose of showing team scores, this is good enough.
+			// if the current athlete has done all lifts, the group is marked as done.
+			// if editing the athlete later gives back an attempt, then the state change
+			// will take
+			// place and subscribers will revert to current athlete display.
+			boolean done = attemptsDone >= 6;
+			getGroup().doDone(done);
+			return done;
 		}
-		// for the purpose of showing team scores, this is good enough.
-		// if the current athlete has done all lifts, the group is marked as done.
-		// if editing the athlete later gives back an attempt, then the state change
-		// will take
-		// place and subscribers will revert to current athlete display.
-		boolean done = attemptsDone >= 6;
-		getGroup().doDone(done);
-		return done;
 	}
 
 	public void recomputeRecords(Athlete curAthlete) {
@@ -1286,10 +1311,6 @@ public class FieldOfPlay implements IUnregister {
 		this.medals = medals;
 	}
 
-	public void setMqttMonitor(MQTTMonitor mqttMonitor) {
-		this.mqttMonitor = mqttMonitor;
-	}
-
 	/**
 	 * Sets the name.
 	 *
@@ -1301,10 +1322,13 @@ public class FieldOfPlay implements IUnregister {
 
 	public void setNewRecords(List<RecordEvent> newRecords) {
 		if (newRecords == null || newRecords.isEmpty()) {
-			this.logger.debug("{} + clearing athlete records {}", FieldOfPlay.getLoggingName(this),
-			        LoggerUtils.whereFrom());
+//			this.logger.debug("{} + clearing athlete records {}", FieldOfPlay.getLoggingName(this), LoggerUtils.whereFrom());
 		}
 		this.newRecords = newRecords;
+	}
+
+	public void setNextAthlete(Athlete a) {
+		this.nextAthlete = a;
 	}
 
 	/**
@@ -1384,7 +1408,8 @@ public class FieldOfPlay implements IUnregister {
 	@Override
 	public void unregister() {
 		MQTTMonitor mqttMonitor2 = this.getMqttMonitor();
-		logger.debug("{}unregistering mqttmonitor {}", getLoggingName(this), System.identityHashCode(mqttMonitor2));
+		this.logger.debug("{}unregistering event forwarder and mqtt monitor {}", getLoggingName(this),
+		        System.identityHashCode(mqttMonitor2));
 		this.fopEventBus.unregister(this);
 		if (this.getEventForwarder() != null) {
 			this.getEventForwarder().unregister();
@@ -1392,7 +1417,6 @@ public class FieldOfPlay implements IUnregister {
 		}
 		if (mqttMonitor2 != null) {
 			mqttMonitor2.unregister();
-			this.setMqttMonitor(null);
 		}
 	}
 
@@ -1400,9 +1424,10 @@ public class FieldOfPlay implements IUnregister {
 		if (!isFinalWarningEmitted()) {
 			this.logger.info("{}Final Warning", FieldOfPlay.getLoggingName(this));
 			if (isEmitSoundsOnServer()) {
-				new Sound(getSoundMixer(), "finalWarning.wav").emit();
+				finalWarningSound = new Sound(getSoundMixer(), "finalWarning.wav");
+				finalWarningSound.emit();
 			}
-			pushOutUIEvent(new UIEvent.TimeRemaining(this, 30));
+			pushOutUIEvent(new UIEvent.TimeRemaining(this, 30, this));
 			setFinalWarningEmitted(true);
 		}
 	}
@@ -1411,9 +1436,10 @@ public class FieldOfPlay implements IUnregister {
 		if (!isInitialWarningEmitted()) {
 			this.logger.info("{}Initial Warning", FieldOfPlay.getLoggingName(this));
 			if (isEmitSoundsOnServer()) {
-				new Sound(getSoundMixer(), "initialWarning.wav").emit();
+				initialWarningSound = new Sound(getSoundMixer(), "initialWarning.wav");
+				initialWarningSound.emit();
 			}
-			pushOutUIEvent(new UIEvent.TimeRemaining(this, 90));
+			pushOutUIEvent(new UIEvent.TimeRemaining(this, 90, this));
 			setInitialWarningEmitted(true);
 		}
 	}
@@ -1422,14 +1448,16 @@ public class FieldOfPlay implements IUnregister {
 		if (!isTimeoutEmitted()) {
 			this.logger.info("{}Time Over", FieldOfPlay.getLoggingName(this));
 			if (isEmitSoundsOnServer()) {
-				new Sound(getSoundMixer(), "timeOver.wav").emit();
+				timeOverSound = new Sound(getSoundMixer(), "timeOver.wav");
+				timeOverSound.emit();
+
 			}
-			pushOutUIEvent(new UIEvent.TimeRemaining(this, 0));
+			pushOutUIEvent(new UIEvent.TimeRemaining(this, 0, this));
 			setTimeoutEmitted(true);
 		}
 	}
 
-	void pushOutUIEvent(UIEvent event) {
+	public void pushOutUIEvent(UIEvent event) {
 		// logger.debug("!!!! {}",event);
 		getUiEventBus().post(event);
 		getEventForwardingBus().post(event);
@@ -1477,6 +1505,14 @@ public class FieldOfPlay implements IUnregister {
 		this.wakeUpRef = null;
 	}
 
+	private void checkDeferredWeightChanges() {
+		if (!this.deferredWeightChanges.isEmpty()) {
+			// decision reset did not happen, we have pending weight changes.
+			this.logger.error("*** Can't happen: Weight changes during down/decision display, but no decision reset");
+			recomputeLiftingOrder(true, true);
+		}
+	}
+
 	private Ranking computeResultOrderRanking(boolean groupDone) {
 		boolean _3medals = Competition.getCurrent().isSnatchCJTotalMedals();
 		if (groupDone || (isCjStarted() && !_3medals)) {
@@ -1517,7 +1553,7 @@ public class FieldOfPlay implements IUnregister {
 		// the state will be rewritten in displayOrBreakIfDone
 		// this is so the decision reset knows that the decision is no longer displayed.
 		cancelWakeUpRef();
-		pushOutUIEvent(new UIEvent.DecisionReset(getCurAthlete(), this));
+		pushOutUIEvent(new UIEvent.DecisionReset(getCurAthlete(), this, this));
 		setClockOwner(null);
 		// MUST NOT change setClockOwnerInitialTimeAllowed
 		setNewRecords(List.of());
@@ -1534,7 +1570,7 @@ public class FieldOfPlay implements IUnregister {
 
 	private void doEndCeremony(CeremonyDone e) {
 		setCeremonyType(null);
-		pushOutUIEvent(new UIEvent.CeremonyDone(e.getCeremonyType(), e));
+		pushOutUIEvent(new UIEvent.CeremonyDone(e.getCeremonyType(), e, this));
 	}
 
 	private void doForceTime(FOPEvent.ForceTime e) {
@@ -1564,7 +1600,7 @@ public class FieldOfPlay implements IUnregister {
 			JuryNotification juryNotificationEvent = new UIEvent.JuryNotification(a, e.getOrigin(),
 			        e.success ? JuryDeliberationEventType.GOOD_LIFT : JuryDeliberationEventType.BAD_LIFT,
 			        reversalToGood || reversalToBad, newRecord,
-			        waitForAnnouncer);
+			        waitForAnnouncer, this);
 
 			if (waitForAnnouncer) {
 				// we will get a second JuryDecision event, coming this time from the announcer
@@ -1621,6 +1657,27 @@ public class FieldOfPlay implements IUnregister {
 		processJuryMemberDecisions(e.origin, e.refIndex);
 	}
 
+	private void doPossiblySoloRefereeUpdate(FOPEvent e) {
+		// logger.debug("===== doPossiblySoloRefereeUpdate {}", isSingleReferee());
+		if (isSingleReferee() || ((DecisionUpdate) e).getRefIndex() < 0) {
+			boolean goodLift = ((DecisionUpdate) e).isDecision();
+			simulateDecision(new ExplicitDecision(e.getAthlete(), e.getStackTrace(), isAnnouncerDecisionImmediate(),
+			        goodLift, goodLift, goodLift));
+		} else {
+			updateRefereeDecisions((DecisionUpdate) e);
+			uiShowUpdateOnJuryScreen(e);
+		}
+	}
+
+	public boolean isSingleReferee() {
+		return this.singleReferee;
+	}
+
+	public void setSingleReferee(boolean solo) {
+		// logger.debug("===== set single referee {}",solo);
+		this.singleReferee = solo;
+	}
+
 	private void doSetState(FOPState state) {
 		if (state == CURRENT_ATHLETE_DISPLAYED) {
 			Athlete a = getCurAthlete();
@@ -1645,20 +1702,20 @@ public class FieldOfPlay implements IUnregister {
 		setVideoGroup(e.getCeremonyGroup());
 		setVideoCategory(e.getCeremonyCategory());
 		pushOutUIEvent(new UIEvent.CeremonyStarted(e.getCeremony(), e.getCeremonyGroup(), e.getCeremonyCategory(),
-		        e.getStackTrace(), e.getOrigin()));
+		        e.getStackTrace(), e.getOrigin(), this));
 	}
 
 	private void doSummonReferee(SummonReferee e) {
 		if (e.getRefNumber() >= 4) {
 			JuryNotification event = new UIEvent.JuryNotification(null, e.getOrigin(),
-			        JuryDeliberationEventType.CALL_TECHNICAL_CONTROLLER, null, null, false);
+			        JuryDeliberationEventType.CALL_TECHNICAL_CONTROLLER, null, null, false, this);
 			pushOutUIEvent(event);
 		} else {
 			JuryNotification event = new UIEvent.JuryNotification(null, this, JuryDeliberationEventType.CALL_REFEREES,
-			        null, null, false);
+			        null, null, false, this);
 			pushOutUIEvent(event);
 		}
-		pushOutUIEvent(new UIEvent.SummonRef(e.getRefNumber(), true, this));
+		pushOutUIEvent(new UIEvent.SummonRef(e.getRefNumber(), true, this, this));
 	}
 
 	private void doTONotifications(BreakType newBreak) {
@@ -1671,11 +1728,11 @@ public class FieldOfPlay implements IUnregister {
 					case MARSHAL:
 					case TECHNICAL:
 						pushOutUIEvent(new UIEvent.JuryNotification(this.athleteUnderReview, this,
-						        JuryDeliberationEventType.END_JURY_BREAK, null, null, false));
+						        JuryDeliberationEventType.END_JURY_BREAK, null, null, false, this));
 						break;
 					case CHALLENGE:
 						pushOutUIEvent(new UIEvent.JuryNotification(this.athleteUnderReview, this,
-						        JuryDeliberationEventType.END_CHALLENGE, null, null, false));
+						        JuryDeliberationEventType.END_CHALLENGE, null, null, false, this));
 					default:
 						break;
 				}
@@ -1685,20 +1742,20 @@ public class FieldOfPlay implements IUnregister {
 				case JURY:
 					resetJuryDecisions();
 					pushOutUIEvent(new UIEvent.JuryNotification(this.athleteUnderReview, this,
-					        JuryDeliberationEventType.START_DELIBERATION, null, null, false));
+					        JuryDeliberationEventType.START_DELIBERATION, null, null, false, this));
 					break;
 				case MARSHAL:
 					pushOutUIEvent(new UIEvent.JuryNotification(this.athleteUnderReview, this,
-					        JuryDeliberationEventType.MARSHALL, null, null, false));
+					        JuryDeliberationEventType.MARSHALL, null, null, false, this));
 					break;
 				case TECHNICAL:
 					pushOutUIEvent(new UIEvent.JuryNotification(null, this,
-					        JuryDeliberationEventType.TECHNICAL_PAUSE, null, null, false));
+					        JuryDeliberationEventType.TECHNICAL_PAUSE, null, null, false, this));
 					break;
 				case CHALLENGE:
 					resetJuryDecisions();
 					pushOutUIEvent(new UIEvent.JuryNotification(null, this,
-					        JuryDeliberationEventType.CHALLENGE, null, null, false));
+					        JuryDeliberationEventType.CHALLENGE, null, null, false, this));
 					break;
 				default:
 					break;
@@ -1709,9 +1766,8 @@ public class FieldOfPlay implements IUnregister {
 	/**
 	 * Perform weight change and adjust state.
 	 *
-	 * If the clock was started and we come back to the clock owner, we set the state to TIME_STARTED If in a break, we
-	 * are careful not to update, unless the change causes an exit from the break (e.g. jury overrule on last lift)
-	 * Otherwise we update the displays.
+	 * If the clock was started and we come back to the clock owner, we set the state to TIME_STARTED If in a break, we are careful not to update, unless the
+	 * change causes an exit from the break (e.g. jury overrule on last lift) Otherwise we update the displays.
 	 *
 	 * @param wc
 	 */
@@ -1824,6 +1880,10 @@ public class FieldOfPlay implements IUnregister {
 		return this.lastNewRecords;
 	}
 
+	public Athlete getNextAthlete() {
+		return this.nextAthlete;
+	}
+
 	private int getPrevWeight() {
 		return this.prevWeight;
 	}
@@ -1881,6 +1941,7 @@ public class FieldOfPlay implements IUnregister {
 			                newRecord ? UIEvent.Notification.Level.SUCCESS : UIEvent.Notification.Level.INFO,
 			                newRecord ? "Record.NewNotification" : "Record.AttemptNotification",
 			                3 * UIEvent.Notification.NORMAL_DURATION,
+			                this,
 			                rec.getRecordName(),
 			                Translator.translate("Record." + rec.getRecordLift().name()),
 			                rec.getAgeGrp(),
@@ -1975,7 +2036,7 @@ public class FieldOfPlay implements IUnregister {
 					lastRef = ArrayUtils.indexOf(getRefereeDecision(), null);
 					if (lastRef != -1 && !Thread.currentThread().isInterrupted()) {
 						// logger.debug("posting");
-						this.uiEventBus.post(new UIEvent.WakeUpRef(lastRef + 1, true, this));
+						this.uiEventBus.post(new UIEvent.WakeUpRef(lastRef + 1, true, this, this));
 					} else {
 						// logger.debug("not posting");
 					}
@@ -1988,7 +2049,7 @@ public class FieldOfPlay implements IUnregister {
 					// duration
 					// in either case, we turn the reminder off.
 					if (lastRef != -1) {
-						this.uiEventBus.post(new UIEvent.WakeUpRef(lastRef + 1, false, this));
+						this.uiEventBus.post(new UIEvent.WakeUpRef(lastRef + 1, false, this, this));
 					}
 				}
 			});
@@ -2022,7 +2083,7 @@ public class FieldOfPlay implements IUnregister {
 
 	private void pushOutDone() {
 		this.logger.debug("{} *** group {} done", FieldOfPlay.getLoggingName(this), getGroup());
-		UIEvent.GroupDone event = new UIEvent.GroupDone(this.getGroup(), null, LoggerUtils.whereFrom());
+		UIEvent.GroupDone event = new UIEvent.GroupDone(this.getGroup(), null, LoggerUtils.whereFrom(), this);
 		// make sure the publicresults update carries the right state.
 		this.setBreakType(BreakType.GROUP_DONE);
 		this.getBreakTimer().setIndefinite();
@@ -2077,18 +2138,18 @@ public class FieldOfPlay implements IUnregister {
 
 		// the event forces the other UIs to take notice.
 		BreakStarted event = new UIEvent.BreakStarted(millisRemaining, this, false, BreakType.FIRST_CJ,
-		        CountdownType.DURATION, LoggerUtils.stackTrace(), false);
+		        CountdownType.DURATION, LoggerUtils.stackTrace(), false, this);
 		// logger.debug("BreakStarted UI {} ",event, event.getBreakType());
 		pushOutUIEvent(event);
 	}
 
 	private void pushOutStartLifting(Group group2, Object origin) {
-		pushOutUIEvent(new UIEvent.StartLifting(group2, origin));
+		pushOutUIEvent(new UIEvent.StartLifting(group2, origin, this));
 	}
 
 	private void pushOutSwitchGroup(Object origin) {
 		pushOutUIEvent(new UIEvent.SwitchGroup(this.getGroup(), this.getState(), this.getCurAthlete(),
-		        origin));
+		        origin, this));
 	}
 
 	/**
@@ -2096,12 +2157,10 @@ public class FieldOfPlay implements IUnregister {
 	 *
 	 * Assume 16-year old Youth Lifter Y is eligible for Youth, Junior, Senior
 	 *
-	 * If she is lifting, we show youth lifter rankings, and include her if in the top 3 youth. If a Junior is lifting,
-	 * Y needs to be ranked as a junior, and include her if in top 3 juniors If a Senior is lifting, Y needs to be
-	 * ranked as a senior, and include her if in top 3 seniors
+	 * If she is lifting, we show youth lifter rankings, and include her if in the top 3 youth. If a Junior is lifting, Y needs to be ranked as a junior, and
+	 * include her if in top 3 juniors If a Senior is lifting, Y needs to be ranked as a senior, and include her if in top 3 seniors
 	 *
-	 * So we need to fetch the PAthlete that reflects each athlete's participation in the current lifter's registration
-	 * category. Ouch.
+	 * So we need to fetch the PAthlete that reflects each athlete's participation in the current lifter's registration category. Ouch.
 	 *
 	 * @param rankedAthletes
 	 */
@@ -2111,7 +2170,17 @@ public class FieldOfPlay implements IUnregister {
 			return;
 		}
 
-		if (getCurAthlete() != null) {
+		if (getCurAthlete() != null && getCurAthlete().getAgeGroup() != null && getCurAthlete().getAgeGroup().getComputedScoringSystem() != null) {
+			// compute leaders according to score.
+			Category category = getCurAthlete().getCategory();
+			TreeSet<Athlete> medalists = getMedals().get(category.getCode());
+			List<Athlete> scoreMedalists = medalists.stream().filter(a -> {
+				int r = a.getCustomRank();
+				return r <= 3 && r > 0;
+			}).collect(Collectors.toList());
+			// logger.debug("total medalists {}", totalMedalists);
+			setLeaders(scoreMedalists);
+		} else if (getCurAthlete() != null) {
 			Category category = getCurAthlete().getCategory();
 
 			TreeSet<Athlete> medalists = getMedals().get(category.getCode());
@@ -2148,12 +2217,12 @@ public class FieldOfPlay implements IUnregister {
 	}
 
 	/**
-	 * Recompute lifting order, category ranks, and leaders for current category. Sets rankings including previous
-	 * lifters for all categories in the current group.
+	 * Recompute lifting order, category ranks, and leaders for current category. Sets rankings including for previous lifters for all categories in the current
+	 * group.
 	 *
-	 * @param recomputeRanks true if a result has changed and ranks need to be recomputed
+	 * @param recomputeCategoryRanks true if a result has changed and ranks need to be recomputed
 	 */
-	private void recomputeOrderAndRanks(boolean recomputeRanks) {
+	private void recomputeOrderAndRanks(boolean recomputeCategoryRanks) {
 		Group g = getGroup();
 		List<Athlete> athletes;
 
@@ -2163,39 +2232,20 @@ public class FieldOfPlay implements IUnregister {
 		long endDisplayOrder = 0;
 		long endLeaders = 0;
 
-		// logger.debug("recompute ranks {}
-		// [{}]",recomputeRanks,LoggerUtils.whereFrom());
-		if (recomputeRanks) {
-			// we update the ranks of affected athletes in the database
+		logger.debug("{}recompute ranks recomputeCategoryRanks={} [{}]", FieldOfPlay.getLoggingName(this),
+		        recomputeCategoryRanks, LoggerUtils.whereFrom());
+		if (recomputeCategoryRanks) {
+			// we update the ranks all athletes in our category, as well as the current scoring system
 			athletes = JPAService.runInTransaction(em -> {
 				List<Athlete> l = AthleteSorter.assignCategoryRanks(em, g);
-				List<Athlete> nl = new LinkedList<>();
-				try {
-					Competition.getCurrent().globalRankings(em);
-				} catch (Exception e) {
-					this.logger.error("{} global ranking exception {}\n{}", FieldOfPlay.getLoggingName(this), e,
-					        LoggerUtils.stackTrace(e));
-				}
-				for (Athlete a : l) {
-					nl.add(em.merge(a));
-				}
-				em.flush();
+				List<Athlete> nl = updateScoringSystemRanking(em, l);
 				return nl;
 			});
 		} else {
+			// only recompute the current scoring system
 			athletes = JPAService.runInTransaction(em -> {
 				List<Athlete> l = AthleteRepository.findAthletesForGlobalRanking(em, g);
-				List<Athlete> nl = new LinkedList<>();
-				try {
-					Competition.getCurrent().globalRankings(em);
-				} catch (Exception e) {
-					this.logger.error("{} global ranking exception {}\n ", FieldOfPlay.getLoggingName(this), e,
-					        LoggerUtils.stackTrace(e));
-				}
-				for (Athlete a : l) {
-					nl.add(em.merge(a));
-				}
-				em.flush();
+				List<Athlete> nl = updateScoringSystemRanking(em, l);
 				return nl;
 			});
 		}
@@ -2204,9 +2254,10 @@ public class FieldOfPlay implements IUnregister {
 		if (athletes == null) {
 			setDisplayOrder(null);
 			setCurAthlete(null);
+			setNextAthlete(null);
 			recomputeRecords(null);
 		} else {
-			if (recomputeRanks) {
+			if (recomputeCategoryRanks) {
 				setMedals(Competition.getCurrent().computeMedals(g, athletes));
 			}
 			endMedals = System.nanoTime();
@@ -2231,6 +2282,7 @@ public class FieldOfPlay implements IUnregister {
 
 			List<Athlete> liftingOrder2 = getLiftingOrder();
 			setCurAthlete(liftingOrder2 != null && liftingOrder2.size() > 0 ? liftingOrder2.get(0) : null);
+			setNextAthlete(liftingOrder2 != null && liftingOrder2.size() > 1 ? liftingOrder2.get(1) : null);
 			// *** recomputeLeadersAndRecords(athletes);
 			// for (Athlete a : liftingOrder2) {
 			// logger.debug("sinclair {} {}",a.getShortName(), a.getSinclairRank());
@@ -2241,7 +2293,7 @@ public class FieldOfPlay implements IUnregister {
 		if (this.timingLogger.isDebugEnabled()) {
 			this.timingLogger.debug("{}*** {} total={}ms, fetch/assign={}ms medals={}ms liftingOrder={}ms leaders={}ms",
 			        FieldOfPlay.getLoggingName(this),
-			        recomputeRanks ? "recomputeOrderAndRanks" : "recompute order",
+			        recomputeCategoryRanks ? "recomputeOrderAndRanks" : "recompute order",
 			        (endLeaders - startAssignRanks) / 1000000.0,
 			        (endAssignRanks - startAssignRanks) / 1000000.0,
 			        (endMedals - endAssignRanks) / 1000000.0,
@@ -2249,6 +2301,29 @@ public class FieldOfPlay implements IUnregister {
 			        (endLeaders - endDisplayOrder) / 1000000.0);
 		}
 
+	}
+
+	private List<Athlete> updateScoringSystemRanking(EntityManager em, List<Athlete> l) {
+		if (Competition.getCurrent().isDisplayScoreRanks()) {
+			// long beforeRanks = System.currentTimeMillis();
+			try {
+				// this only computes the current scoring system
+				Competition.getCurrent().scoringSystemRankings(em);
+			} catch (Exception e) {
+				this.logger.error("{} scoringSystemRankings exception {}\n ", FieldOfPlay.getLoggingName(this),
+				        e,
+				        LoggerUtils.stackTrace(e));
+			}
+			// long afterRanks = System.currentTimeMillis();
+			// logger.debug("-------------------- scoringSystemRankings {}ms", afterRanks - beforeRanks);
+		}
+
+		List<Athlete> nl = new LinkedList<>();
+		for (Athlete a : l) {
+			nl.add(em.merge(a));
+		}
+		em.flush();
+		return nl;
 	}
 
 	private void recomputeRecordsMap(List<Athlete> athletes) {
@@ -2275,7 +2350,7 @@ public class FieldOfPlay implements IUnregister {
 		resetJuryDecisions();
 		setRefereeTime(new Long[3]);
 		setRefereeForcedDecision(false);
-		pushOutUIEvent(new UIEvent.ResetOnNewClock(this.clockOwner, this));
+		pushOutUIEvent(new UIEvent.ResetOnNewClock(this.clockOwner, this, this));
 	}
 
 	private void resetEmittedFlags() {
@@ -2486,12 +2561,12 @@ public class FieldOfPlay implements IUnregister {
 		// reversalDelay);
 		assert !isDecisionDisplayScheduled(); // caller checks.
 		setDecisionDisplayScheduled(true); // so there are never two scheduled...
-		new DelayTimer(isTestingMode()).schedule(() -> showDecisionNow(origin2), reversalDelay);
+		decisionDisplayTimer = new DelayTimer(isTestingMode()).schedule(() -> showDecisionNow(origin2), reversalDelay);
 	}
 
 	/**
-	 * The decision is confirmed as official after the 3 second delay following majority. After this delay, manual
-	 * announcer intervention is required to change and announce.
+	 * The decision is confirmed as official after the 3 second delay following majority. After this delay, manual announcer intervention is required to change
+	 * and announce.
 	 */
 	private void showDecisionNow(Object origin) {
 		// logger.debug("*** Show decision now - enter");
@@ -2554,14 +2629,14 @@ public class FieldOfPlay implements IUnregister {
 	private void showJuryMemberDecisionReceived(Object origin, int i, Boolean[] juryMemberDecision2, int jurySize) {
 		// show that one jury decision has been received (green LED)
 		// logger.debug("{}updating jury member {}", getLoggingName(), i);
-		pushOutUIEvent(new UIEvent.JuryUpdate(origin, i, juryMemberDecision2, jurySize));
+		pushOutUIEvent(new UIEvent.JuryUpdate(origin, i, juryMemberDecision2, jurySize, this));
 	}
 
 	private void showJuryMemberDecisionsNow(Object origin, boolean unanimous, int jurySize,
 	        Boolean[] juryMemberDecision2) {
 		// logger.debug("{}reveal jury member decisions {}", getLoggingName(),
 		// juryMemberDecision2);
-		pushOutUIEvent(new UIEvent.JuryUpdate(origin, unanimous, juryMemberDecision2, jurySize));
+		pushOutUIEvent(new UIEvent.JuryUpdate(origin, unanimous, juryMemberDecision2, jurySize, this));
 	}
 
 	/**
@@ -2638,7 +2713,7 @@ public class FieldOfPlay implements IUnregister {
 				getBreakTimer().start();
 
 				pushOutUIEvent(new UIEvent.BreakStarted(breakTimer.liveTimeRemaining(), this, false, newBreak,
-				        CountdownType.DURATION, e.getStackTrace(), getBreakTimer().isIndefinite()));
+				        CountdownType.DURATION, e.getStackTrace(), getBreakTimer().isIndefinite(), this));
 				return;
 			} else if ((newBreak != getBreakType() || newCountdownType != getCountdownType())) {
 				// changing the kind of break
@@ -2666,7 +2741,7 @@ public class FieldOfPlay implements IUnregister {
 					setBreakType(newBreak);
 					getBreakTimer().start();
 					pushOutUIEvent(new UIEvent.BreakStarted(breakTimer.liveTimeRemaining(), this, false, newBreak,
-					        CountdownType.DURATION, LoggerUtils.stackTrace(), getBreakTimer().isIndefinite()));
+					        CountdownType.DURATION, LoggerUtils.stackTrace(), getBreakTimer().isIndefinite(), this));
 					return;
 				} else {
 					// logger.debug("{}****** break switch: from {} to {} {}", getLoggingName(), getBreakType(),
@@ -2693,7 +2768,7 @@ public class FieldOfPlay implements IUnregister {
 			setState(BREAK);
 			breakTimer.start();
 			pushOutUIEvent(new UIEvent.BreakStarted(breakTimer.liveTimeRemaining(), this, false, newBreak,
-			        CountdownType.DURATION, e.getStackTrace(), getBreakTimer().isIndefinite()));
+			        CountdownType.DURATION, e.getStackTrace(), getBreakTimer().isIndefinite(), this));
 			return;
 		} else {
 			setBreakParams(e, breakTimer, newBreak, newCountdownType);
@@ -2804,13 +2879,15 @@ public class FieldOfPlay implements IUnregister {
 		}
 		recomputeLeadersAndRecords(this.displayOrder);
 
-		// logger.debug("&&&& previous {} current {} change {} from[{}]",
-		// getPrevWeight(), curWeight, newWeight,
-		// LoggerUtils.whereFrom());
+		changePlatformEquipment(curAthlete2, this.curWeight);
+
+		logger.debug("&&&& {} {} {} previous {} current {} change {} from[{}]", curAthlete2, nextAthlete, newWeight,
+		        getPrevWeight(), curWeight, newWeight,
+		        LoggerUtils.whereFrom());
 		pushOutUIEvent(new UIEvent.LiftingOrderUpdated(curAthlete2, nextAthlete, getPreviousAthlete(),
 		        changingAthlete,
 		        getLiftingOrder(), getDisplayOrder(), clock, currentDisplayAffected, displayToggle, e.getOrigin(),
-		        inBreak, newWeight));
+		        inBreak, newWeight, this));
 		setPrevWeight(this.curWeight);
 
 		// cur athlete can be null during some tests.
@@ -2835,12 +2912,77 @@ public class FieldOfPlay implements IUnregister {
 		}
 	}
 
+	private void changePlatformEquipment(Athlete a, Integer newWeight) {
+		// skip during unit tests.
+		if (getPlatform() == null) {
+			return;
+		}
+		boolean use15Bar = false;
+		if (Config.getCurrent().featureSwitch("childrenEquipment")) {
+			getPlatform().setNbB_5(1);
+			getPlatform().setNbB_10(1);
+			getPlatform().setNbB_15(1);
+			getPlatform().setNbB_20(1);
+			getPlatform().setNbL_2_5(1);
+			getPlatform().setNbL_5(1);
+		}
+		boolean federationRule = Config.getCurrent().featureSwitch("lightBarU13") && (a.getAgeGroup().getMinAge() <= 12 && a.getAgeGroup().getMaxAge() <= 20);
+		use15Bar = getCurAthlete().getGender() != Gender.M || federationRule;
+
+		if (getPlatform().isUseNonStandardBar()) {
+			// logger.debug("non standard bar: {}", getPlatform().getNonStandardBarWeight());
+			this.setLightBarInUse(true);
+			this.setBarWeight(getPlatform().getNonStandardBarWeight());
+			this.setUseCollarsIfAvailable(this.curWeight >= 40);
+		} else if (newWeight <= 14 && getPlatform().getNbB_5() > 0) {
+			// logger.debug("<= 14");
+			this.setLightBarInUse(true);
+			this.setBarWeight(5);
+			this.setUseCollarsIfAvailable(false);
+		} else if (newWeight <= 19 && getPlatform().getNbB_10() > 0) {
+			// logger.debug("<= 19");
+			this.setLightBarInUse(true);
+			this.setBarWeight(10);
+			this.setUseCollarsIfAvailable(false);
+		} else if ((newWeight <= 39 && (getPlatform().getNbB_20() == 0 || use15Bar) && (getPlatform().getNbB_15() > 0))) {
+			// logger.debug("<= 39 15");
+			this.setLightBarInUse(true);
+			this.setBarWeight(15);
+			this.setUseCollarsIfAvailable(false);
+		} else if ((newWeight >= 40 && (getPlatform().getNbB_20() == 0 || use15Bar) && (getPlatform().getNbB_15() > 0))) {
+			// logger.debug(">=40 15 collars");
+			this.setLightBarInUse(true);
+			this.setBarWeight(15);
+			this.setUseCollarsIfAvailable(true);
+		} else {
+			// logger.debug("standard");
+			this.setLightBarInUse(false);
+			Gender gender = curAthlete != null ? curAthlete.getGender() : null;
+			this.setBarWeight((gender != null && gender == Gender.M) ? 20 : 15);
+			this.setUseCollarsIfAvailable(true);
+		}
+		return;
+	}
+
+	private void setUseCollarsIfAvailable(boolean b) {
+		this.useCollarsIfAvailable = b;
+	}
+
+	private void setBarWeight(int i) {
+		this.barWeight = i;
+	}
+
+	private void setLightBarInUse(boolean b) {
+		this.lightBarInUse = b;
+	}
+
 	private synchronized void uiShowDownSignalOnSlaveDisplays(Object origin2) {
+		boolean announcerImmediate = origin2 instanceof AnnouncerContent && isAnnouncerDecisionImmediate();
 		boolean emitSoundsOnServer2 = isEmitSoundsOnServer();
 		boolean downEmitted2 = isDownEmitted();
 		this.uiEventLogger.debug("showDownSignalOnSlaveDisplays server={} emitted={}", emitSoundsOnServer2,
 		        downEmitted2);
-		if (emitSoundsOnServer2 && !downEmitted2) {
+		if (emitSoundsOnServer2 && !downEmitted2 && !announcerImmediate) {
 			// sound is synchronous, we don't want to wait.
 			new Thread(() -> {
 				try {
@@ -2852,11 +2994,14 @@ public class FieldOfPlay implements IUnregister {
 			}).start();
 			setDownEmitted(true);
 		}
-		pushOutUIEvent(new UIEvent.DownSignal(origin2));
+		pushOutUIEvent(new UIEvent.DownSignal(origin2, this));
 	}
 
 	private void uiShowPlates(BarbellOrPlatesChanged e) {
-		pushOutUIEvent(new UIEvent.BarbellOrPlatesChanged(e.getOrigin()));
+		if (e.getOrigin() != this) {
+			changePlatformEquipment(curAthlete, curWeight);
+		}
+		pushOutUIEvent(new UIEvent.BarbellOrPlatesChanged(e.getOrigin(), this));
 	}
 
 	private void uiShowRefereeDecisionOnSlaveDisplays(Athlete athlete2, Boolean goodLift2, Boolean[] refereeDecision2,
@@ -2864,11 +3009,11 @@ public class FieldOfPlay implements IUnregister {
 		this.uiEventLogger.debug("### showRefereeDecisionOnSlaveDisplays {}", athlete2);
 		pushOutUIEvent(new UIEvent.Decision(athlete2, goodLift2, isRefereeForcedDecision() ? null : refereeDecision2[0],
 		        refereeDecision2[1],
-		        isRefereeForcedDecision() ? null : refereeDecision2[2], origin2));
+		        isRefereeForcedDecision() ? null : refereeDecision2[2], origin2, this));
 	}
 
 	private void uiShowUpdatedRankings() {
-		pushOutUIEvent(new UIEvent.GlobalRankingUpdated(this));
+		pushOutUIEvent(new UIEvent.GlobalRankingUpdated(this, this));
 	}
 
 	private void uiShowUpdateOnJuryScreen(FOPEvent e) {
@@ -2879,7 +3024,7 @@ public class FieldOfPlay implements IUnregister {
 		        getRefereeDecision()[1],
 		        isRefereeForcedDecision() ? null : getRefereeDecision()[2], getRefereeTime()[0], getRefereeTime()[1],
 		        getRefereeTime()[2],
-		        e.getOrigin()));
+		        e.getOrigin(), this));
 	}
 
 	private void unexpectedEventInState(FOPEvent e, FOPState state) {
@@ -2893,7 +3038,7 @@ public class FieldOfPlay implements IUnregister {
 		        e.getClass().getSimpleName(), state);
 
 		pushOutUIEvent(new UIEvent.Notification(this.getCurAthlete(), e.getOrigin(), e, state,
-		        UIEvent.Notification.Level.ERROR));
+		        UIEvent.Notification.Level.ERROR, this));
 	}
 
 	/**
@@ -2992,6 +3137,7 @@ public class FieldOfPlay implements IUnregister {
 			                UIEvent.Notification.Level.ERROR,
 			                "RuleViolation.StartingWeightCurrent",
 			                0, // 3 * UIEvent.Notification.NORMAL_DURATION,
+			                this,
 			                Integer.toString(missingKg)));
 		}
 	}
@@ -3005,6 +3151,18 @@ public class FieldOfPlay implements IUnregister {
 	private void weightChangeDoNotDisturb(WeightChange e) {
 		recomputeOrderAndRanks(e.isResultChange());
 		uiDisplayCurrentAthleteAndTime(false, e, false);
+	}
+
+	public boolean isUseCollarsIfAvailable() {
+		return useCollarsIfAvailable;
+	}
+
+	public int getBarWeight() {
+		return barWeight;
+	}
+
+	public boolean isLightBarInUse() {
+		return lightBarInUse;
 	}
 
 }

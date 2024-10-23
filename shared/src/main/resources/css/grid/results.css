@@ -212,7 +212,7 @@ table.results tr td.club div.clubName div.ellipsis {
     width: var(--teamNameShortLength);
 }
 
-/* good/bad cells */
+/* good cells */
 :host table.results tr td.good {
     background-color: var(--GoodBackgroundColor);
     color: var(--GoodTextColor);
@@ -222,6 +222,7 @@ table.results tr td.club div.clubName div.ellipsis {
     font-weight: bold;
 }
 
+/* bad cells */
 :host table.results tr td.fail {
     background-color: var(--FailBackgroundColor);
     color: var(--FailTextColor);
@@ -368,6 +369,7 @@ table.results tr td.club div.clubName div.ellipsis {
 
 /* requested weight column */
 :host table.results tr td.request {
+    --BlinkBackgroundColor: var(--RequestBackgroundColor);
     background-color: var(--RequestBackgroundColor);
     color: var(--RequestTextColor);
     font-style: italic;
@@ -394,6 +396,13 @@ table.results tr td.club div.clubName div.ellipsis {
 :host table.results tr td.next {
     color: var(--NextTextColor);
     background-color: var(--NextBackgroundColor);
+    font-weight: bold;
+}
+
+/* previous athlete colors, overrides next */
+:host table.results tr td.previous {
+    color: var(--PreviousTextColor) !important;
+    background-color: var(--PreviousBackgroundColor) !important;
     font-weight: bold;
 }
 
@@ -482,6 +491,20 @@ td {
     border: none;
 }
 
+:host .light table.results tr.head th.vspacer,
+:host .light table.results tr.head td.vspacer {
+    width: var(--spacerWidth);
+    background-color: var(--pageBackgroundColor);
+    border: none;
+}
+
+:host .light table.results tr th.vspacer,
+:host .light table.results tr td.vspacer {
+    width: var(--spacerWidth);
+    background-color: var(--pageBackgroundColor);
+    border: none;
+}
+
 :host table.results tr.head td,
 :host table.results tr.head th {
     justify-content: center;
@@ -526,11 +549,11 @@ td {
     }
 
     50% {
-        background-color: var(--BackgroundColor);
+        background-color: var(--BlinkBackgroundColor, var(--BackgroundColor));
     }
 
     100% {
-        background-color: var(--BackgroundColor);
+        background-color: var(--BlinkBackgroundColor, var(--BackgroundColor));
     }
 }
 

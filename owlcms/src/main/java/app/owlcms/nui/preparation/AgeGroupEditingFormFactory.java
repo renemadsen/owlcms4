@@ -106,16 +106,18 @@ public class AgeGroupEditingFormFactory
 		formLayout.addFormItem(codeField, Translator.translate("AgeGroupCode"));
 		int maxLength = 5;
 		codeField.setRequired(true);
+		codeField.setMaxLength(maxLength);
 		this.binder.forField(codeField)
 		        .withValidator(
-		                new StringLengthValidator(Translator.translate("ThisFieldIsRequired", maxLength), 1, maxLength))
+		                new StringLengthValidator(Translator.translate("ThisFieldIsRequired", maxLength), 1, null))
 		        .withValidator(
 		                new StringLengthValidator(Translator.translate("CodeMustBeShort", maxLength), 0, maxLength))
 		        .bind(AgeGroup::getCode, AgeGroup::setCode);
 
 		ComboBox<Championship> ageDivisionField = new ComboBox<>();
 		ageDivisionField.setItems(new ListDataProvider<>(Arrays.asList(Championship.values())));
-		ageDivisionField.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.getName()));
+		//ageDivisionField.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.getName()));
+		ageDivisionField.setItemLabelGenerator((ad) -> ad.getName());
 		this.binder.forField(ageDivisionField).bind(AgeGroup::getChampionship, AgeGroup::setChampionship);
 		formLayout.addFormItem(ageDivisionField, Translator.translate("Championship"));
 

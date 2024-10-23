@@ -24,12 +24,15 @@ import org.vaadin.crudui.crud.LazyCrudListener;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.HasElement;
+import com.vaadin.flow.component.Html;
+import com.vaadin.flow.component.Text;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.NativeLabel;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -58,6 +61,7 @@ import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.jpa.JPAService;
+import app.owlcms.data.team.Team;
 import app.owlcms.data.team.TeamSelectionTreeData;
 import app.owlcms.data.team.TeamTreeItem;
 import app.owlcms.i18n.Translator;
@@ -143,7 +147,7 @@ public class TeamSelectionContent extends BaseContent
 		StreamResource href = new StreamResource(TITLE + "Report" + ".xls", () -> this.xlsWriter.createInputStream());
 		this.finalPackage = new Anchor(href, "");
 		this.finalPackage.getStyle().set("margin-left", "1em");
-		this.download = new Button(getTranslation(TITLE + ".Report"), new Icon(VaadinIcon.DOWNLOAD_ALT));
+		this.download = new Button(Translator.translate(TITLE + ".Report"), new Icon(VaadinIcon.DOWNLOAD_ALT));
 
 		this.finalPackage.add(this.download);
 		HorizontalLayout buttons = new HorizontalLayout(this.finalPackage);
@@ -210,7 +214,7 @@ public class TeamSelectionContent extends BaseContent
 	 */
 	@Override
 	public String getPageTitle() {
-		return getTranslation(TITLE);
+		return Translator.translate(TITLE);
 	}
 
 	@Override
@@ -306,9 +310,29 @@ public class TeamSelectionContent extends BaseContent
 	 */
 	protected OwlcmsCrudGrid<TeamTreeItem> createCrudGrid(OwlcmsCrudFormFactory<TeamTreeItem> crudFormFactory) {
 		TreeGrid<TeamTreeItem> grid = new TreeGrid<>();
-		grid.addHierarchyColumn(TeamTreeItem::formatName).setHeader(Translator.translate("Name")).setWidth("32ch");
+		boolean teamFlags = URLUtils.checkFlags();
+
+		grid.addComponentHierarchyColumn((p -> {
+			// null indicates that the entry is for a team, not a person
+			if (p.isTeamMember() != null) {
+				return new Div(p.formatName());
+			}
+
+			String team = p.getTeam().getName();
+			String tag = null;
+			if (teamFlags && !team.isBlank()) {
+				tag = Team.getImgTag(team, "style='width:3em'");
+			}
+			HorizontalLayout hl = new HorizontalLayout();
+			if (tag != null) {
+				hl.add(new Html(tag));
+			}
+			hl.add(new Text(p.formatName()));
+			return hl;
+		})).setHeader(Translator.translate("Name")).setWidth("32ch");
 		grid.addColumn(TeamTreeItem::getCategory).setHeader(Translator.translate("Category"))
 		        .setTextAlign(ColumnTextAlign.CENTER);
+
 
 		ComponentRenderer<Component, TeamTreeItem> warningRenderer = new ComponentRenderer<>(p -> {
 			if (p.isWarning()) {
@@ -410,7 +434,7 @@ public class TeamSelectionContent extends BaseContent
 	protected void defineFilters(OwlcmsCrudGrid<TeamTreeItem> crudGrid2) {
 
 		this.topBarAgeGroupPrefixSelect = new ComboBox<>();
-		this.topBarAgeGroupPrefixSelect.setPlaceholder(getTranslation("AgeGroup"));
+		this.topBarAgeGroupPrefixSelect.setPlaceholder(Translator.translate("AgeGroup"));
 		this.topBarAgeGroupPrefixSelect.setEnabled(false);
 		this.topBarAgeGroupPrefixSelect.setClearButtonVisible(true);
 		this.topBarAgeGroupPrefixSelect.setValue(null);
@@ -420,7 +444,7 @@ public class TeamSelectionContent extends BaseContent
 		setAgeGroupPrefixSelectionListener();
 
 		this.topBarAgeDivisionSelect = new ComboBox<>();
-		this.topBarAgeDivisionSelect.setPlaceholder(getTranslation("Championship"));
+		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
 		this.adItems = Championship.findAllUsed(true);
 		this.topBarAgeDivisionSelect.setItems(this.adItems);
 		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> ad.getName());
@@ -428,13 +452,13 @@ public class TeamSelectionContent extends BaseContent
 		this.topBarAgeDivisionSelect.setWidth("15em");
 		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
 		setAgeDivisionSelectionListener();
-		
+
 		if (this.genderFilter == null) {
 			this.genderFilter = new ComboBox<>();
-			this.genderFilter.setPlaceholder(getTranslation("Gender"));
+			this.genderFilter.setPlaceholder(Translator.translate("Gender"));
 			this.genderFilter.setItems(Gender.M, Gender.F);
 			this.genderFilter.setItemLabelGenerator((i) -> {
-				return i == Gender.M ? getTranslation("Gender.Men") : getTranslation("Gender.Women");
+				return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
 			});
 			this.genderFilter.setClearButtonVisible(true);
 			this.genderFilter.addValueChangeListener(e -> {
@@ -442,7 +466,7 @@ public class TeamSelectionContent extends BaseContent
 			});
 			this.genderFilter.setWidth("10em");
 		}
-		
+
 		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeDivisionSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeGroupPrefixSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.genderFilter);

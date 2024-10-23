@@ -208,6 +208,11 @@ public class JXLSStartingListDocs extends JXLSWorkbookStreamSource {
 		});
 	}
 
+	@Override
+	public boolean isEmptyOk() {
+		return true;
+	}
+	
 	public Consumer<Workbook> getPostProcessor() {
 		return this.postProcessor;
 	}
@@ -224,8 +229,10 @@ public class JXLSStartingListDocs extends JXLSWorkbookStreamSource {
 
 	@Override
 	protected void postProcess(Workbook workbook) {
+		createStandardFooter(workbook);
 		if (this.postProcessor != null) {
 			this.postProcessor.accept(workbook);
 		}
+		// fixMergeError(workbook);
 	}
 }

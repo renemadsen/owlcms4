@@ -8,7 +8,7 @@
   * [Pre-Competition Setup](2100PreCompetitionSetup)
   * [Registration](2200Registration)
   * [Edit Athlete Entries](2300EditAthleteEntries)
-  * [Pre-competition Documents](2400PreCompetitionDocuments)
+  * [Documents](2400PreCompetitionDocuments)
   * [Records Management](2500RecordsManagement)
 * Running a Competition
   * [Weigh-in and Start Numbers](WeighIn)
@@ -17,20 +17,12 @@
   * [Refereeing](Refereeing)
   * [Jury](Jury)
   * [Breaks and Ceremonies](Breaks)
-  * [Result Documents](Documents)
+  * [Result Documents](ResultDocuments)
   * [Optional Modified Competition Rules](ModifiedRules)
-* Video
-  * [Preparing the Video Setup](OBS)
-  * [Live Streaming Events](Streaming)
-  * [Internet via a Phone](PhoneHotSpot)
-  * [Automatic Scene Switching](OBSSceneSwitching)
-  * [Jury Replays](JuryReplays)
-* Virtual Competitions
-  * [Overview](4100VirtualOverview)
-  * [Preparing the Zoom Setup](4200PrepareZoomBroadcasting)
-  * [Running a Virtual Competition](4300Zoom)
-  * [User Instructions for Zoom](4400UserInstructionsForZoom)
+  * [Score-based Medals](ScoreBasedCompetitions)
 * Advanced Topics
+  * [Competition Options Reference](2600AdvancedPreCompetitionSetup)
+  * [System Settings Reference](2120AdvancedSystemSettings)
   * [Customization](UploadingLocalSettings)
   * [Scoreboard Colors](Styles)
   * [Flags and Pictures](FlagsPictures)
@@ -43,6 +35,17 @@
   * [MQTT Messaging Specification](MQTTMessages)
   * [Using PostgreSQL](PostgreSQL)
   * [Contributing to the code](Gitpod)
+* Video
+  * [Preparing the Video Setup](OBS)
+  * [Live Streaming Events](Streaming)
+  * [Internet via a Phone](PhoneHotSpot)
+  * [Automatic Scene Switching](OBSSceneSwitching)
+  * [Jury Replays](JuryReplays)
+* Virtual Competitions
+  * [Overview](4100VirtualOverview)
+  * [Preparing the Zoom Setup](4200PrepareZoomBroadcasting)
+  * [Running a Virtual Competition](4300Zoom)
+  * [User Instructions for Zoom](4400UserInstructionsForZoom)
 * Licensing
   * [Licensing and Notes](Licensing)
   * [Source Repository](https://github.com/jflamy/owlcms4)

@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.sql.Blob;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.TimeZone;
@@ -64,9 +65,14 @@ public class Config {
 	 *
 	 * @return the current
 	 */
-	public static Config getCurrent() {
-		// *******
-		current = ConfigRepository.findAll().get(0);
+	public static synchronized Config getCurrent() {
+		if (current == null) {
+			List<Config> all = ConfigRepository.findAll();
+			if (all.size() > 1) {
+				logger.error("found {} Config", all.size());
+			}
+			current = all.get(0);
+		}
 		current.setSkipReading(false);
 		return current;
 	}
@@ -175,6 +181,7 @@ public class Config {
 			return !trueIfPresent;
 		}
 		String[] switches = paramFeatureSwitches.toLowerCase().split("[,; ]");
+		//logger.debug("featureSwitches {}",Arrays.asList(switches));
 		boolean present = Arrays.asList(switches).contains(string.toLowerCase());
 		return trueIfPresent ? present : !present;
 	}
@@ -250,12 +257,14 @@ public class Config {
 
 		return JPAService.runInTransaction(em -> {
 			try {
+				logger.debug("getLocalZipBlob before find");
 				Config thisConfig = em.find(Config.class, this.id);
-				byte[] res = thisConfig.localOverride.getBytes(1, (int) this.localOverride.length());
-				logger.debug("getLocalZipBlob read {} bytes", res.length);
+				logger.debug("getLocalZipBlob thisConfig.localOverride {}", thisConfig.localOverride.length());
+				byte[] res = thisConfig.localOverride.getBytes(1, (int) thisConfig.localOverride.length());
 				return res;
 			} catch (SQLException e) {
 				em.getTransaction().rollback();
+				em.close();
 				throw new RuntimeException(e);
 			}
 		});

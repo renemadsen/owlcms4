@@ -17,6 +17,7 @@ public class LiftOrderInfo implements Comparable<LiftOrderInfo> {
 	private int progression;
 	private int startNumber;
 	private int weight;
+	private int cumulativeProgression;
 
 	@Override
 	public int compareTo(LiftOrderInfo actualLiftInfo) {
@@ -31,29 +32,40 @@ public class LiftOrderInfo implements Comparable<LiftOrderInfo> {
 		}
 
 		// same kind of lift.
-
+		
 		compare = Integer.compare(this.getWeight(), actualLiftInfo.getWeight());
 		if (compare != 0) {
+			// same attempt, bigger weight goes later
 			return compare;
 		}
 
 		compare = Integer.compare(this.getAttemptNo(), actualLiftInfo.getAttemptNo());
 		if (compare != 0) {
+			// smaller attempt first
 			return compare;
 		}
 
 		compare = Integer.compare(this.getProgression(), actualLiftInfo.getProgression());
 		if (compare != 0) {
-			return compare;
+			// same weight, same attempt, bigger progression first
+			return -compare;
+		}
+		
+		// when same progression between 2 and 3 must also look at progression between 1 and 2
+		compare = Integer.compare(this.getCumulativeProgression(), actualLiftInfo.getCumulativeProgression());
+		if (compare != 0) {
+			return -compare;
 		}
 
 		compare = Integer.compare(this.getStartNumber(), actualLiftInfo.getStartNumber());
 		if (compare != 0) {
+			// smaller start number first
 			return compare;
 		}
 
 		compare = Integer.compare(this.getLotNumber(), actualLiftInfo.getLotNumber());
 		if (compare != 0) {
+			// should not happen. smaller lot number first.
 			return compare;
 		}
 
@@ -69,9 +81,9 @@ public class LiftOrderInfo implements Comparable<LiftOrderInfo> {
 			return false;
 		}
 		LiftOrderInfo other = (LiftOrderInfo) obj;
-		return getAttemptNo() == other.getAttemptNo()
-		        && getLotNumber() == other.getLotNumber() && getProgression() == other.getProgression()
-		        && getStartNumber() == other.getStartNumber() && getWeight() == other.getWeight();
+		return getAttemptNo()==(other.getAttemptNo())
+		        && getLotNumber()==(other.getLotNumber()) && getProgression()==(other.getProgression()) && getCumulativeProgression()==(other.getCumulativeProgression())
+		        && getStartNumber()==(other.getStartNumber()) && getWeight()==(other.getWeight());
 	}
 
 	public Athlete getAthlete() {
@@ -103,7 +115,7 @@ public class LiftOrderInfo implements Comparable<LiftOrderInfo> {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result
-		        + Objects.hash(getAttemptNo(), getLotNumber(), getProgression(), getStartNumber(), getWeight());
+		        + Objects.hash(getAttemptNo(), getLotNumber(), getProgression(), getCumulativeProgression(), getStartNumber(), getWeight());
 		return result;
 	}
 
@@ -139,6 +151,14 @@ public class LiftOrderInfo implements Comparable<LiftOrderInfo> {
 		        + ", progression=" + getProgression() + ", startNumber=" + getStartNumber() + ", lotNumber="
 		        + getLotNumber()
 		        + "]";
+	}
+
+	public void setCumulativeProgression(int cumulativeProgression) {
+		this.cumulativeProgression = cumulativeProgression;
+	}
+
+	public int getCumulativeProgression() {
+		return cumulativeProgression;
 	}
 
 }

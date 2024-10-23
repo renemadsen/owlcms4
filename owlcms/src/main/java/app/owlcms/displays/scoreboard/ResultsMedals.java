@@ -37,6 +37,7 @@ import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
+import app.owlcms.data.team.Team;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
@@ -263,7 +264,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 
 	@Subscribe
 	public void slaveVideoRefresh(UIEvent.VideoRefresh e) {
-		var fop = OwlcmsSession.getFop();
+		var fop = e.getFop();
 		this.setGroup(fop.getVideoGroup());
 		this.setCategory(fop.getVideoCategory());
 		// logger.info("videoRefresh {} {}", getGroup() != null ? getGroup().getName() :
@@ -290,7 +291,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 		// }
 		// }
 
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = e.getFop();
 		// if (!leaveTopAlone) {
 		// this.getElement().callJsFunction("reset");
 		// }
@@ -346,16 +347,9 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 		String prop = null;
 		if (getCategory() != null) {
 			String team = a.getTeam();
-			String teamFileName = URLUtils.sanitizeFilename(team);
 
 			if (this.teamFlags && !team.isBlank()) {
-				prop = URLUtils.getImgTag("flags/", teamFileName, ".svg");
-				if (prop == null) {
-					prop = URLUtils.getImgTag("flags/", teamFileName, ".png");
-					if (prop == null) {
-						prop = URLUtils.getImgTag("flags/", teamFileName, ".jpg");
-					}
-				}
+				prop = Team.getImgTag(team, "");
 			}
 			ja.put("flagURL", prop != null ? prop : "");
 			ja.put("flagClass", "flags");
@@ -470,8 +464,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 
 	private void computeGroupMedalsJson(TreeMap<String, TreeSet<Athlete>> medals2) {
 		OwlcmsSession.withFop(fop -> {
-			// logger.debug("computeGroupMedalsJson = {} {}", getGroup(),
-			// LoggerUtils.stackTrace());
+			// logger.debug("computeGroupMedalsJson = {} {}", getGroup(),LoggerUtils.stackTrace());
 			JsonArray jsonMCArray = Json.createArray();
 			int mcX = 0;
 			for (Entry<String, TreeSet<Athlete>> medalCat : medals2.entrySet()) {
@@ -479,7 +472,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 				TreeSet<Athlete> medalists = medalCat.getValue();
 				if (medalists != null && !medalists.isEmpty()) {
 					String key = medalCat.getKey();
-					Category cat = CategoryRepository.findByCode(key); //FIXME: check that this works
+					Category cat = CategoryRepository.findByCode(key);
 					jMC.put("categoryName", cat.getDisplayName());
 					jMC.put("leaders", getAthletesJson(new ArrayList<>(medalists), fop));
 					if (mcX == 0) {
@@ -525,11 +518,11 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 			this.teamFlags = URLUtils.checkFlags();
 			if (this.getCategory() == null) {
 				if (this.getGroup() != null) {
-					this.medals = Competition.getCurrent().getMedals(this.getGroup(), false);
+					this.medals = Competition.getCurrent().getMedals(this.getGroup(), true);
 				} else {
 					// we listen on uiEventBus.
 					this.uiEventBus = uiEventBusRegister(this, fop);
-					this.medals = Competition.getCurrent().getMedals(OwlcmsSession.getFop().getGroup(), false);
+					this.medals = Competition.getCurrent().getMedals(fop.getGroup(), true);
 				}
 				this.getElement().setProperty("fillerDisplay", "");
 			} else {
@@ -562,7 +555,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 						this.medals = Competition.getCurrent().getMedals(this.getGroup(), false);
 					} else {
 						OwlcmsSession.getCurrent();
-						this.medals = Competition.getCurrent().getMedals(OwlcmsSession.getFop().getGroup(), false);
+						this.medals = Competition.getCurrent().getMedals(e.getFop().getGroup(), false);
 					}
 				} else {
 					TreeSet<Athlete> catMedals = Competition.getCurrent().computeMedalsForCategory(this.getCategory());
@@ -695,15 +688,16 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 	private void setDisplay() {
 		OwlcmsSession.withFop(fop -> {
 			setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), this.getElement());
-			Group group = fop.getGroup();
-			String description = null;
-			if (group != null) {
-				description = group.getDescription();
-				if (description == null) {
-					description = Translator.translate("Group_number", group.getName());
-				}
-			}
-			this.getElement().setProperty("groupDescription", description != null ? description : "");
+//			Group group = fop.getGroup();
+//			String description = null;
+//			if (group != null) {
+//				description = group.getDescription();
+//				if (description == null) {
+//					description = Translator.translate("Group_number", group.getName());
+//				}
+//			}
+//			this.getElement().setProperty("groupDescription", description != null ? description : "");
+			this.getElement().setProperty("groupDescription", "");
 		});
 	}
 
