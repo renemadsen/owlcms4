@@ -25,7 +25,7 @@
 		<dependency>
 			<groupId>jakarta.servlet</groupId>
 			<artifactId>jakarta.servlet-api</artifactId>
-			<version>6.0.0</version> <!--$NO-MVN-MAN-VER$-->
+			<version>6.1.0</version> <!--$NO-MVN-MAN-VER$-->
 		</dependency>
 	</dependencies>
 	<build>
