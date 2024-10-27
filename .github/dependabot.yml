@@ -37,7 +37,7 @@ updates:
     directory: "/installtools" # Location of package manifests
     schedule:
       interval: "daily"
-  - package-ecosystem: "node"
+  - package-ecosystem: "npm"
     directory: "publicresults"
     schedule:
       interval: "daily"
