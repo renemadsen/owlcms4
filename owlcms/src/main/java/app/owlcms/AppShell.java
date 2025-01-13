@@ -1,5 +1,6 @@
 package app.owlcms;
 
+import org.eclipse.jetty.io.EofException;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.page.AppShellConfigurator;
@@ -16,6 +17,7 @@ import com.vaadin.flow.server.communication.IndexHtmlRequestListener;
 import com.vaadin.flow.server.communication.IndexHtmlResponse;
 import com.vaadin.flow.theme.Theme;
 
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.servlet.StopProcessingException;
 import app.owlcms.utils.LoggerUtils;
@@ -35,6 +37,7 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 	 */
 	@Override
 	public void configurePage(AppShellSettings settings) {
+		OwlcmsFactory.waitDBInitialized();
 		HttpServletResponse response = VaadinServletResponse.getCurrent().getHttpServletResponse();
 		response.addHeader("Content-Language", getCurrentUserLanguage());
 		// not a recommended practice
@@ -82,8 +85,9 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 				@Override
 				public void error(ErrorEvent errorEvent) {
 					Throwable t = errorEvent.getThrowable();
-					if (!(t instanceof StopProcessingException)) {
-						LoggerFactory.getLogger("app.owlcms.errorHandler").warn("{} {}", t.toString(), t instanceof NullPointerException ? LoggerUtils.stackTrace() : "");
+					if (!(t instanceof StopProcessingException) && !(t instanceof EofException)) {
+						LoggerFactory.getLogger("app.owlcms.errorHandler").warn("{}\n{}", t.toString(),
+						        LoggerUtils.shortStackTrace(t));
 					}
 				}
 			};

@@ -45,6 +45,7 @@ import com.vaadin.flow.server.StreamResource;
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
@@ -104,8 +105,7 @@ public class TeamResultsContent extends BaseContent
 	private JXLSCompetitionBook xlsWriter;
 
 	/**
-	 * Instantiates a new announcer content. Does nothing. Content is created in
-	 * {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
+	 * Instantiates a new announcer content. Does nothing. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
 	 */
 	public TeamResultsContent() {
 		OwlcmsFactory.waitDBInitialized();
@@ -150,7 +150,10 @@ public class TeamResultsContent extends BaseContent
 		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
 		this.adItems = Championship.findAll();
 		this.topBarAgeDivisionSelect.setItems(this.adItems);
-		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.getName()));
+		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> {
+			String name = ad.getName();
+			return name;
+		});
 		this.topBarAgeDivisionSelect.setClearButtonVisible(true);
 		this.topBarAgeDivisionSelect.setWidth("8em");
 		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
@@ -169,8 +172,8 @@ public class TeamResultsContent extends BaseContent
 	}
 
 	/**
-	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a
-	 * TreeGrid and a LazyCrudListener<TeamTreeItem>()
+	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a TreeGrid and a
+	 * LazyCrudListener<TeamTreeItem>()
 	 *
 	 * @see TreeDataProvider
 	 * @see org.vaadin.crudui.crud.CrudListener#findAll()
@@ -252,11 +255,9 @@ public class TeamResultsContent extends BaseContent
 	 * Note: because we have the @Route, the parameters are parsed *before* our parent layout is created.
 	 *
 	 * @param event     Vaadin navigation event
-	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query
-	 *                  parameters instead.
+	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query parameters instead.
 	 *
-	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
@@ -511,7 +512,7 @@ public class TeamResultsContent extends BaseContent
 			this.topBarAgeGroupPrefixSelect.setItems(ageDivisionAgeGroupPrefixes);
 			boolean notEmpty = ageDivisionAgeGroupPrefixes.size() > 0;
 			this.topBarAgeGroupPrefixSelect.setEnabled(notEmpty);
-			String first = (notEmpty && ageDivisionValue == Championship.of(Championship.IWF)) ? ageDivisionAgeGroupPrefixes.get(0)
+			String first = (notEmpty && ageDivisionValue.getType() == ChampionshipType.IWF) ? ageDivisionAgeGroupPrefixes.get(0)
 			        : null;
 			// logger.debug("ad {} ag {} first {} select {}", ageDivisionValue,
 			// ageDivisionAgeGroupPrefixes, first,

@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
@@ -55,6 +56,8 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 				return compareCleanJerkResultOrder(lifter1, lifter2, this.ignoreCategories);
 			case TOTAL:
 				return compareTotalResultOrder(lifter1, lifter2, this.ignoreCategories);
+			case CATEGORY_SCORE:
+				return compareScoreResultOrder(lifter1, lifter2, this.ignoreCategories);
 			case CUSTOM:
 				return compareCustomResultOrder(lifter1, lifter2, this.ignoreCategories);
 			case ROBI:
@@ -64,7 +67,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 			case BW_SINCLAIR:
 				return compareSinclairResultOrder(lifter1, lifter2);
 			case SMM:
-				return compareSmmResultOrder(lifter1, lifter2);
+				return compareSmhfResultOrder(lifter1, lifter2);
 			case QPOINTS:
 				return compareQPointsResultOrder(lifter1, lifter2);
 			case GAMX:
@@ -114,7 +117,6 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		// bigger adjusted total comes first
 		return -lifter1Value.compareTo(lifter2Value);
 	}
-
 
 	/**
 	 * Determine who ranks first. the Athlete who reached total first is ranked first.
@@ -199,6 +201,32 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		return tieBreak(lifter1, lifter2, Competition.getCurrent().isUseOldBodyWeightTieBreak());
 	}
 
+	public int compareScoreResultOrder(Athlete lifter1, Athlete lifter2, boolean ignoreCategories) {
+		int compare = 0;
+
+		if (!ignoreCategories) {
+			compare = ObjectUtils.compare(lifter1.getCategory(), lifter2.getCategory(), true);
+			traceComparison("!ignoreCategories", lifter1, lifter2, compare);
+			if (compare != 0) {
+				return compare;
+			}
+		}
+
+		compare = compareScore(lifter1, lifter2);
+		traceComparison("score", lifter1, lifter2, compare);
+		if (compare != 0) {
+			return -compare; // we want reverse order - smaller comes after
+		}
+
+		compare = compareTotal(lifter1, lifter2);
+		traceComparison("total", lifter1, lifter2, compare);
+		if (compare != 0) {
+			return -compare; // we want reverse order - smaller comes after
+		}
+
+		return tieBreak(lifter1, lifter2, Competition.getCurrent().isUseOldBodyWeightTieBreak());
+	}
+
 	/**
 	 * Determine who ranks first on GAMX points.
 	 *
@@ -236,7 +264,11 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		if (compare != 0) {
 			return compare;
 		}
-		compare = compareQPoints(lifter1, lifter2);
+		if (Config.getCurrent().featureSwitch("interimScores")) {
+			compare = compareQPointsForDelta(lifter1, lifter2);
+		} else {
+			compare = compareQPoints(lifter1, lifter2);
+		}
 		traceComparison("qPoints", lifter1, lifter2, compare);
 		if (compare != 0) {
 			return compare;
@@ -245,7 +277,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		traceComparison("qpoints compareBodyWeight", lifter1, lifter2, compare);
 		return compare; // smaller Athlete wins
 	}
-	
+
 	/**
 	 * Determine who ranks first on QPoints points.
 	 *
@@ -268,7 +300,6 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		traceComparison("qage compareBodyWeight", lifter1, lifter2, compare);
 		return compare; // smaller Athlete wins
 	}
-
 
 	/**
 	 * Determine who ranks first on Robi points.
@@ -308,7 +339,11 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		if (compare != 0) {
 			return compare;
 		}
-		compare = compareSinclair(lifter1, lifter2);
+		if (Config.getCurrent().featureSwitch("interimScores")) {
+			compare = compareSinclairForDelta(lifter1, lifter2);
+		} else {
+			compare = compareSinclair(lifter1, lifter2);
+		}
 		traceComparison("sinclair", lifter1, lifter2, compare);
 		if (compare != 0) {
 			return compare;
@@ -325,14 +360,19 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	 * @param lifter2 the lifter 2
 	 * @return the int
 	 */
-	public int compareSmmResultOrder(Athlete lifter1, Athlete lifter2) {
+	public int compareSmhfResultOrder(Athlete lifter1, Athlete lifter2) {
 		int compare = 0;
 		compare = ObjectUtils.compare(lifter1.getGender(), lifter2.getGender());
 		if (compare != 0) {
 			return compare;
 		}
 
-		compare = compareSmfForDelta(lifter1, lifter2);
+		if (Config.getCurrent().featureSwitch("interimScores")) {
+			compare = compareSmhfForDelta(lifter1, lifter2);
+		} else {
+			compare = compareSmhf(lifter1, lifter2);
+		}
+
 		traceComparison("smhf", lifter1, lifter2, compare);
 		if (compare != 0) {
 			return compare;
@@ -461,6 +501,27 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	int compareQPoints(Athlete lifter1, Athlete lifter2) {
 		Double lifter1Value = lifter1.getQPoints();
 		Double lifter2Value = lifter2.getQPoints();
+		final Double notWeighed = 0D;
+		if (lifter1Value == null) {
+			lifter1Value = notWeighed;
+		}
+		if (lifter2Value == null) {
+			lifter2Value = notWeighed;
+		}
+		// bigger QPoints comes first
+		int compare;
+		compare = -lifter1Value.compareTo(lifter2Value);
+		// traceComparison("qpoints", lifter1, lifter2, compare);
+		return compare;
+	}
+	
+
+	/**
+	 * Compare Q-Points.
+	 */
+	int compareQPointsForDelta(Athlete lifter1, Athlete lifter2) {
+		Double lifter1Value = lifter1.getQPointsForDelta();
+		Double lifter2Value = lifter2.getQPointsForDelta();
 		final Double notWeighed = 0D;
 		if (lifter1Value == null) {
 			lifter1Value = notWeighed;

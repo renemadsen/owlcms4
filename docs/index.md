@@ -1,7 +1,5 @@
 # owlcms: Olympic Weightlifting Competition Management System 
 
-> **The full-range solution for running competitions**
->
 > This free application is a *fully-compliant* weightlifting competition management system that has been used worldwide to manage competitions of all sizes, from club meets to international championships.   Click here for an [overview of features](#features).
 >
 > **Simple and automatic**
@@ -13,23 +11,24 @@
 > **On-site or Cloud**
 >
 > You can run the program on a laptop at the competition site.  Or if you prefer, in the cloud, without having to install anything, using *free* hosting services.
+>
+> **Total flexibility for local, regional, national and multi-national meets**
+>
+> The program supports multiple age group championships in the same event, on multiple simultaneous platforms.  Medals can be awarded using the traditional methods, or by using scoring formulas.  Best lifter awards and team points can be computed for each championship.  All results and rankings from all championships and all platforms are available live, from a true database.
 
 ## Gallery
 
 <table>
-<tr><td><a href="http://u.osmfr.org/m/1119300/" target="_bkank"><img src='img/Gallery/Map.png'></a></td><td>Current Usage (each dot is a cluster of locations)<br/><a href="http://u.osmfr.org/m/1117782/" target="_blank">Click on image for an interactive map</a>.<br/>The owlcms competition management system is currently in use in over 75 federations.  See here for <a href="./#/Countries">a list</a></td></tr>
+<tr><td><a href="http://u.osmfr.org/m/1156248/" target="_bkank"><img src='img/Gallery/Map.png'></a></td><td>Current Usage (each pin is a city where the software has reported usage last 6 months)<br/><a href="http://u.osmfr.org/m/1156248/" target="_blank">Click on image for an interactive map</a>.<br/>The owlcms competition management system is currently in use in over 80 federations.  See here for <a href="./#/Countries">a list</a></td></tr>
 <tr><td><img src='img/Gallery/IMG_5050.jpg'></img></td><td>USA National Championships<br>1500 athletes, 9 days (U11, U13, U15, U17, U20, U23, U25, Open and Adaptive championships)</td></tr>
 <tr><td><img src='img/Gallery/ElSalvador.jpg'></img></td><td>National Competition, El Salvador.<br>A simple setup with everyday electronics.</td></tr>
-<tr><td><img src='img/Gallery/chelles.jpg' size=250></img></td><td>Club meet, Chelles, France.<br>Supports mixed-gender kid groups.  Attempt board shows correct loading for 5kg/10kg bars and 2.5kg/5kg large plates.</td></tr>
-<tr><td><img src='img/Gallery/IMG_1480.jpg' size=250></img></td><td>Canadian Senior Championship, Kelowna, Canada. A full-scale national championship.</td></tr>
+<tr><td><img src='img/Gallery/IMG_6536.jpg' size=250></img></td><td>Club meet, Montreal, Canada.<br>Supports mixed-gender kid groups.  Attempt board shows correct loading for 5kg/10kg bars and 2.5kg/5kg large plates.</td></tr>
+<tr><td><img src='img/Gallery/IMG_6565.jpg' size=250></img></td><td>Phones or tablets can be used for <a href="#/Refereeing.md">refereeing</a>, as well as simple USB or joystick devices.<br>For dedicated use, <a href="https://blue-owl.nemikor.com">rules-compliant refereeing and jury devices</a> are commercially available, as well as other <a href="https://www.serfeng.com">options</a>.  Fully documented <a href="https://github.com/jflamy/owlcms-firmata/blob/v24/README.md">build-your-own designs</a> using Arduino boards are also available.</td></tr>
 <tr><td><img src='img/Gallery/gaspe2018.png' size=250></img></td><td>PanAm Masters Championship, Gaspé, Canada. The program has full support of Masters rules and coefficients.</td></tr>
 <tr><td><img src='img/Gallery/Streaming.png' size=250></img></td><td>Multiple simultaneous age groups (South American Championships, Guayaquil, Ecuador)<br /><br /> Built-in customizable live streaming/TV-oriented displays.</td></tr>
 <tr><td><img src='img/Gallery/lima.jpg'></img></td><td>PanAm Junior and SouthAmerican  U20/U17/U15 Championships, Lima, Peru.<br>The program  supports simultaneous platforms and displays the multiple rankings for multiple concurrent age group competitions</td></tr>
 <tr><td><img src='img/Gallery/BRICS.png'></img></td><td>BRICS Games 2024 Multi-national event.</td></tr>
 </table>
-
-
-
 
 
 ## Downloads and Installation
@@ -85,7 +84,7 @@ The following list is a sampling of the many features available.  <u>*Click on t
 
 - [**Timekeeping**](Announcing#Starting_the_clock) Time can either be [managed by the announcer](Announcing#Starting-the-clock)  (useful for smaller meets) or a dedicated [timekeeper screen](Announcing#Timekeeper) can be used. The timekeeper screen can be conveniently operated from a phone or tablet.
 
-    <img src="img/Lifting/050_Timekeeper.png" alt="050_Timekeeper.png" width=350 style="border-style:solid; border-width: thin" />
+    <img src="img/Lifting/050_Timekeeper.png" alt="050_Timekeeper.png" style="border-style:solid; border-width: thin" />
 
 - **[Attempt Board](Displays#attempt-board)** showing current athlete information, remaining time, weight requested, down signal and decision.
 
@@ -119,22 +118,23 @@ The following list is a sampling of the many features available.  <u>*Click on t
 
     ![070_Jury](img/Refereeing/070_Jury.png  ':size=350')
 
-- **[Athlete Registration](Registration) and [Weigh-in](WeighIn) screens**, including production of **[weigh-in sheet](WeighIn#starting-weight-sheet)** with starting weights and **[athlete cards](WeighIn#athlete-cards)**.
+- **[Athlete Registration](Registration) and [Weigh-in](WeighIn) screens**, 
+
+- Production of **[weigh-in sheets](2400PreCompetitionDocuments#weigh-in-forms)** with starting weights and **[athlete cards](2400PreCompetitionDocuments#athlete-cards)**.
 
     ![042_AthleteCards](img/WeighIn/043_AthleteCards.png ':size=350')
 
-- [**Upload of registration sheet**](Registration#uploading-a-list-of-athletes) Upload a list of athletes with their team, group, entry totals etc. (same format as owlcms2, in either xls or xlsx format)
+- [**Upload of registration sheet**](2200Registration#registering-the-athletes) Upload a list of athletes with their team, group, entry totals etc. 
 
-    ![073_excel](img/Preparation/073_excel.png ':size=350')
+    ![20a](nimg/2200Registration/20a.png)
 
 - Multiple **[Simultaneous age divisions](Preparation#defining-age-divisions-and-categories)**: ability to award separate medals according to age division (e.g. youth vs junior vs senior) .  Simultaneous inclusion of Masters and non-masters groups athletes is possible.
 
      ![020_ageGroupList](img/Categories/020_ageGroupList.png ':size=350')
 
 - [**Competition Parameters**](Preparation#competition-information) :  screens for defining a competition (general info, location, organizer, etc.) and special rules that apply (for example, enforcing or not the 20kg rule, etc.)
-
-    ![030_Competition](img/Preparation/030_Competition.png ':size=350')
-
+    ![30](nimg/2100PreCompetitionSetup/30.png)
+    
 - **[Multiple fields of play](Preparation#defining-fields-of-play-platforms)** (platforms): simultaneous competition platforms within the same competition.
 
   ![IMG_1610](img/ZoomVideo/IMG_1610.jpg)
@@ -149,7 +149,7 @@ The following list is a sampling of the many features available.  <u>*Click on t
 
     ![070_IntroTimer](img/Displays/070_IntroTimer.png ':size=350')
 
-- Production of **[group results (protocol sheets)](Documents#group-results)** and of the **[final result package](Documents#competition-package)**
+- Production of **[session results (protocol sheets)](Documents#group-results)**, of interim competition results during the course of the competition, and of the **[final result package](Documents#competition-package)**
 
     ![SessionResults](img/ResultDocuments/SessionResults.png  ':size=350')
 

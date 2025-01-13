@@ -96,7 +96,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return blss;
 	}
 
-	protected static void setBestLifterRankingTL(Ranking bestLifterRankingValue) {
+	protected static void setBestLifterRankingThreadLocal(Ranking bestLifterRankingValue) {
 		logger.debug("**** setting {}", bestLifterRankingValue);
 		bestLifterRankingSystem.set(bestLifterRankingValue);
 	}
@@ -107,7 +107,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	private Category category;
 	private boolean excludeNotWeighed;
 	private Group group;
-	private InputStream inputStream;
+	protected InputStream inputStream;
 	private HashMap<String, Object> reportingBeans;
 	private String templateFileName;
 	private UI ui;
@@ -544,6 +544,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		List<Athlete> athletes = getSortedAthletes();
 		if (athletes != null) {
 			getReportingBeans().put("athletes", athletes);
+			//logger.debug("*** Athletes : {}",athletes.stream().map(a-> a.getCategory()).toList());
 			getReportingBeans().put("lifters", athletes); // legacy
 		}
 		Competition competition = Competition.getCurrent();
@@ -553,7 +554,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		getReportingBeans().put("group", getGroup());
 
 		// reuse existing logic for processing records
-		JXLSExportRecords jxlsExportRecords = new JXLSExportRecords(null, false);
+		JXLSExportRecords jxlsExportRecords = new JXLSExportRecords(null, false, false);
 		jxlsExportRecords.setGroup(getGroup());
 		jxlsExportRecords.getSortedAthletes();
 		logger.debug("fetching records for session {} category {}", getGroup(), getCategory());
@@ -569,6 +570,13 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 
 		List<Group> sessions = GroupRepository.findAll().stream().sorted(Group.groupWeighinTimeComparator)
 		        .collect(Collectors.toList());
+		
+		Ranking overallScoringSystem = this.getBestLifterScoringSystem();
+		overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
+		
+		// make available to the Athlete class in this Thread (and subThreads).
+		JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(overallScoringSystem);	
+		reportingBeans.put("bestRankingTitle",Ranking.getScoringTitle(overallScoringSystem));
 
 		getReportingBeans().put("groups", sessions);
 		getReportingBeans().put("sessions", sessions);

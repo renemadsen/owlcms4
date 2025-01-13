@@ -17,7 +17,7 @@
 
     <!-- silence spurious warning messages -->
     <logger name="org.eclipse.jetty.annotations.AnnotationParser" level="ERROR" />
-    <logger name="org.eclipse.jetty.io.EofException" level="ERROR" />
+    <logger name="org.eclipse.jetty.io.EofException" level="OFF" />
     <logger name="jakarta.servlet.ServletException" level="ERROR" />
     <logger name="app.owlcms.servlet.HttpsEnforcer" level="OFF" />
     <logger name="com.vaadin.flow.server.ServiceException" level="OFF" />
@@ -29,6 +29,8 @@
     <logger name="com.vaadin" level="INFO" />
     <logger name="com.github.mvysny.vaadinboot" level="INFO" />
     <logger name="io.netty.util.ResourceLeakDetector" level="OFF" />
+    <logger name="org.atmosphere.websocket.DefaultWebSocketProcessor" level="ERROR" />
+    <logger name="com.vaadin.flow.internal.nodefeature.ElementListenerMap" level="WARN" />
 
     <!-- by default log all info to console; warnings and above unless logger specifies other level -->
     <root level="WARN">
@@ -44,6 +46,9 @@
     <logger name="app.owlcms.fieldofplay.FOPEvent" level="DEBUG" />
 
     <!-- additional tracing/debugging (set level to DEBUG or TRACE) -->
+    <logger name="app.owlcms.data.competition.Competition" level="DEBUG" />
+    
+    <!-- previously suspect -->
     <logger name="app.owlcms.data.config.Config" level="INFO" />
     <logger name="app.owlcms.data.athleteSort.WinningOrderComparator" level="INFO" />
     <logger name="app.owlcms.data.athleteSort.RegistrationOrderComparator" level="INFO" />
@@ -51,4 +56,5 @@
     <logger name="app.owlcms.utils.ResourceWalker" level="INFO" />
     <logger name="app.owlcms.displays.monitor.OBSMonitor" level="WARN" />
     <logger name="org.hibernate.SQL" level="WARN" />
+    
 </configuration>

@@ -136,6 +136,7 @@ public class Athlete {
 			dest.setLastName(src.getLastName());
 			dest.setFirstName(src.getFirstName());
 			dest.setFullBirthDate(src.getFullBirthDate());
+			dest.setBodyWeight(src.getBodyWeight());
 			dest.setGroup(src.getGroup());
 			dest.setStartNumber(src.getStartNumber());
 			dest.setLotNumber(src.getLotNumber());
@@ -195,7 +196,7 @@ public class Athlete {
 			}
 
 			if (copyResults) {
-				dest.setCustomScore(src.getCustomScoreComputed());
+				dest.setCustomScore(src.getCustomScore());
 			}
 
 			dest.setForcedAsCurrent(src.isForcedAsCurrent());
@@ -284,11 +285,9 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public FieldOfPlay fop;
-
 	@Transient
 	@JsonIgnore
 	protected final Logger timingLogger = (Logger) LoggerFactory.getLogger("TimingLogger");
-
 	@Transient
 	@JsonIgnore
 	DecimalFormat df = null;
@@ -312,15 +311,12 @@ public class Athlete {
 	// (it should remove it from the schema).
 	@Column(columnDefinition = "boolean default false")
 	private Boolean categoryDone = false;
-
 	@Transient
 	@JsonIgnore
 	@Column(columnDefinition = "boolean default false")
 	private Boolean categoryFinished = false;
-
 	@Column(columnDefinition = "integer default 0")
 	private int catSinclairRank;
-
 	@Transient
 	@JsonIgnore
 	private boolean checkTiming;
@@ -374,7 +370,7 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	private final Level NORMAL_LEVEL = Level.INFO;
-	@OneToMany(mappedBy = "athlete", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+	@OneToMany(mappedBy = "athlete", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
 	@JsonProperty(index = 200)
 	private List<Participation> participations = new ArrayList<>();
 	private Integer personalBestCleanJerk;
@@ -438,7 +434,11 @@ public class Athlete {
 	private Integer teamTotalRank;
 	@Transient
 	@JsonIgnore
+	private Participation mainRankings = null;
+	@Transient
+	@JsonIgnore
 	private boolean validation = true;
+
 	/**
 	 * Instantiates a new athlete.
 	 */
@@ -447,6 +447,7 @@ public class Athlete {
 		this.validation = true;
 		this.timingLogger.setLevel(Level.WARN);
 	}
+
 	public void addEligibleCategory(Category category) {
 		addEligibleCategory(category, true);
 	}
@@ -459,7 +460,8 @@ public class Athlete {
 		participation.setTeamMember(teamMember);
 
 		if (this.participations == null) {
-			this.participations = new ArrayList<>();
+			setParticipations(new ArrayList<>());
+			setMainRankings(null);
 		}
 		removeCurrentAthleteCategoryParticipation(category, this.participations);
 		this.participations.add(participation);
@@ -665,6 +667,10 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getAbbreviatedName() {
+		var fn = this.getFullName();
+		if (fn.isBlank()) {
+			return fn;
+		}
 		String upperCase = this.getLastName() != null ? this.getLastName().toUpperCase() : "";
 		String firstName2 = this.getFirstName() != null ? this.getFirstName() : "";
 		String[] hyphenatedParts = firstName2.split("-");
@@ -836,32 +842,6 @@ public class Athlete {
 		return s;
 	}
 
-	// @Transient
-	// @JsonIgnore
-	// private String getAllTranslatedCategoriesAsString() {
-	// Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
-	// String mainCategory = mrCat != null ? mrCat.getNameWithAgeGroup() : "";
-	//
-	// String mainCategoryString = mainCategory;
-	// if (mrCat != null && !getMainRankings().getTeamMember()) {
-	// mainCategoryString = mainCategory + RAthlete.NoTeamMarker;
-	// }
-	//
-	// String eligiblesAsString = this.getParticipations().stream()
-	// .filter(p -> (p.getCategory() != mrCat))
-	// .sorted((a, b) -> a.getCategory().getAgeGroup().compareTo(b.getCategory().getAgeGroup()))
-	// .map(p -> {
-	// String catName = p.getCategory().getNameWithAgeGroup();
-	// return catName + (!p.getTeamMember() ? RAthlete.NoTeamMarker : "");
-	// })
-	// .collect(Collectors.joining(";"));
-	// if (eligiblesAsString.isBlank()) {
-	// return mainCategoryString;
-	// } else {
-	// return mainCategory + "|" + eligiblesAsString;
-	// }
-	// }
-
 	@Transient
 	@JsonIgnore
 	public String getAllCategoriesAsString() {
@@ -887,6 +867,24 @@ public class Athlete {
 		} else {
 			return mainCategory + "|" + eligiblesAsString;
 		}
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getSortedCategoriesAsString() {
+		String eligiblesAsString = this.getParticipations().stream()
+		        .sorted((a, b) -> a.getCategory().getMedalingSortCode().compareTo(b.getCategory().getMedalingSortCode()))
+		        .map(p -> {
+			        String catName = p.getCategory().getDisplayName();
+			        return catName + (!p.getTeamMember() ? RAthlete.NoTeamMarker : "");
+		        })
+		        .collect(Collectors.joining(";"));
+		return eligiblesAsString;
+	}
+
+	@Transient
+	@JsonIgnore
+	public void setSortedCategoriesAsString() {
 	}
 
 	/**
@@ -1139,13 +1137,30 @@ public class Athlete {
 	 */
 	@JsonIdentityReference(alwaysAsId = true)
 	public Category getCategory() {
+		if (this.category != null && this.mainRankings == null) {
+			computeMainRankings();
+		}
 		return this.category;
 	}
 
 	@Transient
 	@JsonIgnore
 	public String getCategoryCode() {
-		return this.category != null ? this.category.getCode() : "-";
+		return this.category != null ? this.getCategory().getCode() : "-";
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getCategorySortCode() {
+		// TODO: something that reflects age boundaries then weight, considering no-age and no-weight score based.
+		// maybe championship age-low age-high body-low body-high
+		Category sortCategory = getMainRankings().getCategory();
+		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "-";
+		// logger.debug("a {} category {} sortCode {}", getAbbreviatedName(), getCategory(), sortCategory.getSortCode());
+		return sortCode;
+	}
+
+	public void setCategoryScoreCode(String unused) {
 	}
 
 	@Transient
@@ -1635,11 +1650,19 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public int getCustomRank() {
-		return (getMainRankings() != null ? getMainRankings().getCustomRank() : -1);
+		return (getMainRankings() != null ? getMainRankings().getCategoryScoreRank() : -1);
 	}
 
 	public Double getCustomScore() {
 		return this.customScore;
+	}
+
+	@Transient
+	@JsonIgnore
+	public Double getCategoryScore() {
+		Double computedScore = computedCategoryScore();
+		// logger.debug("{} getCategoryScore {}", this.getClass().getSimpleName(), this.getCategoryCode(), computedScore);
+		return computedScore;
 	}
 
 	/**
@@ -1649,19 +1672,17 @@ public class Athlete {
 	 */
 	@Transient
 	@JsonIgnore
-	public Double getCustomScoreComputed() {
+	public Double computedCategoryScore() {
 		AgeGroup ageGroup = getAgeGroup();
 		if (ageGroup == null) {
 			return 0.0;
 		}
 		Ranking scoringSystem = ageGroup.getComputedScoringSystem();
-		// avoid infinite recursion
-		if (scoringSystem != null && scoringSystem != Ranking.CUSTOM) {
+		// logger.debug("{} {} {}", this.getLastName(), scoringSystem, Ranking.getRankingValue(this, scoringSystem));
+		if (scoringSystem != null) {
 			return Ranking.getRankingValue(this, scoringSystem);
-		} else if (this.customScore == null || this.customScore < 0.01) {
-			return Ranking.getRankingValue(this, Ranking.TOTAL);
 		} else {
-			return this.customScore;
+			return 0.0;
 		}
 	}
 
@@ -1694,11 +1715,12 @@ public class Athlete {
 	public Set<Category> getEligibleCategories() {
 		// brain dead version, cannot get query version to work.
 		Set<Category> s = new LinkedHashSet<>();
-		List<Participation> participations2 = getParticipations();
-		for (Participation p : participations2) {
-			Category category2 = p.getCategory();
-			s.add(category2);
-		}
+		List<Category> cats = getParticipations().stream()
+		        .map(p -> p.getCategory())
+		        .sorted(Category.medalingComparator())
+		        //.peek(c -> logger.debug("{} {}", c, c.getMedalingSortCode()))
+		        .toList();
+		s.addAll(cats);
 		return s;
 	}
 
@@ -1771,6 +1793,8 @@ public class Athlete {
 		return this.firstName;
 	}
 
+	@Transient
+	@JsonIgnore
 	public FieldOfPlay getFop() {
 		if (this.fop == null) {
 			return OwlcmsSession.getFop();
@@ -2000,6 +2024,16 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public Participation getMainRankings() {
+		return this.mainRankings;
+	}
+
+	/**
+	 * for an Athlete, this will be the participation to the registration category
+	 * 
+	 * for a PAthlete, this will be the participation to the PAthlete's category. A PAthlete only has one registration.
+	 */
+	public void computeMainRankings() {
+		// needs to be called in setParticipations and setCategory.
 		Participation curRankings = null;
 		List<Participation> participations2 = getParticipations();
 		// logger.trace("athlete {} category {} participations {}", this, category,
@@ -2011,14 +2045,11 @@ public class Athlete {
 				String catCode = this.category.getComputedCode();
 				if (StringUtils.equals(eligibleCode, catCode)) {
 					curRankings = eligible;
-					// logger.trace("yep eligibleCode '{}' catCode '{}'", eligibleCode, catCode);
 					break;
-				} else {
-					// logger.trace("nope eligibleCode '{}' catCode '{}'", eligibleCode, catCode);
 				}
 			}
 		}
-		return curRankings;
+		setMainRankings(curRankings);
 	}
 
 	/**
@@ -2255,7 +2286,7 @@ public class Athlete {
 	}
 
 	public Double getQAge() {
-		double d = getQPoints() * getSmhfFactor();
+		double d = getQPoints() * getQMastersFactor();
 		return d;
 	}
 
@@ -2266,7 +2297,12 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public Double getqPoints() {
-		Integer total = getBestCleanJerk() + getBestSnatch();
+		Integer bestCleanJerk = getBestCleanJerk();
+		Integer bestSnatch = getBestSnatch();
+		if (bestCleanJerk == 0 || bestSnatch == 0) {
+			return 0.0D;
+		}
+		Integer total = bestCleanJerk + bestSnatch;
 		return qPoints.getQPoints(this, total);
 	}
 
@@ -2280,8 +2316,20 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public Double getQPoints() {
+		return getqPoints();
+	}
+
+	@Transient
+	@JsonIgnore
+	public Double getqPointsForDelta() {
 		Integer total = getBestCleanJerk() + getBestSnatch();
 		return qPoints.getQPoints(this, total);
+	}
+
+	@Transient
+	@JsonIgnore
+	public Double getQPointsForDelta() {
+		return getqPointsForDelta();
 	}
 
 	public Integer getqPointsRank() {
@@ -2539,6 +2587,16 @@ public class Athlete {
 			return 0.0F;
 		}
 		return sinclairProperties2020.getAgeGenderCoefficient(YEAR - birthDate1, getGender());
+	}
+	
+	@Transient
+	@JsonIgnore
+	public Float getQMastersFactor() {
+		final Integer birthDate1 = getYearOfBirth();
+		if (birthDate1 == null) {
+			return 0.0F;
+		}
+		return qPoints.getAgeGenderCoefficient(YEAR - birthDate1, getGender());
 	}
 
 	/**
@@ -2979,6 +3037,10 @@ public class Athlete {
 		return (getMainRankings() != null ? getMainRankings().getTotalRank() : -1);
 	}
 
+	public int getCategoryScoreRank() {
+		return (getMainRankings() != null ? getMainRankings().getCategoryScoreRank() : -1);
+	}
+
 	/**
 	 * Gets the year of birth.
 	 *
@@ -3110,6 +3172,18 @@ public class Athlete {
 	public boolean isDone() {
 		boolean notFinishedLifting = this.getCleanJerk3ActualLift() == null || this.getCleanJerk3ActualLift().isBlank()
 		        || this.getCleanJerk3AsInteger() == null;
+		if (notFinishedLifting) {
+			Group g = getGroup();
+			if (g == null) {
+				// athlete has no session (no show was taken out), ignore them in their category.
+				return true;
+			}
+			if (g.isDone()) {
+				// the session is done, the athlete did not weigh in, ignore them (no show not taken out)
+				boolean didNotWeighIn = getBodyWeight() == null || getBodyWeight() < 0.1;
+				return didNotWeighIn;
+			}
+		}
 		return !notFinishedLifting;
 	}
 
@@ -3123,7 +3197,7 @@ public class Athlete {
 			return true;
 		}
 		if (medalingSession != null && athleteGroup.equals(medalingSession) && (getBodyWeight() == null || getBodyWeight() < 0.01)) {
-			// athletes in the current group that have not weighed in are considered done.
+			// athletes in a done session that have not weighed in are considered done.
 			return true;
 		}
 		boolean notFinishedLifting = this.getCleanJerk3ActualLift() == null || this.getCleanJerk3ActualLift().isBlank()
@@ -3230,7 +3304,7 @@ public class Athlete {
 	}
 
 	public void setAgeAdjustedTotalRank(Integer ageAdjustedTotalRank) {
-		//logger.debug("setAgeAdjustedTotalRank {} {}", ageAdjustedTotalRank, this.getFullName());
+		// logger.debug("setAgeAdjustedTotalRank {} {}", ageAdjustedTotalRank, this.getFullName());
 		this.ageAdjustedTotalRank = ageAdjustedTotalRank;
 	}
 
@@ -3306,6 +3380,7 @@ public class Athlete {
 			setPresumedBodyWeight(category.getMaximumWeight());
 		}
 		this.category = category;
+		computeMainRankings();
 	}
 
 	@Transient
@@ -3840,6 +3915,7 @@ public class Athlete {
 
 	public void setParticipations(List<Participation> participations) {
 		this.participations = participations;
+		computeMainRankings();
 	}
 
 	public void setPersonalBestCleanJerk(Integer personalBestCleanJerk) {
@@ -4343,6 +4419,12 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public void setTotalRank(int ignored) {
+		// ignored. computed property. setter needed for beans introspection.
+	}
+
+	@Transient
+	@JsonIgnore
+	public void setCategoryScoreRank(int ignored) {
 		// ignored. computed property. setter needed for beans introspection.
 	}
 
@@ -5125,9 +5207,11 @@ public class Athlete {
 			LiftOrderInfo reference = null;
 
 			Athlete clockOwner = getFop().getClockOwner();
-			if (clockOwner != null) {
-				// if clock is running, reference becomes the clock owner instead of last
-				// good/bad lift.
+			// there are cases where there is a clock owner and the clock is not running
+			if (clockOwner != null && getFop().getState() == FOPState.TIME_RUNNING) {
+				// if clock is running, reference becomes the weight requested by the clock owner
+				// and not the last good/bad lift.
+				// e.g. 137 is on the bar as the requested weight, and clock has been started, one cannot request 136
 				reference = clockOwner.getRunningLiftOrderInfo();
 				pastOrder.shortDump("lastLift info clock running", getLogger());
 			} else {
@@ -5638,5 +5722,22 @@ public class Athlete {
 		}
 		this.timingLogger.info("validateDeclaration {}ms {} {}", System.currentTimeMillis() - start, curLift,
 		        LoggerUtils.whereFrom());
+	}
+
+	public void setMainRankings(Participation mainRankings) {
+		this.mainRankings = mainRankings;
+	}
+
+	public Ranking getComputedScoringSystem() {
+		var category2 = this.getCategory();
+		if (category2 == null)
+			return Ranking.TOTAL;
+		var group2 = category2.getAgeGroup();
+		if (group2 == null)
+			return Ranking.TOTAL;
+		var css = group2.getComputedScoringSystem();
+		if (css == null)
+			return Ranking.TOTAL;
+		return css;
 	}
 }
