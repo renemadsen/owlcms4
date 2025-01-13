@@ -13,7 +13,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import app.owlcms.Main;
 import app.owlcms.apputils.DebugUtils;
