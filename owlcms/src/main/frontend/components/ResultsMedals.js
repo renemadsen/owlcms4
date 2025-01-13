@@ -71,16 +71,16 @@ class ResultsMedals extends LitElement {
                         <th class="vspacer"></th>
                         <th style="grid-column: span 3;" .innerHTML="${this.t?.Snatch}"></th>
                         <th class="best" .innerHTML="${this.t?.Best}"></th>
-                        <th class="rank" .innerHTML="${this.t?.Rank}"></th>
+                        <th class="rank" .innerHTML="${mc.rankingTitle}"></th>
                         <th class="vspacer"></th>
                         <th style="grid-column: span 3;" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
                         <th class="best" .innerHTML="${this.t?.Best}"></th>
-                        <th class="rank" .innerHTML="${this.t?.Rank}"></th>
+                        <th class="rank" .innerHTML="${mc.rankingTitle}"></th>
                         <th class="vspacer"></th>
                         <th class="total" .innerHTML="${this.t?.Total}"></th>
-                        <th class="totalRank" .innerHTML="${this.t?.Rank}"></th>
-                  <th class="sinclair"  .innerHTML="${this.t?.ScoringTitle}"></th>
-                        <th class="sinclairRank" .innerHTML="${this.t?.Rank}"></th>
+                        <th class="totalRank" .innerHTML="${mc.rankingTitle}"></th>
+                        <th class="sinclair" .innerHTML="${mc.scoreScoringTitle}"></th>
+                        <th class="sinclairRank" .innerHTML="${mc.scoreRankingTitle}"></th>
                       </tr>
 
                       ${(mc.leaders ?? []).map(
@@ -107,7 +107,7 @@ class ResultsMedals extends LitElement {
                             <td class="${"club " + (leader.flagClass ?? "")}">
                               <div class="${leader.flagClass}" .innerHTML="${leader.flagURL}"></div>
                               <div class="clubName">
-                                <div class="ellipsis" style="${"width: " + (leader?.teamLength ?? "")}">${leader?.teamName}</div>
+                                <div class="ellipsis" style="${leader.teamLength !== undefined ? "width: "+leader.teamLength : ""}">${leader?.teamName}</div>
                               </div>
                             </td>
                             <td class="vspacer"></td>
@@ -146,7 +146,7 @@ class ResultsMedals extends LitElement {
                             <td class="sinclair">
                               <div>${leader.sinclair}</div>
                             </td>
-                            <td class="sinclairRank">
+                            <td class="${"sinclairRank " + (leader.sinclairMedal ?? "")}">
                               <div>${leader.sinclairRank}</div>
                             </td>
                           </tr>
@@ -186,6 +186,7 @@ class ResultsMedals extends LitElement {
       athletes: { type: Object },
       leaders: { type: Object },
       records: { type: Object },
+      medalCategories: { type: Object },
 
       // mode (mutually exclusive, one of:
       // WAIT INTRO_COUNTDOWN LIFT_COUNTDOWN CURRENT_ATHLETE INTERRUPTION SESSION_DONE CEREMONY

@@ -319,7 +319,7 @@ public class AthleteRepository {
 	 * Use the athlete bodyweight (or presumed body weight if weigh-in has not taken place) to determine category.
 	 */
 	public static void resetParticipations() {
-		// logger.debug("recomputing eligibles");
+
 		JPAService.runInTransaction(em -> {
 			List<Athlete> athletes = AthleteRepository.doFindAll(em);
 			for (Athlete a : athletes) {
@@ -332,7 +332,7 @@ public class AthleteRepository {
 			Competition.getCurrent().setRankingsInvalid(true);
 			return null;
 		});
-		// logger.debug("recomputing main cat");
+
 		JPAService.runInTransaction(em -> {
 			List<Athlete> athletes = AthleteRepository.doFindAll(em);
 			for (Athlete a : athletes) {
@@ -340,11 +340,11 @@ public class AthleteRepository {
 				a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
 				em.merge(a);
 			}
+
 			em.flush();
 			Competition.getCurrent().setRankingsInvalid(true);
 			return null;
 		});
-		assignCategoryRanks();
 	}
 
 	/**
@@ -374,12 +374,12 @@ public class AthleteRepository {
 			String categoriesFromCurrentGroup = "select distinct c2 from Athlete b join b.group g join b.participations p join p.category c2 where g.id = :groupId";
 			onlyCategoriesFromCurrentGroup = " join p.category c where exists (" + categoriesFromCurrentGroup
 			        + " and c2.code = c.code and b.bodyWeight > 0.01)";
-
-			 // following 4 lines are a trace, disable when confirmed.
-			 TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
-			 q2.setParameter("groupId", g.getId());
-			 List<Category> q2Results = q2.getResultList();
-			 logger.debug("categories for currentGroup {}",q2Results);
+			
+//			 // following 4 lines are a trace, disable when confirmed.
+//			 TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
+//			 q2.setParameter("groupId", g.getId());
+//			 List<Category> q2Results = q2.getResultList();
+//			 logger.info("categories for currentGroup {}",q2Results);
 		}
 		Query q = em.createQuery(
 		        "select distinct a, p from Athlete a join fetch a.participations p"
@@ -401,7 +401,7 @@ public class AthleteRepository {
 			List<Athlete> r = q.getResultList();
 			resultList = r;
 		}
-		logger.debug("athletes in categories from group {} {}", g, resultList);
+		logger.debug("athletes in categories from group {} {}", g, resultList.size());
 		return resultList;
 	}
 
@@ -562,6 +562,16 @@ public class AthleteRepository {
 
 	public static void setAllUnfinishedCategories(Set<String> allUnfinishedCategories) {
 		AthleteRepository.allUnfinishedCategories = allUnfinishedCategories;
+	}
+
+	public static List<Athlete> findAthletesForAgeGroup(AgeGroup ag) {
+		return JPAService.runInTransaction((em) -> {
+			TypedQuery<Athlete> q = em.createQuery(
+			        "select distinct a from Athlete a join a.participations p join p.category c join c.ageGroup ag where ag.id = :agId",
+			        Athlete.class);
+			q.setParameter("agId", ag.getId());
+			return q.getResultList();
+		});
 	}
 	
 }

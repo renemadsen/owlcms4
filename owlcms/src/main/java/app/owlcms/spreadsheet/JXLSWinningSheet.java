@@ -23,7 +23,7 @@ import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
-import app.owlcms.data.category.Participation;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -38,6 +38,7 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 	final private static Logger jexlLogger = (Logger) LoggerFactory.getLogger("org.apache.commons.jexl2.JexlEngine");
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(JXLSWinningSheet.class);
 	final private static Logger tagLogger = (Logger) LoggerFactory.getLogger("net.sf.jxls.tag.ForEachTag");
+	private static final boolean ORDER_BY_CATEGORIES = false;
 	static {
 		logger.setLevel(Level.INFO);
 		jexlLogger.setLevel(Level.ERROR);
@@ -55,25 +56,27 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 
 	@Override
 	public List<Athlete> getSortedAthletes() {
+//		Championship championship = getChampionship();
 		if (this.sortedAthletes != null) {
-			// logger.debug("YYYYYYYYYYYY sorted athletes {}",LoggerUtils.whereFrom());
+//			logger.debug("%%% sorterdAthletes.size()={}",sortedAthletes.size());
 			// we are provided with an externally computed list.
 			if (this.resultsByCategory) {
-				// we to complete all the athletes with their participations, before filtering.
-				// logger.debug("YYYYYYYYYYYY category athletes");
-				this.sortedAthletes = mapToParticipations(this.sortedAthletes);
-
-				// if there are age group-specific scoring systems, this can be different than the total
-				// usual ordering.
-				// logger.debug("YYYYYYYYYYYY ranking order {}", rankingOrder());
-				logger.debug("eligible getSortedAthletes {}", this.sortedAthletes.size());
-				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), false);
-				// logger.debug("YYYYYYYYYYYY eligible getSortedAthletes {}", this.sortedAthletes.size());
+				Ranking rankingOrder = Ranking.CATEGORY_SCORE;
+//				if (championship != null && sortedAthletes.size() > 0) {
+//					Athlete athlete = sortedAthletes.get(0);
+//					rankingOrder = athlete.getAgeGroup().getComputedScoringSystem();
+//					logger.debug("--- athlete {} scoring {}", athlete, rankingOrder);
+//					if (rankingOrder == null) {
+//						rankingOrder = Ranking.TOTAL;
+//					}
+//				}
+				
+				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder, ORDER_BY_CATEGORIES);
 				return this.sortedAthletes;
 			} else {
 				// logger.debug("YYYYYYYYYYYY unique athletes");
 				// we need to expand all the participations before we filter down.
-				List<Athlete> allParticipations = mapToParticipations(this.sortedAthletes);
+				List<Athlete> allParticipations = Competition.getCurrent().mapToParticipations(this.sortedAthletes, resultsByCategory);
 
 				// keep the the most specific category from the championship
 				List<Athlete> uniqueAthletes = allParticipations.stream()
@@ -101,7 +104,7 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 
 				// re-sort the athletes
 				this.sortedAthletes = new ArrayList<>(uniqueAthletes);
-				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), false);
+				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), ORDER_BY_CATEGORIES);
 				logger.debug("registration getSortedAthletes {}", this.sortedAthletes.size());
 				return this.sortedAthletes;
 			}
@@ -115,7 +118,7 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 
 		// get all the PAthletes for the current group - athletes show as many times as
 		// they have participations.
-		List<Athlete> pAthletes = mapToParticipations(rankedAthletes);
+		List<Athlete> pAthletes = Competition.getCurrent().mapToParticipations(rankedAthletes, resultsByCategory);
 
 		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
 		@SuppressWarnings("unchecked")
@@ -203,31 +206,6 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 		createStandardFooter(workbook);
 	}
 
-	public List<Athlete> mapToParticipations(List<Athlete> rankedAthletes) {
-		List<Athlete> pAthletes;
-		if (this.resultsByCategory) {
-			pAthletes = new ArrayList<>(rankedAthletes.size() * 2);
-			for (Athlete a : rankedAthletes) {
-				Athlete pa = a;
-				if (a instanceof PAthlete) {
-					pa = ((PAthlete) a)._getAthlete();
-				}
-				for (Participation p : pa.getParticipations()) {
-					PAthlete e = new PAthlete(p);
-					// logger.debug("pa {} participation {} paCat {}", pa.getFullName(), p.getCategory().getCode(), e.getCategory().getCode());
-					pAthletes.add(e);
-				}
-			}
-		} else {
-			// we sometimes get pAthletes and but here we need the wrapped athlete.
-			pAthletes = rankedAthletes.stream()
-			        .peek(r -> {
-				        // logger.debug("{} {}", r.getShortName(), r.getClass().getSimpleName());
-			        })
-			        .map(r -> r instanceof PAthlete ? r : new PAthlete(r))
-			        .collect(Collectors.toList());
-		}
-		return pAthletes;
-	}
+
 
 }

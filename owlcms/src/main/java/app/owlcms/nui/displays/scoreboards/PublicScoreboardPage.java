@@ -68,6 +68,7 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 		}
 		this.ui.access(() -> {
 			/* copy current parameters from results board to medals board */
+			this.getMedalsBoard().setVisible(true);
 			this.getMedalsBoard().setDownSilenced(true);
 			this.getMedalsBoard().setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
 			this.getMedalsBoard().setVideo(((DisplayParameters) getBoard()).isVideo());
@@ -78,6 +79,33 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
 			checkVideo(this.getMedalsBoard());
 			getMedalsBoard().getStyle().set("display", "block");
+			this.getMedalsBoard().syncWithFOP(getFop());
+			getResultsBoard().getStyle().set("display", "none");
+		});
+	}
+	
+	@Subscribe
+	public void slaveVideoRefresh(UIEvent.VideoRefresh e) {
+		// this should never have isVideo() in actual practice.
+		
+		// logger.debug("videorefresh {}",e.getFop());
+		if (!isVideo()) {
+			return;
+		}
+		this.ui.access(() -> {
+			/* copy current parameters from results board to medals board */
+			this.getMedalsBoard().setVisible(true);
+			this.getMedalsBoard().setDownSilenced(true);
+			this.getMedalsBoard().setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
+			this.getMedalsBoard().setVideo(((DisplayParameters) getBoard()).isVideo());
+			this.getMedalsBoard().setPublicDisplay(((DisplayParameters) getBoard()).isPublicDisplay());
+			this.getMedalsBoard().setSingleReferee(((SoundParameters) getBoard()).isSingleReferee());
+			this.getMedalsBoard().setAbbreviatedName(((DisplayParameters) getBoard()).isAbbreviatedName());
+			this.getMedalsBoard().setTeamWidth(((DisplayParameters) getBoard()).getTeamWidth());
+			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
+			checkVideo(this.getMedalsBoard());
+			getMedalsBoard().getStyle().set("display", "block");
+			this.getMedalsBoard().syncWithFOP(getFop());
 			getResultsBoard().getStyle().set("display", "none");
 		});
 	}
@@ -103,6 +131,7 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 	
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
+		uiEventBusRegister(this, getFop());
 		DisplayParameters board = (DisplayParameters) this.getBoard();
 		board.setFop(getFop());
 		getMedalsBoard().setFop(getFop());
@@ -111,8 +140,10 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 		this.setMedalsBoard(getMedalsBoard());
 		
 		this.addComponent((Component) board);
-		getMedalsBoard().setVisible(false);
 		this.addComponent(getMedalsBoard());
+		
+		((Component) board).setVisible(true);
+		getMedalsBoard().setVisible(false);
 	}
 
 	@Override

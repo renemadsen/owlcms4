@@ -35,6 +35,7 @@ database/owlcms.mv.db
 /.moquette_uuid
 /fly.toml
 /mqttData/
+/nohup.out
 .idea
 owlcms/.vaadin-node-tasks.lock
 *.iml

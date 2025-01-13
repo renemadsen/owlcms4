@@ -57,6 +57,7 @@ public class RecordDefinitionReader {
 	private final static Logger logger = (Logger) LoggerFactory.getLogger(RecordDefinitionReader.class);
 	private final static Logger startupLogger = Main.getStartupLogger();
 
+	
 	public static List<String> createRecords(Workbook workbook, String name, String baseName) {
 		cleanUp(baseName);
 		DateTimeFormatter ymdFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
@@ -84,7 +85,7 @@ public class RecordDefinitionReader {
 						try {
 							int iColumn = cell.getAddress().getColumn();
 
-							// logger.debug("[" + sheet.getSheetName() + "," + cell.getAddress() + "]");
+							logger.debug("[" + sheet.getSheetName() + "," + cell.getAddress() + "]");
 							switch (iColumn) {
 								case 0: { // A
 									String cellValue = cell.getStringCellValue();
@@ -292,6 +293,26 @@ public class RecordDefinitionReader {
 										}
 
 									}
+									break;
+								}
+								case 14: { // O
+									String cellValue = cell.getStringCellValue();
+									cellValue = cellValue != null ? cellValue.trim() : cellValue;
+									rec.setEventLocation(cellValue);
+									break;
+								}
+								case 15: { // P is used for new records
+									break;
+								}
+								case 16: { // Q
+									if (cell.getCellType() == CellType.NUMERIC) {
+										//String cellValue = NumberToTextConverter.toText(cell.getNumericCellValue());
+										rec.setEvent("");
+										break;
+									}
+									String cellValue = cell.getStringCellValue();
+									cellValue = cellValue != null ? cellValue.trim() : cellValue;
+									rec.setEvent(cellValue);
 									break;
 								}
 

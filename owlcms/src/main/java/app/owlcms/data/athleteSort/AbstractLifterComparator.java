@@ -265,8 +265,21 @@ public class AbstractLifterComparator {
 	 * @return the int
 	 */
 	int compareCustomScore(Athlete lifter1, Athlete lifter2) {
-		Double lifter1Value = lifter1.getCustomScoreComputed();
-		Double lifter2Value = lifter2.getCustomScoreComputed();
+		Double lifter1Value = lifter1.getCustomScore();
+		Double lifter2Value = lifter2.getCustomScore();
+		final Double notScored = 0D;
+		if (lifter1Value == null) {
+			lifter1Value = notScored;
+		}
+		if (lifter2Value == null) {
+			lifter2Value = notScored;
+		}
+		return lifter1Value.compareTo(lifter2Value);
+	}
+	
+	int compareScore(Athlete lifter1, Athlete lifter2) {
+		Double lifter1Value = lifter1.getCategoryScore();
+		Double lifter2Value = lifter2.getCategoryScore();
 		final Double notScored = 0D;
 		if (lifter1Value == null) {
 			lifter1Value = notScored;
@@ -820,8 +833,8 @@ public class AbstractLifterComparator {
 			return compare;
 		}
 
-		Double lifter1Value = lifter1.getSinclairForDelta();
-		Double lifter2Value = lifter2.getSinclairForDelta();
+		Double lifter1Value = lifter1.getSinclair();
+		Double lifter2Value = lifter2.getSinclair();
 		final Double notWeighed = 0D;
 		if (lifter1Value == null) {
 			lifter1Value = notWeighed;
@@ -870,7 +883,7 @@ public class AbstractLifterComparator {
 	 * @param lifter2 the lifter 2
 	 * @return the int
 	 */
-	int compareSmfForDelta(Athlete lifter1, Athlete lifter2) {
+	int compareSmhfForDelta(Athlete lifter1, Athlete lifter2) {
 		Gender gender = lifter1.getGender();
 		if (gender == null) {
 			return -1;
@@ -894,7 +907,7 @@ public class AbstractLifterComparator {
 	}
 
 	/**
-	 * Compare smm.
+	 * Compare SM(H)F.
 	 *
 	 * @param lifter1 the lifter 1
 	 * @param lifter2 the lifter 2
@@ -924,7 +937,7 @@ public class AbstractLifterComparator {
 	}
 	
 	/**
-	 * Compare smm.
+	 * Compare Q-masters.
 	 *
 	 * @param lifter1 the lifter 1
 	 * @param lifter2 the lifter 2

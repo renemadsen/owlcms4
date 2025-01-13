@@ -2,34 +2,50 @@ package app.owlcms.data.athleteSort;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
 import ch.qos.logback.classic.Logger;
 
 /**
  * The Enum Ranking.
  */
-public enum Ranking {	
-	SNATCH("Sn"),
-	CLEANJERK("CJ"),
-	TOTAL("Tot"),
-	CUSTOM("Cus"), // modified total / custom score (e.g. technical merit for kids competition)
-	SNATCH_CJ_TOTAL("Combined"), // sum of all three point scores
+public enum Ranking {
+    // category values
+	SNATCH("Sn",false),
+	CLEANJERK("CJ",false),
+	TOTAL("Tot",false),
+	CUSTOM("Cus",false), // modified total / custom score (e.g. technical merit for kids competition)
+	SNATCH_CJ_TOTAL("Combined",false), // sum of all three point scores
+	CATEGORY_SCORE("SCORE",false), // copy of TOTAL, CUSTOM or any of the global scoring systems if used to award category medals
 
-	BW_SINCLAIR("Sinclair"), // normal Sinclair
-	CAT_SINCLAIR("CatSinclair"), // legacy Quebec federation, Sinclair computed at category boundary
-	SMM("Smm"), // Legacy name, kept for import/export backward compatibility Sinclair Meltzer Huebner Faber
-	ROBI("Robi"), // IWF ROBI
-	QPOINTS("QPoints"), // Huebner QPoints.
-	GAMX("GAMX"), // Global Adjusted Mixed (Huebner)
-	AGEFACTORS("QYouth"),
-	QAGE("QAge") // QPoints * SMHF age factors
+    // global scoring systems
+	BW_SINCLAIR("Sinclair",true), // normal Sinclair
+	CAT_SINCLAIR("CatSinclair",true), // legacy Quebec federation, Sinclair computed at category boundary
+	SMM("Smm",true), // Legacy name, kept for import/export backward compatibility Sinclair Meltzer Huebner Faber
+	ROBI("Robi",true), // IWF ROBI
+	QPOINTS("QPoints",true), // Huebner QPoints.
+	GAMX("GAMX",true), // Global Adjusted Mixed (Huebner)
+	AGEFACTORS("QYouth",true),
+	QAGE("QMasters",true), // QPoints * SMHF age factors
 	;
 	
+	public static Map<String, Ranking> rankingByReportingName = new HashMap<>();
+	static {
+		for (Ranking r : Ranking.values()) {
+			rankingByReportingName.put(r.reportingName.toLowerCase(), r);
+			rankingByReportingName.put(r.name().toLowerCase(), r);
+			
+		}
+		rankingByReportingName.put("smhf", SMM);
+	}
+
 	static Logger logger = (Logger) LoggerFactory.getLogger(Ranking.class);
 
 	public static int getRanking(Athlete curLifter, Ranking rankingType) {
@@ -77,8 +93,11 @@ public enum Ranking {
 			case AGEFACTORS:
 				value = curLifter.getAgeAdjustedTotalRank();
 				break;
+			case CATEGORY_SCORE:
+				value = curLifter.getCategoryScoreRank();
+				break;
 		}
-		//logger.debug("{} ranking value: {}", curLifter.getShortName(), value);
+		// logger.debug("{} ranking value: {}", curLifter.getShortName(), value);
 		return value == null ? 0 : value;
 	}
 
@@ -91,39 +110,73 @@ public enum Ranking {
 		if (rankingType == null) {
 			return 0D;
 		}
+		Double d = 0D;
+		Integer i = 0;
 		switch (rankingType) {
 			case SNATCH:
-				return curLifter.getBestSnatch();
+				i = curLifter.getBestSnatch();
+				d = i != null ? i.doubleValue() : null;
+				break;
 			case CLEANJERK:
-				return curLifter.getBestCleanJerk();
+				i = curLifter.getBestCleanJerk();
+				d = i != null ? i.doubleValue() : null;
+				break;
 			case TOTAL:
-				return curLifter.getTotal();
+				i = curLifter.getTotal();
+				d = i != null ? i.doubleValue() : null;
+				break;
 			case ROBI:
-				return curLifter.getRobi();
+				d = curLifter.getRobi();
+				break;
 			case CUSTOM:
-				return curLifter.getCustomScoreComputed();
+				d = curLifter.getCustomScore();
+				break;
 			case SNATCH_CJ_TOTAL:
-				return 0D; // no such thing
+				d = 0D; // no such thing
+				break;
 			case BW_SINCLAIR:
-				return curLifter.getSinclairForDelta();
+				if (Config.getCurrent().featureSwitch("interimScores")) {
+					d = curLifter.getSinclairForDelta();
+				} else {
+					d = curLifter.getSinclair();
+				}
+				break;
 			case CAT_SINCLAIR:
-				return curLifter.getCategorySinclair();
+				d = curLifter.getCategorySinclair();
+				break;
 			case SMM:
-				return curLifter.getSmhfForDelta();
+				if (Config.getCurrent().featureSwitch("interimScores")) {
+					d = curLifter.getSmhfForDelta();
+				} else {
+					d = curLifter.getSmhf();
+				}
+				break;
 			case GAMX:
-				return curLifter.getGamx();
+				d = curLifter.getGamx();
+				break;
 			case AGEFACTORS:
-				return curLifter.getAgeAdjustedTotal();
+				d = curLifter.getAgeAdjustedTotal();
+				break;
 			case QPOINTS:
-				return curLifter.getQPoints();
+				if (Config.getCurrent().featureSwitch("interimScores")) {
+					d = curLifter.getQPointsForDelta();
+				} else {
+					d = curLifter.getQPoints();
+				}
+
+				break;
 			case QAGE:
-				return curLifter.getQAge();
+				d = curLifter.getQAge();
+				break;
+			case CATEGORY_SCORE:
+				d = curLifter.getCategoryScore();
+				break;
 		}
-		return 0D;
+		return d != null ? d : 0D;
 	}
 
 	public static String getScoringTitle(Ranking rankingType) {
-		if (rankingType == null) {
+		if (rankingType == null || rankingType == Ranking.CATEGORY_SCORE) {
 			return Translator.translate("Score");
 		}
 		switch (rankingType) {
@@ -136,14 +189,15 @@ public enum Ranking {
 			case QPOINTS:
 			case AGEFACTORS:
 			case QAGE:
+			case TOTAL:
 				return Translator.translate("Ranking." + rankingType);
 			default:
 				throw new UnsupportedOperationException("not a score ranking " + rankingType);
 		}
 	}
-	
+
 	public static String getScoringExplanation(Ranking rankingType) {
-		if (rankingType == null) {
+		if (rankingType == null || rankingType == Ranking.CATEGORY_SCORE) {
 			return Translator.translate("Score");
 		}
 		switch (rankingType) {
@@ -156,6 +210,7 @@ public enum Ranking {
 			case QPOINTS:
 			case AGEFACTORS:
 			case QAGE:
+			case TOTAL:
 				return Translator.translate("RankingExplanation." + rankingType);
 			default:
 				throw new UnsupportedOperationException("not a score ranking " + rankingType);
@@ -168,12 +223,15 @@ public enum Ranking {
 	}
 
 	private String reportingName;
+	private boolean medalScore;
 
 	/**
+	 * @param medalScore 
 	 * @param reportingInfoName the name of the beans used for Excel reporting
 	 */
-	Ranking(String reportingName) {
+	Ranking(String reportingName, boolean medalScore) {
 		this.reportingName = reportingName;
+		this.medalScore = medalScore;
 	}
 
 	public String getMReportingName() {
@@ -187,16 +245,24 @@ public enum Ranking {
 	public String getWReportingName() {
 		return "w" + this.reportingName;
 	}
-	
+
 	public static String formatScoreboardRank(Integer total) {
 		if (total == null || total == 0) {
 			return "-";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
-			return Translator.translate("Results.Extra/Invited"); 
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}
+	}
+
+	public boolean isMedalScore() {
+		return medalScore;
+	}
+
+	public void setMedalScore(boolean medalScore) {
+		this.medalScore = medalScore;
 	}
 
 }

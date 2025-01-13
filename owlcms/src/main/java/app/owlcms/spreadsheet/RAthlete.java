@@ -42,7 +42,6 @@ public class RAthlete {
 	public static final String NoTeamMarker = "/NoTeam";
 	private Pattern legacyPattern;
 	Athlete a;
-
 	final Logger logger = (Logger) LoggerFactory.getLogger(RAthlete.class);
 
 	{
@@ -111,14 +110,21 @@ public class RAthlete {
 
 			Category c;
 			String catCode = Category.codeFromName(catName);
+			// logger.debug("catCode {} active {}",catCode,RCompetition.getActiveCategories().keySet());
 			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
 				// exact match for a category. This is the athlete's registration category.
 				processEligibilityAndTeams(parts, c, teamMember);
 			} else {
-				// we have a short form category. infer from age and category limit
-				setCategoryHeuristics(s);
-				final var tm = teamMember;
-				this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
+				if (parts.length == 1) {
+					// we have a short form category. infer from age and category limit
+					setCategoryHeuristics(catName);
+					final var tm = teamMember;
+					this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
+				} else {
+					throw new Exception(
+					        Translator.translate("Upload.CategoryNotFoundByName", catName.trim()));
+				}
+
 			}
 		}
 	}
@@ -133,8 +139,12 @@ public class RAthlete {
 		}
 
 		String[] allParts = s.split(",|;|\\/");
-		List<String> partsList = Arrays.asList(allParts).stream().filter(s1 -> (s1 != null && !s1.isBlank()))
+		List<String> partsList = Arrays.asList(allParts).stream()
+		        .filter(s1 -> (s1 != null && !s1.isBlank()))
+		        .map(s1 -> s1.trim())
 		        .toList();
+		// logger.debug("partsList {}",partsList);
+
 		String[] parts;
 		if (partsList.size() == 1) {
 			parts = new String[1];
@@ -142,22 +152,18 @@ public class RAthlete {
 			doLegacyParts(s, parts);
 		} else if (partsList.size() >= 1) {
 			parts = new String[2];
-			parts[0] = allParts[0];
+			parts[0] = partsList.get(0);
 			// brain-dead logic to reuse existing code. Should fix old to use new instead...
 			StringBuffer sb = new StringBuffer();
 			for (int i = 1; i < partsList.size(); i++) {
-				boolean notBlank = !partsList.get(i).isBlank();
-				if (i > 1 && notBlank) {
+				if (i > 1) {
 					sb.append(";");
 				}
-				if (notBlank) {
-					sb.append(partsList.get(i).trim());
-				}
+				sb.append(partsList.get(i).trim());
 			}
 			parts[1] = sb.toString();
 			doLegacyParts(s, parts);
 		}
-
 	}
 
 	/**
@@ -201,8 +207,7 @@ public class RAthlete {
 	}
 
 	/**
-	 * Note the mapping file must process the birth date before the category, as it is a required input to determine the
-	 * category.
+	 * Note the mapping file must process the birth date before the category, as it is a required input to determine the category.
 	 *
 	 * @param category
 	 * @throws Exception
@@ -424,8 +429,8 @@ public class RAthlete {
 
 	private Pattern getLegacyPattern() {
 		if (this.legacyPattern == null) {
-			setLegacyPattern(Pattern
-			        .compile("([mMfF]?) *([>" + Pattern.quote("+") + "]?) *(\\d+) *(" + Pattern.quote("+") + "?)$"));
+			String regex = "([mMfFwW]?) *([>" + Pattern.quote("+") + "]?) *(\\d+) *(" + Pattern.quote("+") + "?)$";
+			setLegacyPattern(Pattern.compile(regex));
 		}
 		return this.legacyPattern;
 	}
@@ -449,6 +454,7 @@ public class RAthlete {
 
 		// process the other participations. They are ; separated.
 		if (parts.length > 1) {
+			// logger.debug("additional categories {}",parts[1]);
 			String[] eligibleNames = parts[1].split(";");
 			for (String eligibleName : eligibleNames) {
 				boolean teamMember = true;
@@ -461,6 +467,7 @@ public class RAthlete {
 				if ((c2 = RCompetition.getActiveCategories().get(catCode)) != null) {
 					addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
 				} else {
+					// logger.debug("{} {}\n{}",Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim(), LoggerUtils.stackTrace()));
 					throw new Exception(
 					        Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim()));
 				}
@@ -475,7 +482,6 @@ public class RAthlete {
 		Matcher legacyResult = getLegacyPattern().matcher(categoryName);
 		double searchBodyWeight;
 		if (!legacyResult.matches()) {
-
 			// try by explicit name
 			Category category = RCompetition.getActiveCategories().get(categoryName);
 			if (category == null) {
@@ -487,7 +493,7 @@ public class RAthlete {
 			}
 			this.a.setCategory(category);
 			return;
-		} else {
+		} else 	{
 			fixLegacyGender(legacyResult);
 			if (!legacyResult.group(2).isEmpty() || !legacyResult.group(4).isEmpty()) {
 				// > or +
@@ -495,9 +501,6 @@ public class RAthlete {
 			} else {
 				searchBodyWeight = Integer.parseInt(legacyResult.group(3)) - 0.1D;
 			}
-			// logger.debug("gt 1:'{}' 2:'{}' 3:'{}' 4:'{}'", legacyResult.group(1),
-			// legacyResult.group(2),
-			// legacyResult.group(3), legacyResult.group(4));
 		}
 
 		int age;

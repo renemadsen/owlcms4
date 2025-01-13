@@ -28,10 +28,12 @@ import app.owlcms.data.jpa.JPAService;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 
 public class AthleteSorterTest {
 
     private static final Level LOGGER_LEVEL = Level.OFF;
+    Logger logger = (Logger) LoggerFactory.getLogger(AthleteSorterTest.class);
 
     @BeforeClass
     public static void setupTests() {

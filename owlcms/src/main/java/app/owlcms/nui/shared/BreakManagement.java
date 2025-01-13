@@ -27,7 +27,6 @@ import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
-import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
@@ -333,7 +332,7 @@ public class BreakManagement extends BaseContent implements SafeEventBusRegistra
 	}
 
 	private void computeDefaultTimeValues() {
-		logger.debug("setting default duration as default {}", LoggerUtils.whereFrom());
+		//logger.debug("setting default duration as default {}", LoggerUtils.whereFrom());
 		setDurationField(DEFAULT_DURATION);
 
 		if (fop.getGroup() != null
@@ -493,14 +492,16 @@ public class BreakManagement extends BaseContent implements SafeEventBusRegistra
 		        (g1, c1, fop1) -> selectCeremonyCategory(g1, c1),
 		        // no group
 		        (g1, c1, fop1) -> selectCeremonyCategory(null, c1));
-		Checkbox includeNotCompleted = new Checkbox();
-		includeNotCompleted.addValueChangeListener(e -> {
-			groupCategorySelectionMenu.setIncludeNotCompleted(e.getValue());
-			groupCategorySelectionMenu.recompute();
-		});
-		includeNotCompleted.setLabel(Translator.translate("Video.includeNotCompleted"));
+//		Checkbox includeNotCompleted = new Checkbox();
+//		includeNotCompleted.addValueChangeListener(e -> {
+//			groupCategorySelectionMenu.setIncludeNotCompleted(e.getValue());
+//			groupCategorySelectionMenu.recompute();
+//		});
+//		includeNotCompleted.setLabel(Translator.translate("Video.includeNotCompleted"));
 		HorizontalLayout hl = new HorizontalLayout();
-		hl.add(groupCategorySelectionMenu, includeNotCompleted);
+		hl.add(groupCategorySelectionMenu
+//				, includeNotCompleted
+				);
 
 		this.startMedalCeremony = new Button(
 		        Translator.translate("BreakMgmt.startMedals"), (e) -> {
@@ -517,9 +518,10 @@ public class BreakManagement extends BaseContent implements SafeEventBusRegistra
 					                        this));
 					        setMedalGroup(g);
 					        setMedalCategory(c);
-					        this.logger.info("switching to {} {}", g.getName() != null ? g.getName() : "-",
+					        this.logger.info("======= switching {} to {} {}", fop, g.getName() != null ? g.getName() : "-",
 					                c != null ? c.getNameWithAgeGroup() : "");
-					        fop.getUiEventBus().post(new UIEvent.VideoRefresh(this, g, c, getFop()));
+					        fop.getUiEventBus().post(new UIEvent.CeremonyStarted(CeremonyType.MEDALS, g, c, LoggerUtils.stackTrace(), this, fop2));
+					        fop.getUiEventBus().post(new UIEvent.VideoRefresh(this, g, c, fop));
 				        }
 			        });
 
@@ -899,6 +901,7 @@ public class BreakManagement extends BaseContent implements SafeEventBusRegistra
 	private void selectCeremonyCategory(Group g, Category c) {
 		this.endMedalCeremony.removeThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		this.startMedalCeremony.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+		//logger.debug("selectCeremonyCategory {} {}",g,c);
 		setMedalGroup(g);
 		setMedalCategory(c);
 	}
@@ -1253,7 +1256,7 @@ public class BreakManagement extends BaseContent implements SafeEventBusRegistra
 
 	private void switchToTarget() {
 		if (this.logger.isDebugEnabled()) {
-			this.logger.debug("switchToTarget breaktype={} from {} ", getBreakType(), LoggerUtils.stackTrace());
+			this.logger.debug("switchToTarget breaktype={} from {} ", getBreakType(), LoggerUtils.whereFrom());
 		}
 		this.noCountdown.setVisible(false);
 		this.waitText.setVisible(false);

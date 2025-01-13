@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import org.apache.poi.ss.usermodel.Workbook;
@@ -45,15 +44,17 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 
 	@Override
 	public List<Athlete> getSortedAthletes() {
+		// logger.debug("%%% getSortedAthletes() {}",sortedAthletes.stream().map(a->a.getAbbreviatedName()).toList());
 		if (this.sortedAthletes != null) {
 			return this.sortedAthletes;
 		}
 
 		Group group = getGroup();
-		TreeMap<String, TreeSet<Athlete>> medals = Competition.getCurrent().getMedals(group, true);
+		TreeMap<String, List<Athlete>> medals = Competition.getCurrent().getMedals(group, true);
 		this.sortedAthletes = new ArrayList<>();
-		for (Entry<String, TreeSet<Athlete>> medalCat : medals.entrySet()) {
-			TreeSet<Athlete> medalists = medalCat.getValue();
+		for (Entry<String, List<Athlete>> medalCat : medals.entrySet()) {
+			List<Athlete> medalists = medalCat.getValue();
+			//logger.debug("medalCat {} {}", medalCat.getKey(), medalCat.getValue().stream().map(a -> a.getAbbreviatedName()).toList());
 			if (medalists != null && !medalists.isEmpty()) {
 				for (Athlete p : medalists) {
 					// logger.trace("Competition.getCurrent().isSnatchCJTotalMedals()
@@ -62,16 +63,22 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 						if (p.getSnatchRank() <= 3) {
 							this.sortedAthletes
 							        .add(new MAthlete((PAthlete) p, Ranking.SNATCH, p.getSnatchRank(),
-							                p.getBestSnatch()));
+							                (double) p.getBestSnatch()));
 						}
 						if (p.getCleanJerkRank() <= 3) {
 							this.sortedAthletes.add(new MAthlete((PAthlete) p, Ranking.CLEANJERK, p.getCleanJerkRank(),
-							        p.getBestCleanJerk()));
+							        (double) p.getBestCleanJerk()));
 						}
 					}
-					if (p.getTotalRank() <= 3) {
+
+					if (p.getComputedScoringSystem() == Ranking.TOTAL && p.getTotalRank() <= 3) {
+						//logger.debug("+++ adding total {}", p);
 						this.sortedAthletes
-						        .add(new MAthlete((PAthlete) p, Ranking.TOTAL, p.getTotalRank(), p.getTotal()));
+						        .add(new MAthlete((PAthlete) p, Ranking.TOTAL, p.getTotalRank(), (double) p.getTotal()));
+					} else if (p.getCategoryScoreRank() <= 3) {
+						//logger.debug("+++ adding score {}", p);
+						this.sortedAthletes
+						        .add(new MAthlete((PAthlete) p, Ranking.CATEGORY_SCORE, p.getCategoryScoreRank(), (p.getCategoryScore())));
 					}
 				}
 			}
@@ -79,7 +86,9 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 
 		MAthlete[] array = this.sortedAthletes.toArray(new MAthlete[0]);
 		Arrays.sort(array, new MAthlete.MedalComparator());
-		this.sortedAthletes = Arrays.asList(array).stream().filter(m -> m.getLiftRank() >= 1 && m.getLiftRank() <= 3)
+		this.sortedAthletes = Arrays.asList(array).stream()
+		        //.peek(m -> logger.debug("{} {} {} {}", m.getCategory(), m.getAbbreviatedName(), m.getRankingText(), m.getLiftRank()))
+		        .filter(m -> m.getLiftRank() >= 1 && m.getLiftRank() <= 3)
 		        .collect(Collectors.toList());
 		return this.sortedAthletes;
 		// @formatter:on
@@ -88,8 +97,7 @@ public class JXLSMedalsSheet extends JXLSWorkbookStreamSource {
 	/*
 	 * (non-Javadoc)
 	 *
-	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource#
-	 * postProcess(org.apache.poi.ss.usermodel.Workbook)
+	 * @see org.concordiainternational.competition.spreadsheet.JXLSWorkbookStreamSource# postProcess(org.apache.poi.ss.usermodel.Workbook)
 	 */
 	@Override
 	protected void postProcess(Workbook workbook) {
