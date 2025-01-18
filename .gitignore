@@ -37,5 +37,3 @@ database/owlcms.mv.db
 /mqttData/
 /nohup.out
 .idea
-owlcms/.vaadin-node-tasks.lock
-*.iml

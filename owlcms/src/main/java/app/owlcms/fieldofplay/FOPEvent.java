@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.group.Group;
+import app.owlcms.data.jpa.JPAService;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.CeremonyType;
@@ -380,6 +381,10 @@ public class FOPEvent {
 			return this.isDecision() == other.isDecision() && this.getRefIndex() == other.getRefIndex();
 		}
 
+		public int getRefIndex() {
+			return this.refIndex;
+		}
+
 		@Override
 		public int hashCode() {
 			final int prime = 31;
@@ -388,25 +393,21 @@ public class FOPEvent {
 			return result;
 		}
 
-		@Override
-		public String toString() {
-			return "[decision=" + this.isDecision() + ", refIndex=" + this.getRefIndex() + "]";
+		public boolean isDecision() {
+			return this.decision;
 		}
 
-		public int getRefIndex() {
-			return refIndex;
+		public void setDecision(boolean decision) {
+			this.decision = decision;
 		}
 
 		public void setRefIndex(int refIndex) {
 			this.refIndex = refIndex;
 		}
 
-		public boolean isDecision() {
-			return decision;
-		}
-
-		public void setDecision(boolean decision) {
-			this.decision = decision;
+		@Override
+		public String toString() {
+			return "[decision=" + this.isDecision() + ", refIndex=" + this.getRefIndex() + "]";
 		}
 
 	}
@@ -627,7 +628,15 @@ public class FOPEvent {
 		}
 
 		public Group getGroup() {
-			return this.group;
+			// force reloading the group.
+			if (group == null) {
+				return null;
+			}
+			Group updatedGroup = JPAService.runInTransaction(em -> {
+				Group updated = em.find(Group.class, this.group.getId());
+				return updated;
+			});
+			return updatedGroup;
 		}
 
 		@Override
@@ -705,10 +714,9 @@ public class FOPEvent {
 
 	protected Athlete athlete;
 	/**
-	 * When a FOPEvent (for example stopping the clock) is handled, it is often reflected as a series of UIEvents (for
-	 * example, all the displays running the clock get told to stop it). The user interface that gave the order doesn't
-	 * want to be notified again, so we memorize which user interface element created the original order so it can
-	 * ignore it.
+	 * When a FOPEvent (for example stopping the clock) is handled, it is often reflected as a series of UIEvents (for example, all the displays running the
+	 * clock get told to stop it). The user interface that gave the order doesn't want to be notified again, so we memorize which user interface element created
+	 * the original order so it can ignore it.
 	 */
 	protected Object origin;
 	final Logger logger = (Logger) LoggerFactory.getLogger(FOPEvent.class);
