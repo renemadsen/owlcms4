@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -265,6 +265,7 @@ public class SessionContent extends BaseContent implements CrudListener<Group>, 
 		grid.addColumn(Group::getName).setHeader(Translator.translate("Name")).setComparator(Group::compareTo).setAutoWidth(true);
 		grid.addColumn(Group::getDescription).setHeader(Translator.translate("Group.Description")).setAutoWidth(true);
 		grid.addColumn(Group::size).setHeader(Translator.translate("GroupSize")).setTextAlign(ColumnTextAlign.CENTER);
+		grid.addColumn(Group::getCleanJerkBreakMinutes).setHeader(Translator.translate("CJ_BreakDuration")).setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn(LocalDateTimeField.getRenderer(Group::getWeighInTime, this.getLocale()))
 		        .setHeader(Translator.translate("WeighInTime")).setComparator(Group::compareToWeighIn);
 		grid.addColumn(LocalDateTimeField.getRenderer(Group::getCompetitionTime, this.getLocale()))
@@ -278,7 +279,7 @@ public class SessionContent extends BaseContent implements CrudListener<Group>, 
 			};
 			Button editDetails = new Button(Translator.translate("Sessions.EditDetails"), clickListener);
 			editDetails.addThemeVariants(ButtonVariant.LUMO_SMALL);
-			
+
 			Button technical = openInNewTab(RegistrationContent.class, translation, p != null ? p.getName() : "?");
 			// prevent grid row selection from triggering
 			technical.getElement().addEventListener("click", ignore -> {
