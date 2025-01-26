@@ -58,11 +58,11 @@ public class AthleteSorterTest {
     @Test
     public void initialCheck() {
         final String resName = "/initialCheck.txt";
-
         AthleteSorter.displayOrder(athletes);
         AthleteSorter.doAssignStartNumbers(athletes);
 
         // Collections.shuffle(athletes);
+
         List<Athlete> sorted = AthleteSorter.liftingOrderCopy(athletes);
         final String actual = DebugUtils.shortDump(sorted);
         assertEqualsToReferenceFile(resName, actual);
@@ -446,7 +446,6 @@ public class AthleteSorterTest {
 
         // check initial lift order -- this checks the "lot number" rule
         AthleteSorter.liftingOrder(athletes);
-
         assertEqualsToReferenceFile("/seq1_lift0.txt", DebugUtils.shortDump(athletes));
         // hide non-athletes
         final int size = athletes.size();
@@ -520,7 +519,6 @@ public class AthleteSorterTest {
     /**
      * Current lifter fails.
      *
-     * @param lifter
      * @param lifters1
      */
     private void failedLift(List<Athlete> lifters1) {
@@ -538,7 +536,7 @@ public class AthleteSorterTest {
     /**
      * Current lifter has successul lift
      *
-     * @param lifter
+     * @param lifters1
      */
     private void successfulLift(List<Athlete> lifters1) {
         final Athlete lifter = lifters1.get(0);

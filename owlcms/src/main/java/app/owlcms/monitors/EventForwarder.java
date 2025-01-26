@@ -10,6 +10,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +19,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
@@ -76,6 +78,7 @@ import app.owlcms.uievents.UIEvent.StopTime;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
 import app.owlcms.utils.URLUtils;
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import elemental.json.Json;
 import elemental.json.JsonArray;
@@ -192,7 +195,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		// String updateKeyV = Config.getCurrent().getParamVideoDataKey();
 		String updateUrlV = Config.getCurrent().getParamVideoDataURL();
 		if (updateUrlV == null || updateUrlV.trim().isEmpty()) {
-			logger.info("{}video data  not enabled.", FieldOfPlay.getLoggingName(getFop()));
+			logger.info("{}video data not enabled.", FieldOfPlay.getLoggingName(getFop()));
 		} else {
 			logger.info("{}video data enabled, pushing to {}", FieldOfPlay.getLoggingName(getFop()), updateUrlV);
 		}
@@ -726,6 +729,11 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	void slaveJuryNotification(UIEvent.JuryNotification e) {
+//		logger.debug("===== slaveJuryNotification {} new record = {} waitForAnnouncer = {} trace\n{}",
+//		        e.getDeliberationEventType(),
+//		        e.getNewRecord(),
+//		        e.isWaitForAnnouncer(),
+//		        e.getTrace());
 		uiLog(e);
 		pushDecision(e);
 	}
@@ -767,7 +775,9 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		setShowSinclairRank(Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
 
 		computeLeaders();
-		setRecords(this.fop.getRecordsJson());
+		JsonValue recordsJson = this.fop.getRecordsJson();
+		logger.warn("setting records {}",recordsJson.toJson());
+		setRecords(recordsJson);
 	}
 
 	private String computedScore(Athlete a) {
@@ -853,6 +863,9 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		mapPut(sb, "break", String.valueOf(isBreak()));
 
 		// current athlete & attempt
+		mapPut(sb, "fullName", this.fullName);
+		mapPut(sb, "attemptNumber", this.attemptNumber != null ? this.attemptNumber.toString() : null); // 1..3
+		mapPut(sb, "liftTypeKey", this.liftTypeKey);
 		mapPut(sb, "d1", getDecisionLight1() != null ? getDecisionLight1().toString() : null);
 		mapPut(sb, "d2", getDecisionLight2() != null ? getDecisionLight2().toString() : null);
 		mapPut(sb, "d3", getDecisionLight3() != null ? getDecisionLight3().toString() : null);
@@ -885,13 +898,20 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 			mapPut(sb, "juryReversal", e.getReversal().toString());
 			mapPut(sb, "athleteFull", e.getAthlete().getFullName());
 			mapPut(sb, "athleteAbbreviated", e.getAthlete().getAbbreviatedName());
+			mapPut(sb, "waitForAnnouncer", Boolean.toString(e.isWaitForAnnouncer()));
+			mapPut(sb, "recordKind", getFop().getLastChallengedRecords().isEmpty() ? "none" : (e.getNewRecord() ? "new" : "denied"));
+			if (e.getActualLift() != null) {
+				mapPut(sb, "actualLift", Integer.toString(e.getActualLift()));
+			}
 		} else if (det == JuryDeliberationEventType.START_DELIBERATION
 		        || det == JuryDeliberationEventType.END_DELIBERATION
-		        || det == JuryDeliberationEventType.CHALLENGE) {
-			mapPut(sb, "decisionEventType", "det.name()");
+		        || det == JuryDeliberationEventType.CHALLENGE
+		        || det == JuryDeliberationEventType.END_CHALLENGE
+		        ) {
+			mapPut(sb, "decisionEventType", det.name());
 		}
 
-		dumpMap("createJuryDecision", e.getTrace(), sb);
+		dumpMap("*** createJuryDecision", e.getTrace(), sb);
 		return sb;
 	}
 
@@ -908,6 +928,8 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 				mapPut(sb, "recordKind", "none");
 			}
 			mapPut(sb, "records", this.records.toJson());
+		} else {
+			mapPut(sb, "records", null);
 		}
 	}
 
@@ -918,6 +940,12 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		mapPut(sb, "fopName", getFop().getName());
 		setMapFopState(sb);
 		mapPut(sb, "mode", getBoardMode());
+		
+		// current athlete info
+		mapPut(sb, "fullName", this.fullName);
+		mapPut(sb, "attemptNumber", this.attemptNumber != null ? this.attemptNumber.toString() : null); // 1..3
+		mapPut(sb, "liftTypeKey", this.liftTypeKey);
+		mapPut(sb, "serverLocalTime", LocalTime.now().toString());
 
 		Integer breakMillisRemaining = null;
 		Integer athleteMillisRemaining = null;
@@ -1059,7 +1087,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		mapPut(sb, "fullName", this.fullName);
 		mapPut(sb, "teamName", this.teamName);
 		mapPut(sb, "attempt", this.attempt);
-		mapPut(sb, "attemptNumber", this.attemptNumber != null ? this.attemptNumber.toString() : null);
+		mapPut(sb, "attemptNumber", this.attemptNumber != null ? this.attemptNumber.toString() : null); // 1..3
 		mapPut(sb, "weight", this.weight != null ? this.weight.toString() : null);
 		mapPut(sb, "timeAllowed", this.timeAllowed != null ? this.timeAllowed.toString() : null);
 
@@ -1068,7 +1096,6 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		mapPut(sb, "groupDescription", getGroupDescription());
 		mapPut(sb, "groupInfo", getGroupInfo());
 		mapPut(sb, "liftTypeKey", this.liftTypeKey);
-		mapPut(sb, "liftType", this.liftType);
 		mapPut(sb, "liftsDone", getLiftsDone());
 
 		// bottom tables
@@ -1097,7 +1124,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		setBoardMode(computeBoardModeName(this.fop.getState(), this.fop.getBreakType(), this.fop.getCeremonyType()));
 		mapPut(sb, "mode", getBoardMode());
 
-		dumpMap("createUpdate " + System.identityHashCode(sb), event.getTrace(), sb);
+		//dumpMap("createUpdate " + System.identityHashCode(sb), event.getTrace(), sb);
 
 		return sb;
 	}
@@ -1236,22 +1263,23 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		doBreak(e);
 	}
 
+	@SuppressWarnings("unused")
 	private void dumpMap(String string, String string2, Map<String, String> map) {
 		// if (StartupUtils.isDebugSetting()) {
-		// Level level = logger.getLevel();
-		// try {
-		// logger.setLevel(Level.TRACE);
-		// logger.trace("=== {}\n{}", string, string2);
-		// for (Entry<String, String> m : map.entrySet()) {
-		// if (m.getKey() == "updateKey") {
-		// logger.trace(" {} = {}", m.getKey(), m.getValue() != null ? "masked "+m.getValue().length() : "masked null value");
-		// } else {
-		// logger.trace(" {} = {}", m.getKey(), m.getValue());
-		// }
-		// }
-		// } finally {
-		// logger.setLevel(level);
-		// }
+		Level level = logger.getLevel();
+		try {
+			logger.setLevel(Level.TRACE);
+			logger.trace("=== {}\n{}", string, string2);
+			for (Entry<String, String> m : map.entrySet()) {
+				if (m.getKey() == "updateKey") {
+					logger.trace(" {} = {}", m.getKey(), m.getValue() != null ? "masked " + m.getValue().length() : "masked null value");
+				} else {
+					logger.trace(" {} = {}", m.getKey(), m.getValue());
+				}
+			}
+		} finally {
+			logger.setLevel(level);
+		}
 		// }
 	}
 
@@ -1489,11 +1517,12 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		Config current = Config.getCurrent();
 		String decisionUrl = current.getParamDecisionUrl();
 		String videoUrl = current.getParamVideoDataDecisionUrl();
+		setLastDecisionMap(createJuryEvent(e));
 
 		if (decisionUrl == null && videoUrl == null) {
 			return;
 		}
-		setLastDecisionMap(createJuryEvent(e));
+
 		sendPost(videoUrl, current.getParamVideoDataKey(), getLastDecisionMap());
 		sendPost(decisionUrl, current.getUpdatekey(), getLastDecisionMap());
 	}

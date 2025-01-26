@@ -1,15 +1,15 @@
-> **REMINDER**
->
-> - You should test all releases, with actual data, *several days* before a competition.
+
 
 | Introducing the Owlcms Control Panel                         |
 | ------------------------------------------------------------ |
-| Starting with release 55, the installation process for running owlcms on a local machine changes.<br><br>Previously, only Windows had a full installer.  From now on all platforms use the same installation process: a "Control Panel" program available for Windows, macOS, RaspberryPi OS and Linux handles installations and updates, as well as starting/stopping owlcms.<br><br>See the [Control Panel Installation Instructions](https://owlcms.github.io/owlcms4-prerelease/#/LocalDownloads.md) and the instructions for using the [owlcms Control Panel](https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel.md).<br><br>From now on the release area now only includes the owlcms files that are loaded by the control panel.  The control panel has its own [repository](https://github.com/owlcms/owlcms-controlpanel). |
+| **New and improved installation process for owlcms**.<br><br>Previously, only Windows had a full installer.  From now on all platforms use the same installation process: a "Control Panel" program is now available for Windows, macOS, RaspberryPi OS and Linux. It handles installations and updates, as well as starting/stopping owlcms.<br><br>**See the [Control Panel Installation Instructions](https://owlcms.github.io/owlcms4-prerelease/#/LocalDownloads.md) and the user guide for the [owlcms Control Panel](https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel.md).**<br><br>From now on the release area only includes the owlcms files that are loaded by the control panel.  The control panel has its own separate [repository](https://github.com/owlcms/owlcms-controlpanel). |
 
-Maintenance Log
+**Maintenance Log**
 
-- 55.0.3: Updated the installation and execution instructions on the Release Sites to match version 1.8.0 of the control panel.
-- 55.0.3: Fixed the installation process to create version.txt correctly for backward compatibility
+- 55.1.3: Changes to Language and System Settings could not be saved due to a validation done on the wrong field
+- 55.1.3: When defining categories on the registration or SBDE spreadsheet, use `;` or `,` as delimiter.  Use of `/` is ambiguous and is no longer accepted.
+- 55.1.2: "Single Referee" now works for keypads
+- 55.1.0: Added a competition rule to use the 20kg rule for Masters athletes instead of the official 80%
 
 **New In This Release**
 
@@ -19,7 +19,11 @@ Maintenance Log
 
   - A new Excel template variable `${session.cleanJerkBreakMinutes}` can be used to show this to the announcer if you have a specific template for athlete introductions
 
-- The "please update" message is now different when the owlcms knows it was started from the control panel.
+- Competition Rules: It is now possible to force the 20kg rule for Masters instead of the 80% rule.
+
+- Refereeing: Selecting "Single Referee" using the ⚙menu  now works with keyboard shortcut keypads (USB, Bluetooth, Joystick).  
+
+  - Any of the 3 referees will work, but configuring the center referee makes most sense (3 = good lift, 4 = no lift).  A single decision will trigger the down signal.
 
 - Simplified Video Setup
   - The default style for Video Streaming is now `transparent` 
@@ -37,4 +41,4 @@ Maintenance Log
   
 
 
-For other recent changes, see [version 54 release notes](https://github.com/owlcms/owlcms4/releases/tag/54.2.1) and [version 53 release notes](https://github.com/owlcms/owlcms4/releases/tag/53.1.0)
+For other recent changes, see [version 55 release notes](https://github.com/owlcms/owlcms4/releases/tag/54.2.1) and [version 5 release notes](https://github.com/owlcms/owlcms4/releases/tag/53.1.0)

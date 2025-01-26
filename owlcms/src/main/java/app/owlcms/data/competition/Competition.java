@@ -294,6 +294,8 @@ public class Competition {
 	@Column(columnDefinition = "boolean default true")
 	private boolean announcerControlledJuryDecision = true;
 	private String currentRecordsTemplateFileName;
+	@Column(columnDefinition = "boolean default false")
+	private boolean masters20kg = false;
 
 	public Competition() {
 		this.medalsByGroup = new HashMap<>();
@@ -445,7 +447,7 @@ public class Competition {
 			// logger./**/warn("medalists for {}", category);
 			getPAthletes(category, medalsByCategory.get(category.getCode()), false);
 		}
-		logger.info("*** computeMedalsByCategory nbAthletes={} time={}ms", rankedAthletes.size(), System.currentTimeMillis() - before);
+		logger.info("computeMedalsByCategory nbAthletes={} time={}ms", rankedAthletes.size(), System.currentTimeMillis() - before);
 		saveAthletes(rankedAthletes);
 		return medalsByCategory;
 	}
@@ -1612,6 +1614,7 @@ public class Competition {
 
 	private void doComputeReportingInfo(boolean full, List<Athlete> athletes, String ageGroupPrefix,
 	        Championship ad) {
+		
 		// reporting does many database queries. fork a low-priority thread.
 		// logger.trace("doComputeReportingInfo {}",LoggerUtils.whereFrom());
 		runInThread(() -> {
@@ -1910,7 +1913,7 @@ public class Competition {
 			}
 			return null;
 		});
-		logger.info("*** computeMedalsByCategory saving {}ms", System.currentTimeMillis() - msBefore);
+		logger.info("computeMedalsByCategory saving {}ms", System.currentTimeMillis() - msBefore);
 	}
 
 	@SuppressWarnings({ "unchecked", "unused" })
@@ -2018,6 +2021,14 @@ public class Competition {
 		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.QAGE);
 
 		reportQAge(sortedMen, sortedWomen);
+	}
+
+	public boolean isMasters20kg() {
+		return masters20kg || Config.getCurrent().featureSwitch("masters20kg");
+	}
+	
+	public void setMasters20kg(boolean masters20kg) {
+		this.masters20kg = masters20kg;
 	}
 
 }
