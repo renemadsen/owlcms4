@@ -41,6 +41,7 @@ public class AthleteSorterTest {
 
     @BeforeClass
     public static void setupTests() {
+        JPAService.close(); // We need to close the database connection so that we can reload the database.
         Main.injectSuppliers();
         JPAService.init(true, true);
         Config.initConfig();
