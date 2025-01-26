@@ -28,15 +28,15 @@
 	</organization>
 
 	<properties>
-		<!-- revision is overridden by azure-pipelines.yml for the official
+		<!-- revision is overridden by .github/workflow/release.yaml for the official
 		builds. this value is only used for local development -->
-		<revision>55.0.0-SNAPSHOT</revision>
+		<revision>55.2.0-SNAPSHOT</revision>
 
-		<vaadin.version>24.5.0</vaadin.version>
-		<logback.version>1.5.12</logback.version>
-		<slf4j.version>2.0.16</slf4j.version>
+		<vaadin.version>24.4.10</vaadin.version>
+		<logback.version>1.4.14</logback.version>
+		<slf4j.version>2.0.7</slf4j.version>
 		<hibernate.version>5.6.15.Final</hibernate.version>
-		<guava.version>33.3.1-jre</guava.version>
+		<guava.version>32.0.0-jre</guava.version>
 
 		<!-- maven configs -->
 		<java.release>17</java.release>
@@ -133,12 +133,12 @@
 			<dependency>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
-				<version>3.8.1</version>
+				<version>3.1.1</version>
 			</dependency>
 			<dependency>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.3.1</version>
+				<version>3.1.0</version>
 			</dependency>
 			<dependency>
 				<groupId>app.owlcms</groupId>
@@ -148,7 +148,7 @@
 			<dependency>
 				<groupId>org.webjars.npm</groupId>
 				<artifactId>mobile-drag-drop</artifactId>
-				<version>2.3.0-rc.2</version>
+				<version>2.3.0-rc.1</version>
 			</dependency>
 		</dependencies>
 
@@ -198,7 +198,7 @@
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>versions-maven-plugin</artifactId>
-					<version>2.17.1</version>
+					<version>2.7</version>
 					<configuration>
 						<processAllModules>true</processAllModules>
 						<allowAnyUpdates>true</allowAnyUpdates>
@@ -208,7 +208,7 @@
 				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>exec-maven-plugin</artifactId>
-					<version>3.5.0</version>
+					<version>3.1.0</version>
 					<configuration>
 						<skip>true</skip>
 						<executable>java</executable>
@@ -224,7 +224,7 @@
 				installed/deployed jars -->
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>flatten-maven-plugin</artifactId>
-				<version>1.6.0</version>
+				<version>1.2.5</version>
 				<configuration>
 					<updatePomFile>true</updatePomFile>
 					<flattenMode>fatjar</flattenMode>
@@ -248,7 +248,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.3.1</version>
+				<version>3.1.0</version>
 				<executions>
 					<execution>
 						<id>copy-resources</id>
@@ -277,7 +277,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
-				<version>4.0.0-beta-1</version>
+				<version>3.0.0-M1</version>
 				<executions>
 					<execution>
 						<id>default-deploy</id>

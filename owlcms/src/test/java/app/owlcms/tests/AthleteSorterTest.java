@@ -41,7 +41,6 @@ public class AthleteSorterTest {
 
     @BeforeClass
     public static void setupTests() {
-        JPAService.close(); // We need to close the database connection so that we can reload the database.
         Main.injectSuppliers();
         JPAService.init(true, true);
         Config.initConfig();
@@ -58,11 +57,11 @@ public class AthleteSorterTest {
     @Test
     public void initialCheck() {
         final String resName = "/initialCheck.txt";
-
         AthleteSorter.displayOrder(athletes);
         AthleteSorter.doAssignStartNumbers(athletes);
 
         // Collections.shuffle(athletes);
+
         List<Athlete> sorted = AthleteSorter.liftingOrderCopy(athletes);
         final String actual = DebugUtils.shortDump(sorted);
         assertEqualsToReferenceFile(resName, actual);
@@ -446,7 +445,6 @@ public class AthleteSorterTest {
 
         // check initial lift order -- this checks the "lot number" rule
         AthleteSorter.liftingOrder(athletes);
-
         assertEqualsToReferenceFile("/seq1_lift0.txt", DebugUtils.shortDump(athletes));
         // hide non-athletes
         final int size = athletes.size();
