@@ -518,7 +518,6 @@ public class AthleteSorterTest {
     /**
      * Current lifter fails.
      *
-     * @param lifter
      * @param lifters1
      */
     private void failedLift(List<Athlete> lifters1) {
@@ -536,7 +535,7 @@ public class AthleteSorterTest {
     /**
      * Current lifter has successul lift
      *
-     * @param lifter
+     * @param lifters1
      */
     private void successfulLift(List<Athlete> lifters1) {
         final Athlete lifter = lifters1.get(0);
