@@ -44,6 +44,8 @@ import elemental.json.JsonArray;
 import elemental.json.JsonObject;
 import elemental.json.JsonValue;
 
+import static oshi.util.Util.sleep;
+
 /**
  * Class TopTeamsSinclair
  *
@@ -93,13 +95,13 @@ public class TopTeamsSinclair extends AbstractTop {
 	}
 
 	public void doUpdate(Competition competition) {
-		this.getElement().setProperty("competitionName", competition.getCurrent().getCompetitionName());
+		//this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
 		FieldOfPlay fop = OwlcmsSession.getFop();
 		setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 
 		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
 		        (Gender) null,
-				competition.getCurrent().getScoringSystem(), true);
+		        Competition.getCurrent().getScoringSystem(), true);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamResultsTreeData.getTeamItemsByGender();
 
 		this.mensTeams = teamsByGender.get(Gender.M);
@@ -117,6 +119,9 @@ public class TopTeamsSinclair extends AbstractTop {
 		updateBottom();
 	}
 
+//	@Override
+//	public void setVideo(boolean video) {
+//	}
 
 	@Override
 	@Subscribe
@@ -210,10 +215,9 @@ public class TopTeamsSinclair extends AbstractTop {
 
 	private String computeAgeGroupSuffix() {
 		String suffix = null;
-//		if (getAgeGroupPrefix() != null) {
-//			suffix = getAgeGroupPrefix();
-//		}
-// TODO change so we don't have this always.
+		if (getAgeGroupPrefix() != null) {
+			suffix = getAgeGroupPrefix();
+		}
 		return (suffix != null ? " &ndash; " + suffix : "");
 	}
 

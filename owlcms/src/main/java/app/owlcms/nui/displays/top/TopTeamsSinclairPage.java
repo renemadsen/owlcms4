@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import app.owlcms.displays.video.StylesDirSelection;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.Component;
@@ -71,7 +70,7 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		DisplayOptions.addLightingEntries(vl, target, this);
 		ComboBox<Championship> championshipComboBox = new ComboBox<>();
 		ComboBox<String> ageGroupPrefixComboBox = new ComboBox<>();
-		List<Championship> championships = Championship.findAll();
+		List<Championship> championships = Championship.findAllUsed(true);
 		championshipComboBox.setItems(championships);
 		championshipComboBox.setPlaceholder(Translator.translate("Championship"));
 		championshipComboBox.setClearButtonVisible(true);
@@ -159,6 +158,10 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		// no age division
 		String ageDivisionName = (ageDivisionParams != null && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0)
 		        : null);
+		if (ageDivisionName == null) {
+			var allChampionships = Championship.findAllUsed(true);
+			ageDivisionName = allChampionships.stream().findFirst().get().getName();
+		}
 		try {
 			setChampionship(Championship.of(ageDivisionName));
 		} catch (Exception e) {
@@ -178,9 +181,10 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 
 		switchLightingMode(darkMode, false);
 		updateURLLocations();
-		setShowInitialDialog(
-		        darkParams == null && ageDivisionParams == null && ageGroupParams == null && silentParams == null);
-
+		if (!videoMode) {
+			setShowInitialDialog(
+					darkParams == null && ageDivisionParams == null && ageGroupParams == null && silentParams == null);
+		}
 		if (getDialog() == null) {
 			buildDialog(this);
 		}
@@ -262,11 +266,7 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		updateURLLocation(UI.getCurrent(), getLocation(), "ag",
 		        getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null);
 		updateURLLocation(UI.getCurrent(), getLocation(), "ad",
-		        // TODO! Check if this is needed?
-				// getAgeDivision() != null ? getAgeDivision().name() : null);
-				getChampionship() != null ? getChampionship().getName() : null);
-		updateURLLocation(UI.getCurrent(), getLocation(), VIDEO,
-				isVideo() ? Boolean.TRUE.toString() : null);
+		        getChampionship() != null ? getChampionship().getName() : null);
 	}
 
 }
