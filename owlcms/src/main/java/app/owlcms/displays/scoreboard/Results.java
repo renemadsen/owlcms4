@@ -1074,9 +1074,16 @@ public class Results extends LitTemplate
 
 		getElement().setProperty("showTotal", true);
 		getElement().setProperty("showBest", true); // overridden by media queries, not a variable
-		getElement().setProperty("showLiftRanks",
-		        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
+		// var isSnatchCJTotalMedals = Competition.getCurrent().isSnatchCJTotalMedals();
+		// var isSinclair = Competition.getCurrent().isSinclair();
+		// var showLiftRanks = Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair();
+		// getElement().setProperty("showLiftRanks",
+		//        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
+		getElement().setProperty("showLiftRanks", true);
+		// getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
+		getElement().setProperty("showTotalRank", true);
+		getElement().setProperty("showSinclair", false);
+		getElement().setProperty("showSinclairRank", false);
 		// getElement().setProperty("showSinclair",
 		// Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
 		// getElement().setProperty("showSinclairRank",

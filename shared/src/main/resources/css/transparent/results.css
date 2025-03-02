@@ -369,6 +369,7 @@ table.results tr td.club div.clubName div.ellipsis {
     border-radius: 5px 5px 5px 5px;
     border: 0;
     color: #ffffff;
+    justify-content: center;
 }
 :host table.results tr th.totalRank {
     /*background-color: rgba(0, 0, 0, 0);*/
