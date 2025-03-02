@@ -66,15 +66,18 @@ public class WarmupNoLeadersPage extends WarmupScoreboardPage {
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);
-		setDefaultParameters(QueryParameters.simple(fullMap));
+		setDefaultParameters(QueryParameters.simple(fullMap));		
 	}
 
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		DisplayParameters board = (DisplayParameters) this.getBoard();
 		board.setFop(this.getFop());
-		board.setLeadersDisplay(false);
-		board.setRecordsDisplay(false);
+		
+// not needed now that the defaults are correctly defined.
+// we want to read from the URL if overridden there.
+//		board.setLeadersDisplay(this.isLeadersDisplay());
+//		board.setRecordsDisplay(this.isRecordsDisplay());
 
 		this.addComponent((Component) board);
 	}

@@ -1,8 +1,6 @@
 ## Building and Packaging
 
-This is a standard Maven project that creates a uberJar with all the dependencies.  If you wish, you can build the binaries from this source.  
-
-This file describes how to build the program without changing it.  If you want to change the code, please see the [Contributing](https://owlcms.github.io/owlcms4/#/Gitpod) documentation.
+This is a standard Maven project.  If you wish, you can build the binaries from this source. 
 
 ### Pre-requisites
 
@@ -16,7 +14,8 @@ This file describes how to build the program without changing it.  If you want t
 
 - From the owlcms4 directory, running ``mvn -P production -am -pl clean owlcms package `` should give you 
   - `owlcms/target/owlcms.jar` a working  "uberjar" (that is, a .jar file that contains all the dependencies together in a single file).  This file can then be run using `java -jar owlcms.jar app.owlcms.Main` 
-  - `owlcms/target/owlcms.zip` which is used for actual packaging by the owlcms/owlcms-controlpanel project
+  - `owlcms/target/owlcms.zip` contains a copy of the local files required.  This is what the owlcms installers use.
+- The installers are in their own repositories under https://github.com/owlcms and are are built separately.
 
 ### Building a Docker container
 

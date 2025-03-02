@@ -23,6 +23,7 @@ import com.vaadin.flow.router.QueryParameters;
 
 import ch.qos.logback.classic.Logger;
 
+@SuppressWarnings("unused")
 public interface ParameterReader extends HasUrlParameter<String> {
 
 	final Logger logger = (Logger) LoggerFactory.getLogger(ParameterReader.class);
