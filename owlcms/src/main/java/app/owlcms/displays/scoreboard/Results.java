@@ -1112,12 +1112,13 @@ public class Results extends LitTemplate
 			}
 		});
 		setTranslationMap();
-		if (scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair()) {
-			this.getElement().setProperty("showSinclair", true);
-		}
-		if (scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair()) {
-			this.getElement().setProperty("showSinclairRank", true);
-		}
+// Commented out because we don't want to show sinclair or sinclair rank by default
+//		if (scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair()) {
+//			this.getElement().setProperty("showSinclair", true);
+//		}
+//		if (scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair()) {
+//			this.getElement().setProperty("showSinclairRank", true);
+//		}
 		this.displayOrder = ImmutableList.of();
 	}
 
