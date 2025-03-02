@@ -577,9 +577,15 @@ public class CurrentAthlete extends Results {
 		return translate;
 	}
 
+//	private String formatKg(String total) {
+//		return (total == null || total.trim().isEmpty()) ? "-"
+//		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+//	}
+
+	// Don't add the () around the number if it is negative
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+				: (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	private Object getOrigin() {
