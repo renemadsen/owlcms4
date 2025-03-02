@@ -803,7 +803,7 @@ public class Results extends LitTemplate
 
 	protected String formatRank(Integer total) {
 		if (total == null || total == 0) {
-			return "&nbsp;";
+			return "-";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
 			return Translator.translate("Results.Extra/Invited");

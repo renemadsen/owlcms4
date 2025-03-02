@@ -1890,10 +1890,11 @@ public class Athlete {
 	@JsonIgnore
 	public String getFullName() {
 		String upperCase = this.getLastName() != null ? this.getLastName().toUpperCase() : "";
+		String lastName = this.getLastName() != null ? this.getLastName() : "";
 		String firstName2 = this.getFirstName() != null ? this.getFirstName() : "";
 		if ((upperCase != null) && !upperCase.trim().isEmpty() && (firstName2 != null)
 		        && !firstName2.trim().isEmpty()) {
-			String fullName = Translator.translate("FullNameFormat", upperCase, firstName2);
+			String fullName = Translator.translate("FullNameFormat", upperCase, firstName2, lastName);
 			return fullName;
 		} else {
 			return "";
