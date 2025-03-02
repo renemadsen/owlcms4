@@ -12,13 +12,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.MessageFormat;
-import java.time.LocalDate;
-import java.time.Year;
-import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 
 import org.apache.commons.io.FilenameUtils;
@@ -31,7 +27,6 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.Main;
-import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.records.RecordEvent.MissingAgeGroup;
@@ -56,21 +51,100 @@ public class RecordDefinitionReader {
 	private final static Logger logger = (Logger) LoggerFactory.getLogger(RecordDefinitionReader.class);
 	private final static Logger startupLogger = Main.getStartupLogger();
 
-	public static List<String> createRecords(Workbook workbook, String name, String baseName) {
+	@FunctionalInterface
+	private interface CellSetter {
+		void set(RecordEvent rec, Cell cell) throws Exception;
+	}
+
+	private static final CellSetter EMPTY_SETTER = (rec, cell) -> {
+	};
+	
+	private final Map<String, CellSetter> SETTER_MAP = Map.ofEntries(
+	        Map.entry("federation", (rec, cell) -> RecordEventSetters.setFederation(rec, cell)),
+	        Map.entry("recordname", (rec, cell) -> RecordEventSetters.setRecordName(rec, cell)),
+	        Map.entry("agegroup", (rec, cell) -> RecordEventSetters.setAgeGroup(rec, cell)),
+	        
+	        Map.entry("gender", (rec, cell) -> RecordEventSetters.setGender(rec, cell)),
+	        Map.entry("m/f", (rec, cell) -> RecordEventSetters.setGender(rec, cell)),
+
+	        Map.entry("agelow", (rec, cell) -> RecordEventSetters.setAgeLower(rec, cell)),
+	        Map.entry("agemin", (rec, cell) -> RecordEventSetters.setAgeLower(rec, cell)), // synonym
+	        
+	        Map.entry("ageupper", (rec, cell) -> RecordEventSetters.setAgeUpper(rec, cell)),
+	        Map.entry("agemax", (rec, cell) -> RecordEventSetters.setAgeUpper(rec, cell)), // synonym
+	        Map.entry("agecat", (rec, cell) -> RecordEventSetters.setAgeUpper(rec, cell)), // synonym
+
+	        Map.entry("bwlow", (rec, cell) -> RecordEventSetters.setBwLower(rec, cell)),
+	        Map.entry("bodyweightmin", (rec, cell) -> RecordEventSetters.setBwLower(rec, cell)),
+	        
+	        Map.entry("bwupper", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)),
+	        Map.entry("bwcat", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)), // synonym
+	        Map.entry("bwhigh", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)), // synonym
+	        Map.entry("bodyweightmax", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)), // synonym
+
+	        Map.entry("recordlift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell)),  
+	        Map.entry("lift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell)), // synonym
+
+	        Map.entry("recordvalue", (rec, cell) -> RecordEventSetters.setRecordValue(rec, cell)),
+	        Map.entry("record", (rec, cell) -> RecordEventSetters.setRecordValue(rec, cell)), // synonym
+	        
+	        Map.entry("athletename", (rec, cell) -> RecordEventSetters.setAthleteName(rec, cell)),
+	        Map.entry("name", (rec, cell) -> RecordEventSetters.setAthleteName(rec, cell)), // synonym
+	        
+	        Map.entry("born", (rec, cell) -> RecordEventSetters.setBirthDate(rec, cell)),
+	        Map.entry("birth date", (rec, cell) -> RecordEventSetters.setBirthDate(rec, cell)), // synonym
+	        
+	        Map.entry("nation", (rec, cell) -> RecordEventSetters.setNation(rec, cell)),
+	        
+	        Map.entry("date", (rec, cell) -> RecordEventSetters.setRecordDate(rec, cell)),
+	        Map.entry("place", (rec, cell) -> RecordEventSetters.setEventLocation(rec, cell)),
+	        
+	        Map.entry("event", (rec, cell) -> RecordEventSetters.setEvent(rec, cell)),
+	        Map.entry("group", (rec, cell) -> RecordEventSetters.setGroup(rec, cell))
+	);
+
+	private CellSetter[] createSetterTableFromHeaderRow(Row headerRow, List<String> errors) {
+		List<CellSetter> setters = new ArrayList<>();
+		for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+			Cell cell = headerRow.getCell(i);
+			if (cell == null) {
+				break;
+			}
+			// stop on empty or illicit header
+			if (cell.getCellType() == CellType.BLANK 
+					|| (cell.getCellType() == CellType.STRING && cell.getStringCellValue().isBlank()) 
+					|| (cell.getCellType() != CellType.STRING)) {
+				break;
+			}
+			String headerValue = cell.getStringCellValue().trim().toLowerCase();
+			CellSetter setter = SETTER_MAP.get(headerValue);
+			if (setter != null) {
+				logger.debug("Mapped header '{}' to setter", headerValue);
+			} else {
+				logger.warn("No setter found for header '{}'", headerValue);
+				errors.add(MessageFormat.format("Ignoring unknown column ''{0}'' at sheet {1} [{2}]", 
+				    headerValue, cell.getSheet().getSheetName(), cell.getAddress()));
+				setter = EMPTY_SETTER;
+			}
+			setters.add(setter);
+		}
+		return setters.toArray(new CellSetter[0]);
+	}
+
+	public List<String> createRecords(Workbook workbook, String name, String baseName) {
 		cleanUp(baseName);
-		DateTimeFormatter ymdFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-		DateTimeFormatter ymFormatter = DateTimeFormatter.ofPattern("yyyy-MM");
-		DateTimeFormatter yFormatter = DateTimeFormatter.ofPattern("yyyy");
 
 		return JPAService.runInTransaction(em -> {
 			int iRecord = 0;
 			List<String> errors = new ArrayList<>();
+			CellSetter[] setterTable = null;
 
 			for (Sheet sheet : workbook) {
-				processSheet: for (Row row : sheet) {
+				for (Row row : sheet) {
 					int iRow = row.getRowNum();
 					if (iRow == 0) {
-						iRow++;
+						// Process header row to create setter table
+						setterTable = createSetterTableFromHeaderRow(row, errors);
 						continue;
 					}
 
@@ -78,250 +152,22 @@ public class RecordDefinitionReader {
 					rec.setFileName(baseName);
 
 					// beware: on a truly empty row we will not enter this loop.
+					// but if the row has blank non empty cells we will.
 					boolean error = false;
 					for (Cell cell : row) {
 						try {
 							int iColumn = cell.getAddress().getColumn();
 
 							logger.debug("[" + sheet.getSheetName() + "," + cell.getAddress() + "]");
-							switch (iColumn) {
-								case 0: { // A
-									String cellValue = cell.getStringCellValue();
-									String trim = cellValue.trim();
-									if (trim.isEmpty()) {
-										// stop processing sheet on first row with an empty first cell
-										break processSheet;
-									}
-									rec.setRecordFederation(trim);
-									break;
-								}
 
-								case 1: { // B
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setRecordName(cellValue);
-									break;
-								}
-
-								case 2: { // C
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setAgeGrp(cellValue);
-									break;
-								}
-
-								case 3: { // D
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim().toUpperCase() : cellValue;
-									rec.setGender(Gender.valueOf(cellValue));
-									break;
-								}
-
-								case 4: { // E
-									long cellValue = Math.round(cell.getNumericCellValue());
-									rec.setAgeGrpLower(Math.toIntExact(cellValue));
-									break;
-								}
-
-								case 5: { // F
-									long cellValue = Math.round(cell.getNumericCellValue());
-									rec.setAgeGrpUpper(Math.toIntExact(cellValue));
-									if (rec.getAgeGrpUpper() < rec.getAgeGrpLower()) {
-										throw new Exception(cellValue
-										        + " upper limit on age category should be >= to "
-										        + rec.getAgeGrpLower());
-
-									}
-									break;
-								}
-
-								case 6: { // G
-									long cellValue = Math.round(cell.getNumericCellValue());
-									rec.setBwCatLower(Math.toIntExact(cellValue));
-									break;
-								}
-
-								case 7: { // H
-									try {
-										String cellValue = cell.getStringCellValue();
-										rec.setBwCatString(cellValue);
-										try {
-											if (cellValue.startsWith(">") || cellValue.startsWith("+")) {
-												rec.setBwCatUpper(999);
-												rec.setBwCatString(">" + rec.getBwCatLower());
-											} else {
-												rec.setBwCatUpper(Integer.parseInt(cellValue));
-											}
-
-										} catch (NumberFormatException e) {
-											if (cellValue != null && !cellValue.isBlank()) {
-												startupLogger
-												        .error("[" + sheet.getSheetName() + "," + cell.getAddress()
-												                + "]");
-												logger.error(
-												        "[" + sheet.getSheetName() + "," + cell.getAddress() + "]");
-											}
-										}
-										logger.debug("normal {} {} {}", iRecord, rec.getBwCatUpper(),
-										        rec.getBwCatLower());
-										if (rec.getBwCatUpper() < rec.getBwCatLower()) {
-											throw new Exception(cellValue
-											        + " upper limit on bodyweight category should be >= to "
-											        + rec.getAgeGrpLower());
-
-										}
-									} catch (IllegalStateException e) {
-										long cellValue = Math.round(cell.getNumericCellValue());
-										rec.setBwCatString(Long.toString(cellValue));
-										rec.setBwCatUpper(Math.toIntExact(cellValue));
-										logger.debug("illegalstate {} {} {}", iRecord, rec.getBwCatUpper(),
-										        rec.getBwCatLower());
-										if (rec.getBwCatUpper() <= rec.getBwCatLower()) {
-											throw new Exception(cellValue
-											        + " upper limit on bodyweight category should be > to "
-											        + rec.getBwCatLower());
-										}
-									}
-									break;
-								}
-
-								case 8: { // I
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setRecordLift(cellValue);
-									break;
-								}
-
-								case 9: { // J
-									rec.setRecordValue(cell.getNumericCellValue());
-									break;
-								}
-
-								case 10: { // K
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setAthleteName(cellValue);
-									break;
-								}
-
-								case 11: { // L
-									if (cell.getCellType() == CellType.NUMERIC) {
-										long cellValue = Math.round(cell.getNumericCellValue());
-										int intExact = Math.toIntExact(cellValue);
-										if (cellValue < 3000) {
-											rec.setBirthYear(intExact);
-											logger.debug("number {}", intExact);
-										} else {
-											LocalDate epoch = LocalDate.of(1900, 1, 1);
-											LocalDate plusDays = epoch.plusDays(intExact - 2);
-											// Excel quirks: 1 is 1900-01-01 and mistakenly assumes 1900-02-29 existed
-											rec.setBirthDate(plusDays);
-											logger.debug("plusDays {}", rec.getRecordDateAsString());
-										}
-									} else if (cell.getCellType() == CellType.STRING) {
-										String cellValue = cell.getStringCellValue();
-										logger.debug("string value = '{}'", cellValue);
-										try {
-											LocalDate date = LocalDate.parse(cellValue, ymdFormatter);
-											rec.setBirthDate(date);
-											logger.debug("date {}", date);
-										} catch (DateTimeParseException e) {
-											try {
-												YearMonth date = YearMonth.parse(cellValue, ymFormatter);
-												rec.setBirthYear(date.getYear());
-												logger.debug("datemonth {}", date.getYear());
-											} catch (DateTimeParseException e2) {
-												try {
-													Year date = Year.parse(cellValue, yFormatter);
-													rec.setBirthYear(date.getValue());
-													logger.debug("year {}", date.getValue());
-												} catch (DateTimeParseException e3) {
-													throw new Exception(cellValue
-													        + " not in yyyy-MM-dd or yyyy-MM or yyyy date format");
-												}
-											}
-										}
-									}
-									break;
-								}
-
-								case 12: { // M
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setNation(cellValue);
-									break;
-								}
-
-								case 13: { // N
-									if (cell.getCellType() == CellType.NUMERIC) {
-										long cellValue = Math.round(cell.getNumericCellValue());
-										int intExact = Math.toIntExact(cellValue);
-										if (cellValue < 3000) {
-											rec.setRecordYear(intExact);
-											logger.debug("number {}", intExact);
-										} else {
-											LocalDate epoch = LocalDate.of(1900, 1, 1);
-											LocalDate plusDays = epoch.plusDays(intExact - 2);
-											// Excel quirks: 1 is 1900-01-01 and mistakenly assumes 1900-02-29 existed
-											rec.setRecordDate(plusDays);
-											logger.debug("plusDays {}", rec.getRecordDateAsString());
-										}
-									} else if (cell.getCellType() == CellType.STRING) {
-										String cellValue = cell.getStringCellValue();
-										logger.debug("string value = '{}'", cellValue);
-										try {
-											LocalDate date = LocalDate.parse(cellValue, ymdFormatter);
-											rec.setRecordDate(date);
-											logger.debug("date {}", date);
-										} catch (DateTimeParseException e) {
-											try {
-												YearMonth date = YearMonth.parse(cellValue, ymFormatter);
-												rec.setRecordYear(date.getYear());
-												logger.debug("datemonth {}", date.getYear());
-											} catch (DateTimeParseException e2) {
-												try {
-													Year date = Year.parse(cellValue, yFormatter);
-													rec.setRecordYear(date.getValue());
-													logger.debug("year {}", date.getValue());
-												} catch (DateTimeParseException e3) {
-													throw new Exception(cellValue
-													        + " not in yyyy-MM-dd or yyyy-MM or yyyy date format");
-												}
-											}
-										}
-
-									}
-									break;
-								}
-								case 14: { // O
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setEventLocation(cellValue);
-									break;
-								}
-								case 15: { // P is used for new records
-									break;
-								}
-								case 16: { // Q
-									if (cell.getCellType() == CellType.NUMERIC) {
-										// String cellValue = NumberToTextConverter.toText(cell.getNumericCellValue());
-										rec.setEvent("");
-										break;
-									}
-									String cellValue = cell.getStringCellValue();
-									cellValue = cellValue != null ? cellValue.trim() : cellValue;
-									rec.setEvent(cellValue);
-									break;
-								}
-
+							if (setterTable != null && iColumn < setterTable.length) {
+								setterTable[iColumn].set(rec, cell);
 							}
 
 							iColumn++;
 						} catch (Exception e) {
 							// do not report errors on empty rows
 							if (!isEmptyRow(rec)) {
-								startupLogger.error("{}[{}] {} ", sheet.getSheetName(), cell.getAddress(),
-								        e.getMessage());
 								logger.error("{}[{}] {} ", sheet.getSheetName(), cell.getAddress(), e.getMessage());
 								errors.add(MessageFormat.format("{0}[{1}] {2} ", sheet.getSheetName(),
 								        cell.getAddress(), e.getMessage()));
@@ -331,7 +177,6 @@ public class RecordDefinitionReader {
 					}
 
 					if (!error && !isEmptyRow(rec)) {
-						// if row was empty, we get no cells but rec was created.
 						try {
 							rec.fillDefaults();
 						} catch (MissingAgeGroup | MissingGender | UnknownIWFBodyWeightCategory e1) {
@@ -357,13 +202,13 @@ public class RecordDefinitionReader {
 		});
 	}
 
-	public static void loadRecords() {
+	public void loadRecords() {
 		Path recordsPath;
 		try {
 			recordsPath = ResourceWalker.getFileOrResourcePath("/records");
 			try {
 				if (recordsPath != null && Files.exists(recordsPath)) {
-					RecordDefinitionReader.readFolder(recordsPath);
+					readFolder(recordsPath);
 				} else {
 					logger.info("no record definition files in local/records");
 				}
@@ -376,7 +221,7 @@ public class RecordDefinitionReader {
 
 	}
 
-	public static void readFolder(Path recordsPath) throws IOException {
+	public void readFolder(Path recordsPath) throws IOException {
 		if (recordsPath == null || !Files.exists(recordsPath)) {
 			return;
 		}
@@ -398,7 +243,7 @@ public class RecordDefinitionReader {
 
 	}
 
-	public static List<String> readInputStream(InputStream is, String fileName) {
+	public List<String> readInputStream(InputStream is, String fileName) {
 		List<String> errors = new ArrayList<>();
 		try (Workbook workbook = WorkbookFactory.create(is)) {
 			logger.info("loading record definition file {} {}", fileName,
@@ -419,7 +264,7 @@ public class RecordDefinitionReader {
 		}
 	}
 
-	public static void readZip(InputStream source) throws IOException {
+	public void readZip(InputStream source) throws IOException {
 		// so that each workbook does not close the zip stream
 		final ZipUtils.NoCloseInputStream zipStream = new ZipUtils.NoCloseInputStream(source);
 		RecordRepository.clearLoadedRecords();
@@ -448,14 +293,14 @@ public class RecordDefinitionReader {
 		zipStream.doClose(); // a real close
 	}
 
-	public static void resetRecords() {
+	public void resetRecords() {
 		Path recordsPath;
 		try {
 			recordsPath = ResourceWalker.getFileOrResourcePath("/records");
 			try {
 				RecordRepository.clearLoadedRecords();
 				if (recordsPath != null && Files.exists(recordsPath)) {
-					RecordDefinitionReader.readFolder(recordsPath);
+					readFolder(recordsPath);
 				} else {
 					logger.info("no record definition files in local/records");
 				}
