@@ -20,13 +20,13 @@ COPY ./publicresults/pom.xml ./publicresults/
 COPY ./publicresults/src ./publicresults/src
 COPY ./owlcms-docker/pom.xml ./owlcms-docker/
 COPY ./owlcms-docker/src ./owlcms-docker/src
-COPY ./owlcms-windows/pom.xml ./owlcms-windows/
-COPY ./owlcms-windows/src ./owlcms-windows/src
-COPY ./publicresults-windows/pom.xml ./publicresults-windows/
-COPY ./publicresults-windows/src ./publicresults-windows/src
+#COPY ./owlcms-windows/pom.xml ./owlcms-windows/
+#COPY ./owlcms-windows/src ./owlcms-windows/src
+#COPY ./publicresults-windows/pom.xml ./publicresults-windows/
+#COPY ./publicresults-windows/src ./publicresults-windows/src
 COPY ./playwright/pom.xml ./playwright/
 COPY ./playwright/src ./playwright/src
-COPY ./installtools/pom.xml ./installtools/
+#COPY ./installtools/pom.xml ./installtools/
 
 # go-offline using the pom.xml
 RUN mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true
