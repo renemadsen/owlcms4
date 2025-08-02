@@ -36,11 +36,29 @@ class DecisionElement extends LitElement {
 
         .decision {
           border-radius: 5%;
-          border: medium solid var(--lumo-contrast);
+          border: 2px solid var(--lumo-contrast);
           margin: 3%;
           /* 	background-color: #333333; */
           width: 30%;
         }
+
+        .soloDecision {
+            border-radius: 50%;
+            border: 2px solid var(--lumo-contrast);
+            margin: 0;
+            padding: 0;
+            width: 1.2em;
+            height: 1.2em;
+            line-height: 1.2em;
+            font-size: 1.0em;
+            color: black;
+            align-self: center;
+        }
+
+        /* .soloDecision.none {
+          visibility: hidden;
+        } */
+
         .red {
           background-color: red;
         }
@@ -51,7 +69,11 @@ class DecisionElement extends LitElement {
 
         .none {
           background-color: var(--lumo-contrast-20pct);
-          border: medium dashed var(--lumo-contrast);
+          border: 2px dashed var(--lumo-contrast);
+        }
+
+        .invisible {
+          visibility: hidden;
         }
 
         .down {
@@ -74,7 +96,7 @@ class DecisionElement extends LitElement {
         <div class="down" style="font-weight: 900; ${this.downStyles()}"><vaadin-icon icon="vaadin:arrow-circle-down"></vaadin-icon></div>
         <div class="decisions" style="${this.decisionsStyles()}">
           <span class="${this.decisionClasses(1)}">&nbsp;</span>
-          <span class="${this.decisionClasses(2)}">&nbsp;</span>
+          <span class="${this.decisionClasses(2)}" style="${((this.singleRef && this.ref2 !== null) ? "border: 2px solid var(--lumo-contrast); font-weight: bold" : "")}">${((this.singleRef && this.ref2 === true) ? "✓" : (this.singleRef && this.ref2 === false) ? "✕" : "")}</span>
           <span class="${this.decisionClasses(3)}">&nbsp;</span>
         </div>
       </div>`;
@@ -110,6 +132,14 @@ class DecisionElement extends LitElement {
         type: Boolean,
         state: true,
       },
+      singleRef: {
+        type: Boolean,
+        reflect: true,
+        hasChanged: (newValue, oldValue) => {
+          console.warn(`hasChanged called for singleRef: old=${oldValue}, new=${newValue}`);
+          return newValue !== oldValue;
+        },
+      },
       enabled: {
         type: Boolean,
         state: true,
@@ -131,7 +161,7 @@ class DecisionElement extends LitElement {
       }
     };
   }
-  
+
   constructor() {
     super();
     this.ref1 = null;
@@ -142,6 +172,7 @@ class DecisionElement extends LitElement {
     this.ref3Time = 0;
     this.publicFacing = true;
     this.jury = false;
+    this.singleRef = false;
     this.enabled = false;
     this.silent = false;
     this._downShown = false;
@@ -168,27 +199,27 @@ class DecisionElement extends LitElement {
 
   firstUpdated(_changedProperties) {
     super.firstUpdated(_changedProperties);
-    console.debug("decision ready "+Array.from(_changedProperties.keys()));
+    console.debug("decision ready " + Array.from(_changedProperties.keys()));
     this._init();
   }
-    
+
   _init() {
     this.downShown = false;
     this.ref1 = null;
     this.ref2 = null;
     this.ref3 = null;
   }
-    
+
   initSounds() {
-      var r =  this.renderRoot;
-      if (r == undefined) {
-        console.warn("initSound down NOT READY");
-        r = this;
-      } else {
-        console.warn("initSound down");
-        r.querySelector('#down').muted  = true;
-        r.querySelector('#down').play();
-      }
+    var r = this.renderRoot;
+    if (r == undefined) {
+      console.warn("initSound down NOT READY");
+      r = this;
+    } else {
+      console.warn("initSound down");
+      r.querySelector('#down').muted = true;
+      r.querySelector('#down').play();
+    }
   }
 
   doDown() {
@@ -204,13 +235,23 @@ class DecisionElement extends LitElement {
     console.warn("de key " + key);
     switch (e.key) {
       case "1":
-        this.ref1 = true;
-        this.ref1Time = Date.now();
+        if (this.singleRef) {
+          this.ref2 = true;
+          this.ref2Time = Date.now();
+        } else {
+          this.ref1 = true;
+          this.ref1Time = Date.now();
+        }
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "2":
-        this.ref1 = false;
-        this.ref1Time = Date.now();
+        if (this.singleRef) {
+          this.ref2 = false;
+          this.ref2Time = Date.now();
+        } else {
+          this.ref1 = false;
+          this.ref1Time = Date.now();
+        }
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "3":
@@ -224,13 +265,23 @@ class DecisionElement extends LitElement {
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "5":
-        this.ref3 = true;
-        this.ref3Time = Date.now();
+        if (this.singleRef) {
+          this.ref2 = true;
+          this.ref2Time = Date.now();
+        } else {
+          this.ref3= true;
+          this.ref3Time = Date.now();
+        }
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "6":
-        this.ref3 = false;
-        this.ref3Time = Date.now();
+        if (this.singleRef) {
+          this.ref2 = false;
+          this.ref2Time = Date.now();
+        } else {
+          this.ref3= false;
+          this.ref3Time = Date.now();
+        }
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       default:
@@ -298,8 +349,18 @@ class DecisionElement extends LitElement {
 
   decisionClasses(position) {
     var mainClass = "decision ";
-    if (!this._showDecision) {
-      return mainClass + "none";
+
+    var single = this.singleRef;
+    if (single) {
+      mainClass = "soloDecision "
+      if (position == 1 || position == 3) {
+        return "invisible"
+      } else {
+          if (!this._showDecision) {
+            return mainClass + "none";
+          }
+        return mainClass + (this.ref2 ? "white" : (this.ref2 === false) ? "red" : "none");
+      }
     }
 
     if (this.publicFacing) {
@@ -328,7 +389,7 @@ class DecisionElement extends LitElement {
   }
 
   decisionsStyles() {
-    console.warn("changing decision style "+ (this._downShown ? "none" : "flex"));
+    console.warn("changing decision style " + (this._downShown ? "none" : "flex"));
     return "display: " + (this._downShown ? "none" : "flex");
   }
 
@@ -364,12 +425,24 @@ class DecisionElement extends LitElement {
     this.ref2 = ref2;
     this.ref3 = ref3;
     this.hideDown();
+    this.singleRef = false;
     this._showDecision = true;
     console.debug("de showDecisions");
   }
 
+  showSingleDecision(decision) {
+    console.warn("de showSingleDecision: " + decision);
+    this.ref1 = null;
+    this.ref2 = decision;
+    this.ref3 = null;
+    this.hideDown();
+    this.singleRef = true;
+    this._showDecision = true;
+    console.debug("de showSingleDecision");
+  }
+
   showDecisionsForJury(ref1, ref2, ref3, ref1Time, ref2Time, ref3Time) {
-    console.warn("de showDecisionForJury: " + ref1 + " " + ref2 + " " + ref3);
+    console.warn("de showDecisionsForJury: " + ref1 + " " + ref2 + " " + ref3);
     this.ref1 = ref1;
     this.ref2 = ref2;
     this.ref3 = ref3;
@@ -377,8 +450,22 @@ class DecisionElement extends LitElement {
     this.ref2Time = ref2Time;
     this.ref3Time = ref3Time;
     this.hideDown();
+    this.singleRef = false;
+    this.jury = true;
     this._showDecision = true;
-    console.debug("de jury colorsShown");
+    console.debug("de showDecisionsForJury>");
+  }
+
+  showSingleDecisionForJury(decision) {
+    console.warn("de showSingleDecisionForJury: " + decision);
+    this.ref1 = null;
+    this.ref2 = decision;
+    this.ref3 = null;
+    this.hideDown();
+    this.singleRef = true;
+    this.jury = true;
+    this._showDecision = true;
+    console.debug("de showSingleDecisionForJury");
   }
 
   reset(isMaster) {

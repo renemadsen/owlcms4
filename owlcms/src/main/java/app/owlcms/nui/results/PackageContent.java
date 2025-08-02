@@ -37,6 +37,7 @@ import com.vaadin.flow.component.notification.Notification.Position;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
@@ -69,6 +70,7 @@ import app.owlcms.nui.shared.AthleteGridContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSCompetitionBook;
 import app.owlcms.spreadsheet.JXLSWinningSheet;
+import app.owlcms.spreadsheet.JXLSWorkbookStreamSource;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -105,6 +107,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	private Checkbox includeUnfinishedCategories;
 	private ComboBox<Ranking> rankingSelector;
 	private Ranking scoringSystem;
+	private boolean winnersOnly;
 
 	/**
 	 * Instantiates a new announcer content. Does nothing. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
@@ -185,6 +188,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			                && (allCategories || !unfinishedCategories.contains(a.getCategory().getCode()));
 			        return catOk;
 		        })
+		        .filter(a -> !this.winnersOnly || a.getTotalRank() == 1)
 		// /* logger.debug( */.peek(r -> logger./**/warn("including {} {} *** {}", r.getAbbreviatedName(), r.getCategory().getCode(),
 		// r.getParticipations().get(0)))
 		;
@@ -402,7 +406,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(),null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -420,8 +424,6 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	 */
 	@Override
 	protected AthleteCrudGrid createCrudGrid(OwlcmsCrudFormFactory<Athlete> crudFormFactory) {
-		Ranking scoringSystem = computeScoringSystem();
-		this.setScoringSystem(scoringSystem);
 		Grid<Athlete> grid = SessionResultsContent.createResultGrid(this.getScoringSystem());
 
 		OwlcmsGridLayout gridLayout = new OwlcmsGridLayout(Athlete.class);
@@ -486,21 +488,14 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 
 	@Override
 	protected void defineFilters(GridCrud<Athlete> crud) {
-		// logger.debug("defineFilters");
-
 		defineFilterCascade(crud);
 		this.includeUnfinishedCategories = new Checkbox(Translator.translate("Video.includeNotCompleted"));
 		getCrudLayout(crud).addFilterComponent(this.includeUnfinishedCategories);
 		defineSelectionListeners();
 
 		this.includeUnfinishedCategories.addValueChangeListener(e -> crud.refreshGrid());
-		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
-		clearFilters.addClickListener(event -> {
-			clearFilters();
-			this.includeUnfinishedCategories.setValue(false);
-		});
 
-		getCrudLayout(crud).addFilterComponent(clearFilters);
+		Checkbox winnersOnlyCheckbox = new Checkbox(Translator.translate("Results.WinnersOnly"));
 
 		if (this.getRankingSelector() == null) {
 			ComboBox<Ranking> scoringCombo = new ComboBox<>(Translator.translate("Ranking.BestAthlete"));
@@ -509,8 +504,9 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			scoringCombo.getElement().getStyle().set("--vaadin-combo-box-overlay-width", "30ch");
 			scoringCombo.setWidth("30ch");
 			this.setRankingSelector(scoringCombo);
+			scoringCombo.setClearButtonVisible(true);
 			getCrudLayout(crud).addFilterComponent(scoringCombo);
-			scoringCombo.setValue(computeScoringSystem());
+			scoringCombo.setValue(getScoringSystem());
 			scoringCombo.addValueChangeListener(event -> {
 				if (!event.isFromClient()) {
 					return;
@@ -518,7 +514,26 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 				setScoringSystem(event.getValue());
 				resetGrid();
 			});
+
+			winnersOnlyCheckbox.setValue(this.winnersOnly);
+			winnersOnlyCheckbox.addValueChangeListener(event -> {
+				if (!event.isFromClient()) {
+					return;
+				}
+				setWinnersOnly(event.getValue());
+				resetGrid();
+			});
+			getCrudLayout(crud).addFilterComponent(new VerticalLayout(scoringCombo, winnersOnlyCheckbox));
 		}
+		
+		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
+		clearFilters.addClickListener(event -> {
+			clearFilters();
+			this.includeUnfinishedCategories.setValue(false);
+			winnersOnlyCheckbox.setValue(false);
+		});
+		
+		getCrudLayout(crud).addFilterComponent(clearFilters);
 
 		this.getCategoryFilter().setClearButtonVisible(true);
 		this.getCategoryFilter().setPlaceholder(Translator.translate("Category"));
@@ -583,9 +598,9 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		if (getRankingSelector() != null && getRankingSelector().getValue() != null) {
 			ranking = getRankingSelector().getValue();
 		} else {
-			ranking = getScoringSystem() != null ? getScoringSystem() : Competition.getCurrent().getScoringSystem();
+			//ranking = getScoringSystem() != null ? getScoringSystem() : Competition.getCurrent().getScoringSystem();
+			ranking = null;
 		}
-		logger.debug("computeScoringSystem {}", ranking);
 		return ranking;
 	}
 
@@ -600,8 +615,9 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setGroup(this.currentGroup != null ? GroupRepository.getById(this.currentGroup.getId()) : null);
 
 			        Ranking computeScoringSystem = computeScoringSystem();
-			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem, computeScoringSystem.getMReportingName());
+			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem);
 			        rs.setBestLifterScoringSystem(computeScoringSystem);
+			        JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(computeScoringSystem);
 
 			        List<Athlete> all = (List<Athlete>) findAll();
 			        rs.setSortedAthletes(all);
@@ -625,9 +641,9 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
 			        rs.setCategory(this.categoryValue);
 			        rs.setIncludeUnfinished(Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue()));
-
+			        rs.setWinnersOnly(this.winnersOnly);
 			        Ranking computeScoringSystem = computeScoringSystem();
-			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem, computeScoringSystem.getMReportingName());
+			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem);
 			        rs.setBestLifterScoringSystem(computeScoringSystem);
 			        return rs;
 		        },
@@ -653,8 +669,8 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 			        rs.setSortedAthletes((List<Athlete>) findAll());
 
 			        Ranking computeScoringSystem = computeScoringSystem();
-			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem, computeScoringSystem.getMReportingName());
 			        rs.setBestLifterScoringSystem(computeScoringSystem);
+			        JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(computeScoringSystem);
 			        return rs;
 		        },
 		        "/templates/competitionResults",
@@ -711,6 +727,10 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 
 	private void setScoringSystem(Ranking value) {
 		this.scoringSystem = value;
+	}
+	
+	private void setWinnersOnly(boolean value) {
+		this.winnersOnly = value;
 	}
 
 }

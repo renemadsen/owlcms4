@@ -273,7 +273,7 @@ public class TeamSelectionContent extends BaseContent
 		params.remove("fop");
 
 		// change the URL to reflect group
-		event.getUI().getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
 		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -291,7 +291,7 @@ public class TeamSelectionContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(),null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -455,7 +455,7 @@ public class TeamSelectionContent extends BaseContent
 			this.genderFilter.setPlaceholder(Translator.translate("Gender"));
 			this.genderFilter.setItems(Gender.M, Gender.F);
 			this.genderFilter.setItemLabelGenerator((i) -> {
-				return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
+				return i.asGenderName();
 			});
 			this.genderFilter.setClearButtonVisible(true);
 			this.genderFilter.addValueChangeListener(e -> {

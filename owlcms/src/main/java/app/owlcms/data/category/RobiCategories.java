@@ -9,7 +9,6 @@ package app.owlcms.data.category;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -38,6 +37,7 @@ import ch.qos.logback.classic.Logger;
  */
 public class RobiCategories {
 
+	@SuppressWarnings("unused")
 	private class RobiComparator implements Comparator<Category> {
 
 		@Override
@@ -150,6 +150,10 @@ public class RobiCategories {
 	}
 
 	public static Category findRobiCategory(Athlete a) {
+		return findIWFCategory(a, false);
+	}
+
+	public static Category findIWFCategory(Athlete a, boolean forceJrSr) {
 		if (a.getBodyWeight() == null || a.getBodyWeight() < 0.1) {
 			return null;
 		}
@@ -159,23 +163,19 @@ public class RobiCategories {
 		if (ythReferenceCategories == null) {
 			loadYthReferenceCategories();
 		}
-		RobiCategories x = new RobiCategories();
+		//RobiCategories x = new RobiCategories();
 		List<Category> categories;
 		Integer age = a.getAge();
-		if (age != null && age <= 17) {
+		if (!forceJrSr && (age != null && age <= 17)) {
 			categories = ythReferenceCategories;
 		} else {
 			categories = jrSrReferenceCategories;
 		}
-		int index = Collections.binarySearch(categories,
-		        new Category(a.getBodyWeight(), a.getBodyWeight(), a.getGender(), true, 0, 0, 0, null, 0),
-		        x.new RobiComparator());
 
-		if (index >= 0) {
-			return categories.get(index);
-		} else {
-			return null;
-		}
+        return categories.stream().filter(iwfCategory ->
+                        iwfCategory.getGender().equals(a.getGender())
+                                && a.getBodyWeight() > iwfCategory.minimumWeight && a.getBodyWeight() <= iwfCategory.maximumWeight)
+                .findFirst().orElse(null);
 	}
 
 	@SuppressWarnings("unused")

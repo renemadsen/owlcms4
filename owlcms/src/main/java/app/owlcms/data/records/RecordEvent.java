@@ -9,7 +9,10 @@ package app.owlcms.data.records;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 import javax.persistence.Cacheable;
 import javax.persistence.Entity;
@@ -18,6 +21,7 @@ import javax.persistence.Index;
 import javax.persistence.Table;
 import javax.persistence.Transient;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -61,16 +65,21 @@ public class RecordEvent {
 		newRecord.setAgeGrp(rec.getAgeGrp());
 		newRecord.setAgeGrpLower(rec.getAgeGrpLower());
 		newRecord.setAgeGrpUpper(rec.getAgeGrpUpper());
+		
 		newRecord.setAthleteName(a.getFullName());
 		newRecord.setBirthDate(a.getFullBirthDate());
 		newRecord.setBirthYear(a.getYearOfBirth());
+		newRecord.setGender(a.getGender());
+		newRecord.setAthleteAge(a.getAge());
+		newRecord.setAthleteBW(a.getBodyWeight());
+		newRecord.setNation(a.getTeam());
+		
 		newRecord.setBwCatLower(rec.getBwCatLower());
 		newRecord.setBwCatUpper(rec.getBwCatUpper());
 		newRecord.setBwCatString(rec.getBwCatString());
+		
 		newRecord.setEvent(Competition.getCurrent().getCompetitionName());
 		newRecord.setEventLocation(Competition.getCurrent().getCompetitionCity());
-		newRecord.setGender(a.getGender());
-		newRecord.setNation(a.getTeam());
 		newRecord.setRecordDate(LocalDate.now());
 		newRecord.setRecordFederation(rec.getRecordFederation());
 		newRecord.setRecordLift(rec.getRecordLift());
@@ -78,9 +87,10 @@ public class RecordEvent {
 		newRecord.setRecordValue(value);
 		newRecord.setRecordYear(LocalDate.now().getYear());
 		newRecord.setFileName(rec.getFileName());
+		
 		newRecord.setGroupNameString(currentGroup != null ? currentGroup.getName() : null);
-		newRecord.setAthleteAge(a.getAge());
-		newRecord.setAthleteBW(a.getBodyWeight());
+		logger.info("!!! new record {} {} {} {}",newRecord.getAthleteName(), newRecord.getAgeGrp(), newRecord.getRecordLift(), newRecord.getRecordValue());
+
 		Category cat = a.getCategory();
 		newRecord.setCategoryString(cat != null ? cat.getSafeName() : "");
 		return newRecord;
@@ -142,7 +152,6 @@ public class RecordEvent {
 		this.ageGrp = this.ageGrp.trim();
 		this.ageGrp = this.ageGrp.toUpperCase();
 
-		boolean knownAgeGroup = true;
 		if (this.ageGrp.equals("YTH")) {
 			this.ageGrpLower = this.ageGrpLower > 0 ? this.ageGrpLower : 13;
 			this.ageGrpUpper = this.ageGrpUpper > 0 ? this.ageGrpUpper : 17;
@@ -152,12 +161,6 @@ public class RecordEvent {
 		} else if (this.ageGrp.equals("SR")) {
 			this.ageGrpLower = this.ageGrpLower > 0 ? this.ageGrpLower : 15;
 			this.ageGrpUpper = this.ageGrpUpper > 0 ? this.ageGrpUpper : 999;
-		} else {
-			knownAgeGroup = false;
-		}
-
-		if (knownAgeGroup) {
-			fillIWFBodyWeights();
 		}
 	}
 
@@ -315,7 +318,7 @@ public class RecordEvent {
 	}
 
 	public String getTranslatedGender() {
-		return Translator.translate("Gender." + this.gender);
+		return this.gender.asGenderName();
 	}
 
 	public String getTranslatedLift() {
@@ -562,106 +565,37 @@ public class RecordEvent {
 		}
 	}
 
-	private void fillIWFBodyWeights() throws MissingGender, UnknownIWFBodyWeightCategory {
-//		if (this.gender == null) {
-//			throw new MissingGender();
-//		}
-//		if (this.gender == Gender.F) {
-//			switch (this.bwCatUpper) {
-//				case 40:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 0;
-//					break;
-//				case 45:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 40;
-//					break;
-//				case 49:
-//					if (this.ageGrp.equals("YTH")) {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 45;
-//					} else {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 0;
-//					}
-//					break;
-//				case 55:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 49;
-//					break;
-//				case 59:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 55;
-//					break;
-//				case 64:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 59;
-//					break;
-//				case 71:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 64;
-//					break;
-//				case 76:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 71;
-//					break;
-//				case 81:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 76;
-//					break;
-//				case 87:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 81;
-//					break;
-//				case 999:
-//					if (this.ageGrp.equals("YTH")) {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 81;
-//					} else {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 87;
-//					}
-//					break;
-//				default:
-//					// throw new UnknownIWFBodyWeightCategory();
-//					// leave alone
-//			}
-//		} else {
-//			switch (this.bwCatUpper) {
-//				case 49:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 0;
-//					break;
-//				case 55:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 49;
-//					break;
-//				case 61:
-//					if (this.ageGrp.equals("YTH")) {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 55;
-//					} else {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 0;
-//					}
-//					break;
-//				case 67:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 61;
-//					break;
-//				case 73:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 67;
-//					break;
-//				case 81:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 73;
-//					break;
-//				case 89:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 81;
-//					break;
-//				case 96:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 89;
-//					break;
-//				case 102:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 96;
-//					break;
-//				case 109:
-//					this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 96;
-//					break;
-//				case 999:
-//					if (this.ageGrp.equals("YTH")) {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 102;
-//					} else {
-//						this.bwCatLower = this.bwCatLower > 0 ? this.bwCatLower : 109;
-//					}
-//					break;
-//				default:
-//					// throw new UnknownIWFBodyWeightCategory();
-//					// leave alone
-//			}
-//
-//		}
+	public static Comparator<RecordEvent> sequentialOrderComparator() {
+		return (a, b) -> {
+			int compare;
+			compare = ObjectUtils.compare(getIndex(a.getRecordName()), getIndex(b.getRecordName()));
+			if (compare != 0) {
+				// normally we have local - state - nation - continent - world; display "biggest" first
+				return -compare;
+			}
+			compare = ObjectUtils.compare(a.getAgeGrpUpper(), b.getAgeGrpUpper());
+			if (compare != 0) {
+				// older age group first
+				return -compare;
+			}
+			compare = ObjectUtils.compare(a.getRecordLift(), b.getRecordLift());
+			if (compare != 0) {
+				return compare;
+			}
+			return 0;
+		};
+	}
+
+	public static Integer getIndex(String target) {
+		ArrayList<String> recordOrder = RecordConfig.getCurrent().getRecordOrder();
+		var index = IntStream.range(0, recordOrder.size())
+		        .filter(i -> target.equals(recordOrder.get(i)))
+		        .findFirst();
+		return index.isEmpty() ? null : index.getAsInt();
+	}
+
+	public String prettyPrint() {
+		return getRecordName() + " " + Translator.translate("Record."+getRecordLift()) + " " + getAgeGrp() + " " + getBwCatString();
 	}
 
 }

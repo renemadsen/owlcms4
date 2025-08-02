@@ -59,6 +59,7 @@ public class AgeGroupEditingFormFactory
 	@SuppressWarnings("unused")
 	private Logger logger = (Logger) LoggerFactory.getLogger(AgeGroupEditingFormFactory.class);
 	private AgeGroupContent origin;
+	private Checkbox medalsAwarded;
 
 	AgeGroupEditingFormFactory(Class<AgeGroup> domainType, AgeGroupContent origin) {
 		super(domainType);
@@ -147,6 +148,17 @@ public class AgeGroupEditingFormFactory
 		// logger.debug("***** scoring system {}", aFromDb.getMedalScoringSystem());
 		this.binder.forField(medalScoreSystemField).bind(AgeGroup::getMedalScoringSystem, AgeGroup::setScoringSystem);
 		formLayout.addFormItem(medalScoreSystemField, createLabel(Translator.translate("MedalScoringSystem")));
+		
+		ComboBox<Ranking> bestLifterSystemField = new ComboBox<>();
+		bestLifterSystemField.setClearButtonVisible(true);
+		bestLifterSystemField.setItems(new ListDataProvider<>(medalScoreRankings));
+		bestLifterSystemField.setItemLabelGenerator((ad) -> Translator.translate("Ranking." + ad.name()));
+		// logger.debug("***** scoring system {}", aFromDb.getMedalScoringSystem());
+		this.binder.forField(bestLifterSystemField).bind(AgeGroup::getBestAthleteScoringSystem, AgeGroup::setBestAthleteScoringSystem);
+		formLayout.addFormItem(bestLifterSystemField, createLabel(Translator.translate("AgeGroup.BestAthleteScoringSystem")));
+		bestLifterSystemField.setHelperText(Translator.translate("AgeGroup.BestAthleteScoringSystemExplanation")
+				.replaceAll(" ", "\u00A0")
+				.replaceAll("-", "\u2011"));
 
 		TextField minAgeField = new TextField();
 		formLayout.addFormItem(minAgeField, createLabel(Translator.translate("MinimumAge")));
@@ -171,30 +183,14 @@ public class AgeGroupEditingFormFactory
 		ComboBox<Gender> genderField = new ComboBox<>();
 		genderField.setPlaceholder(Translator.translate("Gender"));
 		if (Competition.getCurrent().isGenderInclusive()) {
-			genderField.setItems(Gender.M, Gender.F);
-			genderField.setItemLabelGenerator((i) -> {
-				switch (i) {
-					case M:
-						return Translator.translate("Gender.Men");
-					case F:
-						return Translator.translate("Gender.Women");
-					default:
-						throw new IllegalStateException("can't happen");
-				}
-			});
-		} else {
 			genderField.setItems(Gender.M, Gender.F, Gender.I);
 			genderField.setItemLabelGenerator((i) -> {
-				switch (i) {
-					case M:
-						return Translator.translate("Gender.Men");
-					case F:
-						return Translator.translate("Gender.Women");
-					case I:
-						return Translator.translate("Gender.Inclusive");
-					default:
-						throw new IllegalStateException("can't happen");
-				}
+				return i.asGenderName();
+			});
+		} else {
+			genderField.setItems(Gender.M, Gender.F);
+			genderField.setItemLabelGenerator((i) -> {
+				return i.asGenderName();
 			});
 		}
 		this.binder.forField(genderField).bind(AgeGroup::getGender, AgeGroup::setGender);
@@ -204,6 +200,11 @@ public class AgeGroupEditingFormFactory
 		this.catField.setWidthFull();
 		this.binder.forField(this.catField).bind(AgeGroup::getCategories, AgeGroup::setCategories);
 		formLayout.addFormItem(this.catField, createLabel(Translator.translate("BodyWeightCategories")));
+		
+		this.medalsAwarded = new Checkbox();
+		this.binder.forField(this.medalsAwarded).bind(AgeGroup::getMedals, AgeGroup::setMedals);
+		formLayout.addFormItem(this.medalsAwarded, createLabel(Translator.translate("AwardMedals")));
+		
 
 		// if (minAgeField.getValue().isEmpty()) {
 		// minAgeField.setValue("0");

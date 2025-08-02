@@ -170,8 +170,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Integer startNumber = aFromDb.getStartNumber();
 		Integer entryTotal = aFromDb.getEntryTotal();
 		String entryString = "";
-		if (entryTotal != null && entryTotal > 0 && Competition.getCurrent().isEnforce20kgRule()
-		        && Config.getCurrent().featureSwitch("AthleteCardEntryTotal")) {
+		if (entryTotal != null && entryTotal > 0 && Config.getCurrent().featureSwitch("AthleteCardEntryTotal")) {
 			entryString = " (" + Translator.translate("Results.Entry_abbrev") + " = " + entryTotal + ")";
 		}
 		return (startNumber != null ? "[" + startNumber + "] " : "") + aFromDb.getFullId() + entryString;
@@ -285,7 +284,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			this.originalAthlete = aFromList;
 		}
 		Athlete aFromDb = AthleteRepository.findById(aFromList.getId());
-		Athlete.conditionalCopy(getEditedAthlete(), aFromDb, true);
+		Athlete.conditionalCopy(getEditedAthlete(), aFromDb, true, true, true);
 
 		getEditedAthlete().setValidation(false); // turn off validation in the Athlete setters; binder will call
 		                                         // the validation routines explicitly
@@ -896,7 +895,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Button snatchWithdrawalButton = new Button(Translator.translate("SnatchWithdrawal"),
 		        new Icon(VaadinIcon.SIGN_OUT),
 		        (e) -> {
-			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true);
+			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 			        this.originalAthlete.withdrawFromSnatch();
 			        AthleteRepository.save(this.originalAthlete);
 			        OwlcmsSession.withFop((fop) -> {
@@ -912,7 +911,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Button withdrawalButton = new Button(Translator.translate("Withdrawal"),
 		        new Icon(VaadinIcon.SIGN_OUT),
 		        (e) -> {
-			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true);
+			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 			        this.originalAthlete.withdraw();
 			        AthleteRepository.save(this.originalAthlete);
 			        OwlcmsSession.withFop((fop) -> {
@@ -1018,7 +1017,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		if (!val.isOk()) {
 			return;
 		}
-		Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true);
+		Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 		AthleteRepository.save(this.originalAthlete);
 		OwlcmsSession.withFop((fop) -> {
 			fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, isLiftResultChanged()));

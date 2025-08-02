@@ -162,7 +162,7 @@ public class JXLSDownloader {
 	 * @return
 	 */
 	// @Deprecated
-	// TODO remove use of createImmediateDownloadButton
+	// CODEREVIEW remove use of createImmediateDownloadButton
 	public Anchor createImmediateDownloadButton(String... tooltipText) {
 		this.xlsWriter = this.streamSourceSupplier.get();
 		Supplier<String> supplier = () -> getTargetFileName();
@@ -328,6 +328,7 @@ public class JXLSDownloader {
 
 		String fileName = "";
 		String templateName = this.templateNameGetter.apply(Competition.getCurrent());
+		
 		String extension = FileUtils.getExtension(templateName);
 		if ((templateName.matches(".*[_-](A4|LETTER|LEGAL).*"))) {
 			fileName = templateName.replaceAll("[_-](A4|LETTER|LEGAL)(." + extension + ")", "") + suffix + "."
@@ -378,7 +379,7 @@ public class JXLSDownloader {
 		for (Resource r : resourceList) {
 			String curName = r.getFileName();
 			// give precedence to .xlsx file if both .xls and .xlsx
-			if (curName.endsWith(".xlsx") || (curName.endsWith(".xls") && !prevName.contentEquals(curName + "x"))) {
+			if (curName.endsWith(".xlsm") || curName.endsWith(".xlsx") || (curName.endsWith(".xls") && !prevName.contentEquals(curName + "x"))) {
 				proritizedList.add(r);
 			}
 			prevName = curName;

@@ -182,7 +182,11 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 
 	public void setTitles(JsonObject jMC, Category cat) {
 		jMC.put("categoryName", cat.getDisplayName());
-		Ranking scoringSystem = cat.getAgeGroup().getScoringSystem();
+		AgeGroup ageGroup2 = cat.getAgeGroup();
+		if (ageGroup2 == null) {
+			logger.error("category without ageGroup: {}",cat);
+		}
+		Ranking scoringSystem = ageGroup2 != null ? ageGroup2.getScoringSystem() : null;
 		String rankingTitle = Translator.translate("Rank");
 		if (scoringSystem != null && scoringSystem != Ranking.TOTAL) {
 			String scoreScoringTitle = Translator.translate("Score");
@@ -748,7 +752,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 			setId("medals-" + fop.getName());
 			setWideTeamNames(false);
 			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
-			// FIXME: confusing
+			// CODEREVIEW: confusing
 			// this.setGroup(fop.getVideoGroup());
 			// this.setCategory(fop.getVideoCategory());
 			this.setGroup(fop.getGroup());

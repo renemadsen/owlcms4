@@ -97,7 +97,11 @@ public class Championship implements Comparable<Championship> {
 				String nameString = null;
 				if (s.contains("¤")) {
 					String[] arr = s.split("¤");
-					typeString = arr[1];
+					if (arr.length > 1) {
+						typeString = arr[1];
+					} else {
+						typeString = "U";
+					}
 					nameString = arr[0];
 				} else {
 					typeString = s;
@@ -111,7 +115,14 @@ public class Championship implements Comparable<Championship> {
 				addChampionship(nameString, cType);
 			}
 			allChampionshipsList = new ArrayList<>(allChampionshipsMap.values());
-			allChampionshipsList.sort(Championship::compareTo);
+			if (!allChampionshipsList.isEmpty()) {
+				allChampionshipsList.sort(Championship::compareTo);
+			}
+		} else {
+			allChampionshipsList = new ArrayList<>(allChampionshipsMap.values());
+			if (!allChampionshipsList.isEmpty()) {
+				allChampionshipsList.sort(Championship::compareTo);
+			}
 		}
 		return allChampionshipsList;
 	}

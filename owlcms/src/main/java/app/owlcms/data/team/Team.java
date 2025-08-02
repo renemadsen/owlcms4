@@ -55,12 +55,14 @@ public class Team {
 	private int points = 0;
 	private double sinclairScore = 0.0D;
 	private double catSinclairScore = 0.0D;
+	private double catQPointsScore = 0.0D;
 	private long size;
 	private double smfScore = 0.0D;
 	private double robi = 0.0D;
 	private double gamx;
 	private double qPoints = 0.0D;
 	private Ranking scoringSystem;
+	private double qMasters = 0.0D;
 
 	public Team(String curTeamName, Gender gender) {
 		this.name = curTeamName;
@@ -70,6 +72,10 @@ public class Team {
 
 	public double getCatSinclairScore() {
 		return this.catSinclairScore;
+	}
+	
+	public double getCatQPointsScore() {
+		return this.catQPointsScore;
 	}
 
 	public int getCounted() {
@@ -106,8 +112,12 @@ public class Team {
 				return getSinclairScore();
 			case CAT_SINCLAIR:
 				return getCatSinclairScore();
+			case CAT_QPOINTS:
+				return getCatQPointsScore();
 			case QPOINTS:
 				return getQPoints();
+			case QAGE:
+				return getQMasters();
 			case ROBI:
 				return getRobi();
 			case SMM:
@@ -117,6 +127,10 @@ public class Team {
 			default:
 				return 0D;
 		}
+	}
+
+	public Double getQMasters() {
+		return this.qMasters;
 	}
 
 	public double getSinclairScore() {
@@ -138,6 +152,10 @@ public class Team {
 		this.catSinclairScore = catSinclairScore;
 	}
 
+	public void setCatQPointsScore(double score) {
+		this.catQPointsScore = score;
+	}
+	
 	public void setCounted(int counted) {
 		this.counted = counted;
 	}
@@ -158,9 +176,14 @@ public class Team {
 		this.points = points;
 	}
 
-	public void setQPoints(double qPoints) {
-		this.qPoints = qPoints;
+	public void setQPoints(double q) {
+		this.qPoints = q;
 	}
+	
+	public void setQMasters(double q) {
+		this.qMasters = q;
+	}
+
 
 	public void setRobi(double robi) {
 		this.robi = robi;

@@ -218,6 +218,38 @@ public class PAthlete extends Athlete implements IRankHolder {
 		boolean contains = allUnfinished.contains(code);
 		return !contains;
 	}
+	
+	@Override
+	public Double getCategoryScoreForDelta() {
+		return this.a.getCategoryScoreForDelta();
+	}
+	
+	@Override
+	@Transient
+	@JsonIgnore
+	public String getCategorySortCode() {
+		Category sortCategory = getMainRankings().getCategory();
+		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "-";
+		// logger.debug("a {} category {} sortCode {}", getAbbreviatedName(), getCategory(), sortCategory.getSortCode());
+		return sortCode;
+	}
+	
+	@Override
+	public void setCategoryScoreForDelta(Double ignored) {
+		// ignored, necessary for bean introspection
+	}
+	
+	@Override
+	public Double getCategoryScore() {
+		// use ranking calculation with the PAthlete category.
+		Double categoryScore = this.p.getCategoryScore();
+		return categoryScore;
+	}
+
+	@Override
+	public void setCategoryScore(Double ignored) {
+		// ignored, necessary for bean introspection
+	}
 
 	@Override
 	public int getCategoryScoreRank() {
@@ -601,6 +633,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public Double getQAge() {
 		return this.a.getQAge();
 	}
+	
+	@Override
+	public Double getQAgeForDelta() {
+		return this.a.getQAge();
+	}
 
 	@Override
 	public int getqAgeRank() {
@@ -888,10 +925,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 		return this.a.getTotal();
 	}
 
-	@Override
-	public int getTotalPoints() {
-		return this.p.getTotalPoints();
-	}
+	// use Athlete implementation on this.
+//	@Override
+//	public int getTotalPoints() {
+//		return this.p.getTotalPoints();
+//	}
 
 	@Override
 	public int getTotalRank() {
@@ -969,6 +1007,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public void setCatSinclairRank(int i) {
 		this.a.setCatSinclairRank(i);
+	}
+	
+	@Override
+	public void setCatQPointsRank(int i) {
+		this.a.setCatQPointsRank(i);
 	}
 
 	@Override

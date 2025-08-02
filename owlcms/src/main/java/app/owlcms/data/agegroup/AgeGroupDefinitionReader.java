@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.text.MessageFormat;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -41,26 +42,32 @@ import ch.qos.logback.classic.Logger;
 public class AgeGroupDefinitionReader {
 
 	private static final String AGE_GROUP_SCORING_HEADER = "agegroupscoring";
+	private static final String AGE_GROUP_BEST_ATHLETE = "agegroupbestathlete";
 	private static Logger logger = (Logger) LoggerFactory.getLogger(AgeGroupDefinitionReader.class);
 	static DataFormatter formatter = new DataFormatter();
+	private static int[] countDefaults = new int[Gender.values().length];
+	private static Map<String, AgeGroup> ageGroupByCode = new HashMap<>();
 
 	public static void doInsertRobiAndAgeGroups(InputStream ageGroupStream) {
 		Logger mainLogger = Main.getStartupLogger();
 		Map<String, Category> templates = loadRobi(mainLogger);
 		loadAgeGroupStream(null, "custom upload", mainLogger, templates, ageGroupStream);
-
 	}
 
 	static void createAgeGroups(Workbook workbook, Map<String, Category> templates,
 	        EnumSet<ChampionshipType> forcedInsertion,
 	        String localizedName) {
 
+		for (int i = 0; i < Gender.values().length; i++) {
+			countDefaults[i] = 0;
+		}
 		JPAService.runInTransaction(em -> {
 			// backward compatibility
 			Sheet sheet = workbook.getSheetAt(workbook.getNumberOfSheets() - 1);
 			Iterator<Row> rowIterator = sheet.rowIterator();
 			int iRow;
 			boolean ageGroupScoring = false;
+			boolean ageGroupBestAthlete = false;
 			rows: while (rowIterator.hasNext()) {
 				int iColumn;
 				Row row;
@@ -77,11 +84,20 @@ public class AgeGroupDefinitionReader {
 						} catch (Exception e) {
 						}
 					}
+					Cell bestAthlete = row.getCell(8);
+					if (bestAthlete != null) {
+						try {
+							String lowerCase = bestAthlete.getStringCellValue().toLowerCase();
+							ageGroupBestAthlete = lowerCase.equals(AGE_GROUP_BEST_ATHLETE);
+						} catch (Exception e) {
+						}
+					}
 					continue;
 				}
 
 				AgeGroup ag = null;
 				double curMin = 0.0D;
+				boolean skip = false;
 
 				Iterator<Cell> cellIterator = row.cellIterator();
 				String championshipName = null;
@@ -114,7 +130,18 @@ public class AgeGroupDefinitionReader {
 							break;
 						case 2: {
 							String cellValue = safeGetTextValue(cell);
-							ag.setAgeDivision(cellValue);
+							if (!cellValue.isBlank()) {
+								try {
+									ag.setAgeDivision(cellValue);
+									ag.setChampionshipType(ChampionshipType.valueOf(cellValue));
+								} catch (Exception e) {
+									reportError(iRow, iColumn, cellValue, new IllegalArgumentException("Unknown Championship Type " + cellValue));
+								}
+							} else {
+								ag.setAgeDivision(cellValue);
+								ag.setChampionshipType(ChampionshipType.U);
+							}
+
 							if (ag.getChampionshipType() == ChampionshipType.MASTERS) {
 								ag.setAlreadyGendered(true);
 							}
@@ -127,6 +154,25 @@ public class AgeGroupDefinitionReader {
 									ag.setGender(Gender.valueOf(cellValue));
 								} catch (IllegalArgumentException e) {
 									ag.setGender(cellValue.contentEquals("W") ? Gender.F : Gender.M);
+								}
+							}
+							if (ag.getGender() == null) {
+								reportError(iRow, iColumn, cellValue, new IllegalArgumentException("You must indicate a Gender M or F"));
+							} else if (ag.getChampionshipType() == ChampionshipType.DEFAULT) {
+								countDefaults[ag.getGender().ordinal()] = countDefaults[ag.getGender().ordinal()] + 1;
+								int nbDefaults = countDefaults[ag.getGender().ordinal()];
+								if (nbDefaults > 1) {
+									reportError(iRow, 0, safeGetTextValue(row.getCell(0)),
+									        new IllegalArgumentException("You can only have one DEFAULT for Men and one DEFAULT for Women"));
+								}
+							} else {
+								String code = ag.getKey();
+								if (code != null && (ageGroupByCode.get(code) != null)) {
+									reportError(iRow, iColumn, null, new IllegalArgumentException("Duplicate Age Group " + ag.getDisplayName() + " Ignored"));
+									skip = true;
+									ag = null;
+								} else {
+									ageGroupByCode.put(code, ag);
 								}
 							}
 						}
@@ -157,6 +203,9 @@ public class AgeGroupDefinitionReader {
 						}
 							break;
 						default:
+							if (skip) {
+								break;
+							}
 							if (ageGroupScoring && iColumn == 7) {
 								String cellValue = null;
 								cellValue = safeGetTextValue(cell);
@@ -168,6 +217,22 @@ public class AgeGroupDefinitionReader {
 											reportError(iRow, iColumn, cellValue, new IllegalArgumentException(lowerCase));
 										} else {
 											ag.setScoringSystem(rv);
+										}
+									} catch (Exception e) {
+										reportError(iRow, iColumn, cellValue, e);
+									}
+								}
+							} else if (ageGroupBestAthlete && iColumn == 8) {
+								String cellValue = null;
+								cellValue = safeGetTextValue(cell);
+								if (cellValue != null && !cellValue.isBlank()) {
+									try {
+										String lowerCase = cellValue.toLowerCase();
+										Ranking rv = Ranking.rankingByReportingName.get(lowerCase);
+										if (rv == null) {
+											reportError(iRow, iColumn, cellValue, new IllegalArgumentException(lowerCase));
+										} else {
+											ag.setBestAthleteScoringSystem(rv);
 										}
 									} catch (Exception e) {
 										reportError(iRow, iColumn, cellValue, e);
@@ -214,7 +279,8 @@ public class AgeGroupDefinitionReader {
 					}
 					iColumn++;
 				}
-				if (ag != null) {
+
+				if (ag != null && !skip) {
 					em.persist(ag);
 				}
 				iRow++;
@@ -270,6 +336,7 @@ public class AgeGroupDefinitionReader {
 		        .create(localizedResourceAsStream1)) {
 			logger.info("loading age group configuration file {}", localizedName);
 			mainLogger.info("loading age group definitions {}", localizedName);
+			ageGroupByCode.clear();
 			createAgeGroups(workbook, templates, forcedInsertion, localizedName);
 			Championship.reset();
 			CategoryRepository.resetCodeMap();
@@ -295,10 +362,19 @@ public class AgeGroupDefinitionReader {
 	}
 
 	private static void reportError(int iRow, int iColumn, String cellValue, Exception e) {
-		String msg = MessageFormat.format(
-		        "cannot process cell {0} (content = \"{1}\") {2}",
-		        cellName(iColumn, iRow), cellValue, e);
-		logger.error(msg);
+		String msg;
+		if (cellValue != null) {
+			msg = MessageFormat.format(
+			        "Cannot process cell {0} (content = \"{1}\") -- {2}",
+			        cellName(iColumn, iRow), cellValue, e.getMessage());
+			logger.error(msg);
+		} else {
+			msg = MessageFormat.format(
+			        "Cannot process cell {0} -- {1}",
+			        cellName(iColumn, iRow), e.getMessage());
+			logger.error(msg);
+		}
+
 		if (UI.getCurrent() != null) {
 			NotificationUtils.errorNotification(msg);
 		}

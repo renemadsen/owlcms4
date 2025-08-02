@@ -59,6 +59,7 @@ import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
+import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordEvent;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
@@ -89,21 +90,19 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		tagLogger.setLevel(Level.ERROR);
 	}
 
-	public static Ranking getBestLifterRankingTL() {
+	public static Ranking getBestLifterRankingThreadLocal() {
 		Ranking blss = bestLifterRankingSystem.get();
-		if (blss == null) {
-			blss = Competition.getCurrent().getScoringSystem();
-		}
+//		if (blss == null) {
+//			blss = Competition.getCurrent().getScoringSystem();
+//		}
 		return blss;
 	}
 
-	protected static void setBestLifterRankingThreadLocal(Ranking bestLifterRankingValue) {
-		logger.debug("**** setting {}", bestLifterRankingValue);
+	public static void setBestLifterRankingThreadLocal(Ranking bestLifterRankingValue) {
 		bestLifterRankingSystem.set(bestLifterRankingValue);
 	}
 	
 	protected static void setNoInterimScoresInResults(boolean noInterimScoresInResultsP) {
-		logger.debug("**** setting {}", noInterimScoresInResultsP);
 		noInterimScoresInResults.set(noInterimScoresInResultsP);
 	}
 	
@@ -561,9 +560,11 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		}
 		Competition competition = Competition.getCurrent();
 		getReportingBeans().put("t", Translator.getMap());
+		getReportingBeans().put("tf", new JXLSFormatter());
 		getReportingBeans().put("competition", competition);
-		getReportingBeans().put("session", getGroup()); // legacy
-		getReportingBeans().put("group", getGroup());
+		getReportingBeans().put("session", getGroup()); 
+		getReportingBeans().put("group", getGroup());// legacy
+		getReportingBeans().put("platforms", PlatformRepository.findAll());
 
 		// reuse existing logic for processing records
 		JXLSExportRecords jxlsExportRecords = new JXLSExportRecords(null, false, false);
@@ -583,12 +584,12 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		List<Group> sessions = GroupRepository.findAll().stream().sorted(Group.groupWeighinTimeComparator)
 		        .collect(Collectors.toList());
 
-		Ranking overallScoringSystem = this.getBestLifterScoringSystem();
-		overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
+//		Ranking overallScoringSystem = this.getBestLifterScoringSystem();
+//		overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
+		Ranking overallScoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
 
 		// make available to the Athlete class in this Thread (and subThreads).
-		JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(overallScoringSystem);
-		this.reportingBeans.put("bestRankingTitle", Ranking.getScoringTitle(overallScoringSystem));
+		this.reportingBeans.put("bestRankingTitle", overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete"));
 
 		getReportingBeans().put("groups", sessions);
 		getReportingBeans().put("sessions", sessions);
@@ -651,6 +652,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 				}
 				workbook = new HSSFWorkbook();
 				workbook.createSheet().createRow(1).createCell(1).setCellValue(noAthletes);
+				workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
 			}
 		} catch (Throwable t) {
 			LoggerUtils.logError(logger, t);

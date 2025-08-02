@@ -8,6 +8,7 @@ package app.owlcms.data.records;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,9 +16,14 @@ import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.Query;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 
+import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.athleteSort.Ranking;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
@@ -98,7 +104,7 @@ public class RecordRepository {
 		JPAService.runInTransaction(em -> {
 			try {
 				// do not delete records set in the current competition.
-				int deletedCount = em.createQuery("DELETE FROM RecordEvent rec WHERE rec.groupNameString IS NULL")
+				int deletedCount = em.createQuery("DELETE FROM RecordEvent rec WHERE (rec.groupNameString IS NULL or rec.groupNameString = '')")
 				        .executeUpdate();
 				if (deletedCount >= 0) {
 					logger.info("deleted {} official record entries", deletedCount);
@@ -114,7 +120,7 @@ public class RecordRepository {
 		JPAService.runInTransaction(em -> {
 			Query q = em.createQuery("DELETE FROM RecordEvent a WHERE "
 			        + "a.fileName = :fn "
-			        + "AND a.groupNameString IS NULL");
+			        + "AND (a.groupNameString IS NULL or a.groupNameString = '')");
 			q.setParameter("fn", fileName);
 			q.executeUpdate();
 			return null;
@@ -207,7 +213,7 @@ public class RecordRepository {
 			String qlString = "select rec from RecordEvent rec "
 			        + filteringSelection(gender, age, bw, groupName, newRecords)
 			        + " order by rec.gender, rec.ageGrpLower, rec.ageGrpUpper, rec.bwCatUpper, rec.recordValue desc";
-			logger.debug("query = {}", qlString);
+			//logger.debug("query = {}", qlString);
 
 			Query query = em.createQuery(qlString);
 			setFilteringParameters(gender, age, bw, groupName, newRecords, query);
@@ -290,12 +296,14 @@ public class RecordRepository {
 			whereList.add("(groupNameString = :groupName)");
 		}
 		if (newRecords != null && newRecords) {
-			whereList.add("(groupNameString is not null)");
+			whereList.add("((groupNameString is not null) or (groupNameString != ''))");
 		}
 		if (whereList.size() == 0) {
+			//logger.debug("where = {}", "");
 			return null;
 		} else {
 			String join = String.join(" and ", whereList);
+			//logger.debug("where = {}", join);
 			return join;
 		}
 	}
@@ -314,6 +322,114 @@ public class RecordRepository {
 		if (groupName != null) {
 			query.setParameter("groupName", groupName);
 		}
+	}
+
+	public static void recomputeNewRecords() {
+		try {
+			clearNewRecords();
+		} catch (IOException e) {
+		}
+		LinkedList<ActualLiftInfo> lifts = new LinkedList<>();
+		for (Athlete a : AthleteRepository.findAll()) {
+			for (int i = 1; i <= 6; i++) {
+				Integer lift = a.getActualLiftOrNull(i);
+				// logger.debug("a {} i {}",a.getAbbreviatedName(), i);
+				if (lift != null) {
+					var ali = new ActualLiftInfo();
+					ali.setA(a);
+					ali.setLift(lift);
+					ali.setLiftNo(i);
+					LocalDateTime liftTime = a.getLiftTime(i);
+					if (liftTime == null) {
+						System.err.println(a.getAbbreviatedName()+" "+i);
+					}
+					ali.setT(liftTime);
+					lifts.add(ali);
+				}
+			}
+		}
+		
+		lifts.sort((ali1, ali2) -> ObjectUtils.compare(ali1.getT(), ali2.getT()));
+
+		List<RecordEvent> matchingRecords = new ArrayList<>();
+		for (ActualLiftInfo ali : lifts) {
+			Athlete a = ali.getA();
+			//matchingRecords = findFiltered(a.getGender(), a.getAge(), a.getBodyWeight(), null, null);
+			matchingRecords = RecordFilter.computeDisplayableRecordsForAthlete(a);
+			
+			List<RecordEvent> improvedRecords = new ArrayList<>();
+			RecordEvent improvedRecord;
+			for (RecordEvent mr : matchingRecords) {
+				// check for record federation.
+				String federationCodes = a.getFederationCodes();
+				if (federationCodes != null) {
+					if (!federationCodes.isBlank() && !federationCodes.contains(mr.getRecordFederation())) {
+						// athlete is not eligible
+						continue;
+					}
+				}
+				
+				if (ali.getLiftNo() <= 3 && mr.getRecordLift() == Ranking.SNATCH && ali.getLift() > mr.getRecordValue()) {
+					improvedRecord = improveRecord(ali, mr, ali.getLift());
+					if (improvedRecord != null) improvedRecords.add(improvedRecord);
+				} else {
+					// cj lift may improve CJ and may improve Total
+					var bestSnatch = ali.getA().getBestSnatch();
+					var total = 0;
+					if (bestSnatch > 0 && ali.getLift() > 0) {
+						total = bestSnatch + ali.getLift();
+					}
+					if (ali.getLiftNo() > 3 && mr.getRecordLift() == Ranking.CLEANJERK && ali.getLift() > mr.getRecordValue()) {
+						improvedRecord = improveRecord(ali, mr, ali.getLift());
+						if (improvedRecord != null) improvedRecords.add(improvedRecord);
+					}
+					if (ali.getLiftNo() > 3 && mr.getRecordLift() == Ranking.TOTAL && total > mr.getRecordValue()) {
+						//logger.debug("checking total for {} {} --- {} ",ali.getA(),ali.getLiftNo(), mr.getRecordValue());
+						improvedRecord = improveRecord(ali, mr, total);
+						if (improvedRecord != null) improvedRecords.add(improvedRecord);
+					}
+				}
+			}
+			
+			for (RecordEvent r: improvedRecords) {
+				save(r);
+			}
+		}
+
+	}
+
+	public static RecordEvent improveRecord(ActualLiftInfo ali, RecordEvent mr, int newValue) {
+		RecordEvent nmr = new RecordEvent();
+		
+		nmr.setAthleteName(ali.getA().getFullName());
+		nmr.setBirthDate(ali.getA().getFullBirthDate());
+		nmr.setBirthYear(ali.getA().getYearOfBirth());
+		nmr.setAthleteAge(ali.getA().getAge());
+		nmr.setAthleteBW(ali.getA().getBodyWeight());
+		nmr.setGender(ali.getA().getGender());
+		nmr.setNation(ali.getA().getClub());
+		
+		nmr.setAgeGrp(mr.getAgeGrp());
+		nmr.setAgeGrpLower(mr.getAgeGrpLower());
+		nmr.setAgeGrpUpper(mr.getAgeGrpUpper());
+		nmr.setBwCatLower(mr.getBwCatLower());
+		nmr.setBwCatUpper(mr.getBwCatUpper());
+		nmr.setBwCatString(mr.getBwCatString());
+		nmr.setCategoryString(mr.getCategoryString());
+	
+		nmr.setRecordLift(mr.getRecordLift());
+		nmr.setRecordName(mr.getRecordName());
+		nmr.setRecordValue(newValue);
+		nmr.setRecordDate(ali.getT().toLocalDate());
+		nmr.setRecordYear(ali.getT().getYear());
+		nmr.setRecordFederation(mr.getRecordFederation());
+		nmr.setEvent(Competition.getCurrent().getCompetitionName());
+		nmr.setEventLocation(Competition.getCurrent().getCompetitionCity());
+		
+		// this marks the record as provisional
+		nmr.setGroupNameString(ali.getA().getGroup().getName());
+		logger.info("!!! recomputed record {} {} {} {}",nmr.getAthleteName(), nmr.getAgeGrp(), nmr.getRecordLift(), nmr.getRecordValue());
+		return nmr;
 	}
 
 }

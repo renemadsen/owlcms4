@@ -31,6 +31,7 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.compress.utils.FileNameUtils;
 import org.apache.commons.lang3.ObjectUtils;
+import org.apache.maven.shared.utils.io.FileUtils;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -467,9 +468,11 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 			        return zipOrExcelInputStream(ui, elements, doneCallback);
 		        },
 		        () -> {
-			        return (getSortedSelection().size() > 1 ? ".zip" : template.extension);
+			        String extension = FileUtils.getExtension(template.templateFileNameSupplier.get());
+			        return (getSortedSelection().size() > 1 ? ".zip" : "." + extension);
 		        });
 		Button b = (Button) localDirZipDiv.getChildren().findFirst().get();
+		b.focus();
 		b.addClickListener(e -> b.setEnabled(false));
 		b.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		return localDirZipDiv;
@@ -901,7 +904,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 			        JXLSStartingListDocs startingXlsWriter = new JXLSStartingListDocs();
 			        startingXlsWriter.setGroup(null);
 			        // get current version of athletes.
-			        startingXlsWriter.setSortedAthletes(AthleteSorter.registrationOrderCopy(participationFindAll()));
+			        startingXlsWriter.setSortedAthletes(AthleteSorter.registrationOrderCopy(athletesFindAll(false)));
 			        startingXlsWriter.createTeamColumns(9, 6);
 			        return startingXlsWriter;
 		        });
@@ -1330,6 +1333,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 		templateName = templateName.replaceFirst("[\\-_]LLEGAL", "");
 		templateName = templateName.replaceFirst("[\\-_]A4", "");
 		// remove longer first
+		templateName = templateName.replace(".xlsm", "");
 		templateName = templateName.replace(".xlsx", "");
 		templateName = templateName.replace(".xls", "");
 		return templateName;

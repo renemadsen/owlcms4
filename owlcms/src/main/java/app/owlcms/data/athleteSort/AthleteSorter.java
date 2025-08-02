@@ -19,6 +19,7 @@ import javax.persistence.EntityManager;
 
 import org.slf4j.LoggerFactory;
 
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
@@ -207,6 +208,20 @@ public class AthleteSorter implements Serializable {
 			return 0;
 		}
 	}
+	
+	static public int countAllLiftsDone(List<Athlete> lifters) {
+		if (lifters != null && !lifters.isEmpty()) {
+			int totalSnatch = 0;
+			int totalCJ = 0;
+			for (Athlete Athlete : lifters) {
+				totalSnatch += Athlete.getSnatchAttemptsDone();
+				totalCJ += Athlete.getCleanJerkAttemptsDone();
+			}
+			return totalSnatch + totalCJ;
+		} else {
+			return 0;
+		}
+	}
 
 	/**
 	 * Sort athletes according to official rules (in place) <tableToolbar>
@@ -216,7 +231,6 @@ public class AthleteSorter implements Serializable {
 	 * @param athletes the to be sorted
 	 */
 	static public void displayOrder(List<? extends Athlete> athletes) {
-		// Collections.sort(athletes, new DisplayOrderComparator());
 		Collections.sort(athletes, new RegistrationOrderComparator());
 	}
 
@@ -295,6 +309,8 @@ public class AthleteSorter implements Serializable {
 				return curLifter.getSinclairRank();
 			case CAT_SINCLAIR:
 				return curLifter.getCatSinclairRank();
+			case CAT_QPOINTS:
+				return curLifter.getCatQPointsRank();
 			case ROBI:
 				return curLifter.getRobiRank();
 			case TOTAL:
@@ -302,18 +318,17 @@ public class AthleteSorter implements Serializable {
 			case CUSTOM:
 				return curLifter.getMainRankings().getCustomRank();
 			case AGEFACTORS:
-				return curLifter.getAgeAdjustedTotalRank();
+				return curLifter.getQYouthRank();
 			case GAMX:
 				return curLifter.getGamxRank();
 			case QAGE:
-				return curLifter.getqAgeRank();
+				return curLifter.getQMastersRank();
 			case QPOINTS:
 				return curLifter.getqPointsRank();
 			case SNATCH_CJ_TOTAL:
 				break;
-			default:
-				break;
-
+			case CATEGORY_SCORE:
+				return curLifter.getCategoryScoreRank();
 		}
 		return 0;
 	}
@@ -407,6 +422,40 @@ public class AthleteSorter implements Serializable {
 		}
 		return 26 - rank;
 	}
+	
+	/**
+	 * @param a
+	 * @return normal points, unless in a Masters championship or a Masters session and IMWA team scoring is enabled
+	 */
+	public static int imwaPointsFormula(Athlete a) {
+		Participation mr = a.getMainRankings();
+		int totalPoints = 0;
+		boolean imwa = Competition.getCurrent().isImwa();
+		ChampionshipType championshipType = mr.getChampionshipType();
+		Group session = a.getGroup();
+		if (imwa && (championshipType == ChampionshipType.MASTERS || (session != null &&session.isMasters()))) {
+			// IMWA lowers points for 1-person and two-person categories
+			Category category = a.getCategory();
+			int athleteCount = AthleteRepository.retrieveMastersAthleteCountForCategory(category);
+			int rank = a.getTotalRank();
+			if (rank <= 0) {
+				return 0;
+			}
+			//logger.debug("athlete {} category {} rank={} count={}", a.getAbbreviatedName(), category, rank, athleteCount);
+			if (athleteCount == 1) {
+				totalPoints = 23;
+			} else if (athleteCount == 2) {
+				totalPoints = (rank == 1) ? 25 : ((rank == 2) ? 23 : 0);
+			} else {
+				totalPoints = AthleteSorter.pointsFormula(rank);
+			}
+		} else {
+			//
+			totalPoints = (mr != null ? mr.getTotalPoints() : 0);
+		}
+		return totalPoints;
+	}
+	
 
 	/**
 	 * @param rank
@@ -514,6 +563,7 @@ public class AthleteSorter implements Serializable {
 		switch (rankingType) {
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SNATCH_CJ_TOTAL:
 			case ROBI:
 			case SMM:
@@ -549,6 +599,7 @@ public class AthleteSorter implements Serializable {
 		switch (rankingType) {
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SNATCH_CJ_TOTAL:
 			case ROBI:
 			case SMM:
@@ -599,6 +650,7 @@ public class AthleteSorter implements Serializable {
 	 *
 	 * @param toBeSorted  the to be sorted
 	 * @param rankingType the ranking type
+	 * @return 
 	 */
 	public static void teamPointsOrder(List<Athlete> toBeSorted, Ranking rankingType) {
 		Collections.sort(toBeSorted, new TeamPointsComparator(rankingType));

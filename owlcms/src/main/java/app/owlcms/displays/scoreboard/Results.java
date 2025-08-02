@@ -45,6 +45,7 @@ import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.team.Team;
 import app.owlcms.displays.video.StylesDirSelection;
@@ -107,7 +108,7 @@ public class Results extends LitTemplate
 	private int liftsDone;
 	private Location location;
 	private UI locationUI;
-	private final Logger logger = (Logger) LoggerFactory.getLogger(Results.class);
+	protected final Logger logger = (Logger) LoggerFactory.getLogger(Results.class);
 	private boolean publicDisplay;
 	private boolean recordsDisplay;
 	private String routeParameter;
@@ -349,6 +350,9 @@ public class Results extends LitTemplate
 		this.group = group;
 	}
 
+	/**
+	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#setLeadersDisplay(boolean)
+	 */
 	@Override
 	public void setLeadersDisplay(boolean b) {
 		this.leadersDisplay = b;
@@ -591,7 +595,6 @@ public class Results extends LitTemplate
 	protected String computedScore(Athlete a) {
 		AgeGroup ageGroup = a.getAgeGroup();
 		Ranking ageGroupScoringSystem = ageGroup != null ? ageGroup.getComputedScoringSystem() : null;
-		// logger.debug("a {} agegroup {} scoring {}", a.getLastName(), a.getAgeGroup(), a.getAgeGroup().getScoringSystem());
 
 		Competition current = Competition.getCurrent();
 		boolean sinclair = current.isSinclair();
@@ -606,12 +609,12 @@ public class Results extends LitTemplate
 			if (ageGroupScoringSystem == Ranking.TOTAL) {
 				score = value > 0.001 ? String.format("%.0f", value) : "-";
 			} else {
-				score = value > 0.001 ? String.format("%.3f", value) : "-";
+				score = value > 0.001 ? String.format("%.3f", value) : "+";
 			}
 			return score;
 		} else {
 			double value = Ranking.getRankingValue(a, scoringSystem);
-			String score = value > 0.001 ? String.format("%.3f", value) : "-";
+			String score = value > 0.001 ? String.format("%.3f", value) : "*";
 			return score;
 		}
 	}
@@ -643,7 +646,11 @@ public class Results extends LitTemplate
 	protected void computeLeaders(boolean done) {
 		OwlcmsSession.withFop(fop -> {
 			Athlete curAthlete = fop.getCurAthlete();
-			if (curAthlete != null && curAthlete.getGender() != null) {
+			if (curAthlete == null) {
+				this.getElement().setPropertyJson("leaders", Json.createNull());
+				this.getElement().setProperty("leaderLines", 1); // must be > 0
+			}
+			if (curAthlete.getGender() != null) {
 				this.getElement().setProperty("categoryName", curAthlete.getCategory().getDisplayName());
 
 				if (Competition.getCurrent().isSinclair()) {
@@ -820,6 +827,9 @@ public class Results extends LitTemplate
 	}
 
 	protected void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank, FieldOfPlay fop) {
+		boolean bestScore = Config.getCurrent().featureSwitch("displayBestScore");
+		boolean bestScoreRank = Config.getCurrent().featureSwitch("displayBestScoreRank");
+		
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
 		String fullName;
@@ -857,7 +867,7 @@ public class Results extends LitTemplate
 		ja.put("custom1", a.getCustom1() != null ? a.getCustom1() : "");
 		ja.put("custom2", a.getCustom2() != null ? a.getCustom2() : "");
 
-		if (a.getComputedScoringSystem() != Ranking.TOTAL) {
+		if (a.getComputedScoringSystem() != Ranking.TOTAL || bestScore || bestScoreRank) {
 			ja.put("sinclair", computedScore(a));
 			ja.put("sinclairRank", computedScoreRank(a));
 		}
@@ -1076,20 +1086,9 @@ public class Results extends LitTemplate
 
 		getElement().setProperty("showTotal", true);
 		getElement().setProperty("showBest", true); // overridden by media queries, not a variable
-		// var isSnatchCJTotalMedals = Competition.getCurrent().isSnatchCJTotalMedals();
-		// var isSinclair = Competition.getCurrent().isSinclair();
-		// var showLiftRanks = Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair();
-		// getElement().setProperty("showLiftRanks",
-		//        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showLiftRanks", true);
-		// getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showTotalRank", true);
-		getElement().setProperty("showSinclair", false);
-		getElement().setProperty("showSinclairRank", false);
-		// getElement().setProperty("showSinclair",
-		// Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
-		// getElement().setProperty("showSinclairRank",
-		// Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
+		getElement().setProperty("showLiftRanks",
+		        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
+		getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
 
 		if (!isSilenced() || !isDownSilenced()) {
 			SoundUtils.enableAudioContextNotification(this.getElement());
@@ -1112,13 +1111,13 @@ public class Results extends LitTemplate
 			}
 		});
 		setTranslationMap();
-// Commented out because we don't want to show sinclair or sinclair rank by default
-//		if (scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair()) {
-//			this.getElement().setProperty("showSinclair", true);
-//		}
-//		if (scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair()) {
-//			this.getElement().setProperty("showSinclairRank", true);
-//		}
+		
+		boolean showScore = scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair();
+		this.getElement().setProperty("showSinclair", showScore);
+		
+		boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair();
+		this.getElement().setProperty("showSinclairRank", showScoreRank);
+		
 		this.displayOrder = ImmutableList.of();
 	}
 
@@ -1197,11 +1196,11 @@ public class Results extends LitTemplate
 	}
 
 	private void doDone(Group g) {
-		this.logger.debug("doDone {}", g == null ? null : g.getName());
 		if (g == null) {
 			doEmpty();
 		} else {
 			OwlcmsSession.withFop(fop -> {
+				computeLeaders(true);
 				this.getElement().setProperty("fullName", Translator.translate("Group_number_results", g.toString()));
 			});
 		}

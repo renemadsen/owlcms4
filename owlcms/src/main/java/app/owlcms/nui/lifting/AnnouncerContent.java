@@ -7,7 +7,6 @@
 
 package app.owlcms.nui.lifting;
 
-import static app.owlcms.uievents.JuryDeliberationEventType.BAD_LIFT;
 import static app.owlcms.uievents.JuryDeliberationEventType.GOOD_LIFT;
 
 import java.util.Collection;
@@ -35,6 +34,7 @@ import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.H3;
+import com.vaadin.flow.component.html.NativeButton;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
@@ -100,6 +100,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	private boolean liveLights;
 	private boolean declarations;
 	private boolean centerNotifications;
+	private UI ui;
 
 	public AnnouncerContent() {
 		// when navigating to the page, Vaadin will call setParameter+readParameters
@@ -233,9 +234,9 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	@Override
 	@Subscribe
 	public void slaveJuryNotification(UIEvent.JuryNotification e) {
-		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+		ui.access(() -> {
 			JuryDeliberationEventType et = e.getDeliberationEventType();
-			if (e.isWaitForAnnouncer() && (et == GOOD_LIFT || et == BAD_LIFT)) {
+			if (e.isWaitForAnnouncer() && (et == JuryDeliberationEventType.GOOD_LIFT || et == JuryDeliberationEventType.BAD_LIFT)) {
 				juryDecisionAnnounce(e);
 				return;
 			}
@@ -252,22 +253,22 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 			switch (et) {
 				case CALL_REFEREES:
 					text = Translator.translate("JuryNotification." + et.name());
-					if (!this.summonNotificationSent) {
-						doNotification(text, style);
+					if (!this.deliberationNotificationSent) {
+						doStoppageDialog(text, style);
 					}
 					this.summonNotificationSent = true;
 					return;
 				case START_DELIBERATION:
 					text = Translator.translate("JuryNotification." + et.name());
 					if (!this.deliberationNotificationSent) {
-						doNotification(text, style);
+						doStoppageDialog(text, style);
 					}
 					this.deliberationNotificationSent = true;
 					return;
 				case CHALLENGE:
 					text = Translator.translate("JuryNotification." + et.name());
 					if (!this.deliberationNotificationSent) {
-						doNotification(text, style);
+						doStoppageDialog(text, style);
 					}
 					this.deliberationNotificationSent = true;
 					return;
@@ -276,6 +277,9 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 				case END_TECHNICAL_PAUSE:
 				case END_CHALLENGE:
 					text = Translator.translate("JuryNotification." + et.name());
+					if (this.stoppageAckNotification != null) {
+						this.stoppageAckNotification.close();
+					}
 					break;
 				case BAD_LIFT:
 					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
@@ -285,6 +289,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 					break;
 				case CALL_TECHNICAL_CONTROLLER:
 					text = Translator.translate("JuryNotification.CallTechnicalController");
+					doStoppageDialog(text, style);
 					break;
 				case GOOD_LIFT:
 					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
@@ -302,14 +307,75 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 					break;
 				case TECHNICAL_PAUSE:
 					text = Translator.translate("BreakType.TECHNICAL");
-					break;
+					doStoppageDialog(text, style);
+					return;
 				case MARSHALL:
 					text = Translator.translate("BreakType.MARSHAL");
-					break;
+					doStoppageDialog(text, style);
+					return;
 				default:
 					break;
 			}
 			doNotification(text, style);
+		});
+	}
+
+	private void doStoppageDialog(String text, String style) {
+
+		if (this.stoppageAckNotification != null)  {
+			this.stoppageAckNotification.close();
+		}
+		this.stoppageAckNotification = new Notification();
+		this.stoppageAckNotification.getElement().getThemeList().add("warning");
+		this.stoppageAckNotification.setDuration(6000);
+		
+		Div label = new Div(text);
+		
+		NativeButton ackButton = new NativeButton(Translator.translate("JuryNotification.ACK"));
+		ackButton.getStyle().set("margin-left", "1em");
+		ackButton.addClickListener((event) -> {
+			this.stoppageAckNotification.close();
+			this.stoppageAckNotification = null;
+		});
+		
+		NativeButton resumeButton = new NativeButton(Translator.translate("JuryNotification.END_JURY_BREAK"));
+		resumeButton.getStyle().set("background-color", "darkgreen");
+		resumeButton.getStyle().set("color", "white");
+		resumeButton.getStyle().set("margin-left", "1em");
+		resumeButton.addClickListener((event) -> {
+			OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(null));
+			this.stoppageAckNotification.close();
+			this.stoppageAckNotification = null;
+		});
+		
+		if (isCenterNotifications()) {
+			label.getStyle().set("font-size", "x-large");
+			ackButton.getStyle().set("font-size", "large");
+			resumeButton.getStyle().set("font-size", "large");
+			this.stoppageAckNotification.setPosition(Position.MIDDLE);
+		} else {
+			label.getStyle().set("font-size", "large");
+			ackButton.getStyle().set("font-size", "normal");
+			resumeButton.getStyle().set("font-size", "normal");
+			this.stoppageAckNotification.setPosition(Position.TOP_START);
+		}
+		
+		this.stoppageAckNotification.setDuration(0);
+		this.stoppageAckNotification.add(label);
+		this.stoppageAckNotification.add(ackButton);
+		this.stoppageAckNotification.add(resumeButton);
+		this.stoppageAckNotification.open();
+	}
+
+	@Subscribe
+	@Override
+	public void slaveStartLifting(UIEvent.StartLifting s) {
+		currentUI.access(() -> {
+			super.slaveStartLifting(s);
+			if (this.stoppageAckNotification != null) {
+				this.stoppageAckNotification.close();
+				this.stoppageAckNotification = null;
+			}
 		});
 	}
 
@@ -357,19 +423,6 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 			}
 			n.setDuration(5000);
 			n.open();
-
-			// This causes duplicate notifications.
-			// Cannot do this in a UI lock.
-			// Athlete curAthlete = OwlcmsSession.getFop().getLiftingOrder().get(0);
-			//
-			// if (curAthlete != null) {
-			// Integer newWeight = curAthlete.getNextAttemptRequestedWeight();
-			// // avoid duplicate info to officials
-			// if (newWeight != null && newWeight > 0 && Integer.compare(this.prevWeight, newWeight) != 0) {
-			// doNotification(Translator.translate("Notification.WeightToBeLoaded", newWeight), "info");
-			// this.prevWeight = newWeight;
-			// }
-			// }
 			setDecisionLights(null);
 		});
 	}
@@ -407,16 +460,16 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	@Override
 	protected void create1MinButton() {
 		super.create1MinButton();
-		UI.getCurrent().addShortcutListener(() -> do1Minute(), Key.NUMPAD_ADD);
-		UI.getCurrent().addShortcutListener(() -> do1Minute(), Key.EQUAL, KeyModifier.SHIFT);
+		currentUI.addShortcutListener(() -> do1Minute(), Key.NUMPAD_ADD);
+		currentUI.addShortcutListener(() -> do1Minute(), Key.EQUAL, KeyModifier.SHIFT);
 	}
 
 	@Override
 	protected void create2MinButton() {
 		super.create2MinButton();
-		UI.getCurrent().addShortcutListener(() -> do2Minutes(), Key.EQUAL);
-		UI.getCurrent().addShortcutListener(() -> do2Minutes(), Key.NUMPAD_EQUAL);
-		UI.getCurrent().addShortcutListener(() -> do2Minutes(), Key.SEMICOLON);
+		currentUI.addShortcutListener(() -> do2Minutes(), Key.EQUAL);
+		currentUI.addShortcutListener(() -> do2Minutes(), Key.NUMPAD_EQUAL);
+		currentUI.addShortcutListener(() -> do2Minutes(), Key.SEMICOLON);
 	}
 
 	/**
@@ -441,7 +494,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 
 		this.startLiftingButton = new Button(Translator.translate("startLifting"), new Icon(VaadinIcon.MICROPHONE),
 		        (e) -> {
-			        UI.getCurrent().access(() -> getRouterLayout().setMenuArea(createTopBar()));
+			        currentUI.access(() -> getRouterLayout().setMenuArea(createTopBar()));
 			        getFop().fopEventPost(new FOPEvent.StartLifting(this));
 		        });
 		this.startLiftingButton.getThemeNames().add("success primary");
@@ -449,7 +502,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		this.showResultsButton = new Button(Translator.translate("ShowResults"), new Icon(VaadinIcon.MEDAL),
 		        (e) -> {
 			        var fop = getFop();
-			        UI.getCurrent().access(() -> getRouterLayout().setMenuArea(createTopBar()));
+			        currentUI.access(() -> getRouterLayout().setMenuArea(createTopBar()));
 			        fop.fopEventPost(
 			                new FOPEvent.BreakStarted(BreakType.GROUP_DONE, CountdownType.INDEFINITE, null, null,
 			                        true,
@@ -507,12 +560,16 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	@Override
 	protected void createStartTimeButton() {
 		super.createStartTimeButton();
-		UI.getCurrent().addShortcutListener(() -> doStartTime(), Key.COMMA);
-		UI.getCurrent().addShortcutListener(() -> doStartTime(), Key.SLASH);
-		UI.getCurrent().addShortcutListener(() -> doStartTime(), Key.NUMPAD_DIVIDE);
+		currentUI.addShortcutListener(() -> doStartTime(), Key.COMMA);
+		boolean notSpanish = !OwlcmsSession.getLocale().getLanguage().startsWith("es");
+		boolean keepSpanishKeypadShortcut = Config.getCurrent().featureSwitch("keepSpanishHyphenShortcut");
+		if (notSpanish || keepSpanishKeypadShortcut) {
+			currentUI.addShortcutListener(() -> doStartTime(), Key.SLASH);
+		}
+		currentUI.addShortcutListener(() -> doStartTime(), Key.NUMPAD_DIVIDE);
 
-		UI.getCurrent().addShortcutListener(() -> doToggleTime(), Key.NUMPAD_MULTIPLY);
-		UI.getCurrent().addShortcutListener(() -> doToggleTime(), Key.DIGIT_8, KeyModifier.SHIFT);
+		currentUI.addShortcutListener(() -> doToggleTime(), Key.NUMPAD_MULTIPLY);
+		currentUI.addShortcutListener(() -> doToggleTime(), Key.DIGIT_8, KeyModifier.SHIFT);
 	}
 
 	/**
@@ -523,8 +580,8 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	@Override
 	protected void createStopTimeButton() {
 		super.createStopTimeButton();
-		UI.getCurrent().addShortcutListener(() -> doStopTime(), Key.PERIOD);
-		UI.getCurrent().addShortcutListener(() -> doStopTime(), Key.NUMPAD_DECIMAL);
+		currentUI.addShortcutListener(() -> doStopTime(), Key.PERIOD);
+		currentUI.addShortcutListener(() -> doStopTime(), Key.NUMPAD_DECIMAL);
 	}
 
 	@Override
@@ -620,7 +677,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		var fop = getFop();
 		Group group = fop.getGroup();
 		logger.trace("initial setting group to {} {}", group, LoggerUtils.whereFrom());
-		UI.getCurrent().access(() -> getGroupFilter().setValue(group));
+		currentUI.access(() -> getGroupFilter().setValue(group));
 
 		this.topBarMenu = new GroupSelectionMenu(groups, fop.getGroup(),
 		        fop,
@@ -667,10 +724,10 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		subItemSingleRef.setCheckable(true);
 		subItemSingleRef.setChecked(this.isSingleReferee());
 
-//		MenuItem immediateDecision = subMenu2.addItem(
-//		        Translator.translate("Settings.ImmediateDecision"));
-//		immediateDecision.setCheckable(true);
-//		immediateDecision.setChecked(fop.isAnnouncerDecisionImmediate());
+		// MenuItem immediateDecision = subMenu2.addItem(
+		// Translator.translate("Settings.ImmediateDecision"));
+		// immediateDecision.setCheckable(true);
+		// immediateDecision.setChecked(fop.isAnnouncerDecisionImmediate());
 
 		MenuItem showLights = subMenu2.addItem(
 		        Translator.translate("DisplayParameters.showDecisionLights"),
@@ -682,7 +739,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 				        fop2.setSingleReferee(false);
 			        }
 			        switchImmediateDecisionMode(this, false, true);
-			        //switchSingleRefereeMode(this, false, true);
+			        // switchSingleRefereeMode(this, false, true);
 			        e.getSource().setChecked(this.isLiveLights());
 			        subItemSingleRef.setChecked(false);
 		        });
@@ -707,29 +764,29 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		showDeclarations.setCheckable(true);
 		showDeclarations.setChecked(this.isDeclarations());
 
-//		immediateDecision.addClickListener(e -> {
-//			boolean announcerDecisionImmediate = !fop.isAnnouncerDecisionImmediate();
-//			switchImmediateDecisionMode(this, announcerDecisionImmediate, true);
-//			switchSingleRefereeMode(this, !announcerDecisionImmediate, true);
-//			switchLiveLightsMode(this, !announcerDecisionImmediate, true);
-//			subItemSingleRef.setChecked(!announcerDecisionImmediate);
-//			immediateDecision.setChecked(announcerDecisionImmediate);
-//			showLights.setChecked(isLiveLights());
-//		});
-		
+		// immediateDecision.addClickListener(e -> {
+		// boolean announcerDecisionImmediate = !fop.isAnnouncerDecisionImmediate();
+		// switchImmediateDecisionMode(this, announcerDecisionImmediate, true);
+		// switchSingleRefereeMode(this, !announcerDecisionImmediate, true);
+		// switchLiveLightsMode(this, !announcerDecisionImmediate, true);
+		// subItemSingleRef.setChecked(!announcerDecisionImmediate);
+		// immediateDecision.setChecked(announcerDecisionImmediate);
+		// showLights.setChecked(isLiveLights());
+		// });
+
 		subItemSingleRef.addClickListener(e -> {
 			boolean singleReferee2 = !this.isSingleReferee();
 			switchSingleRefereeMode(this, singleReferee2, true);
 			FieldOfPlay fop2 = OwlcmsSession.getFop();
 			if (fop2 != null) {
-//				fop2.setAnnouncerDecisionImmediate(false);
+				// fop2.setAnnouncerDecisionImmediate(false);
 				fop2.setSingleReferee(singleReferee2);
 			}
 			if (singleReferee2) {
 				switchImmediateDecisionMode(this, false, true);
-//				immediateDecision.setChecked(false);
+				// immediateDecision.setChecked(false);
 			}
-			//switchLiveLightsMode(this, !singleReferee2, true);
+			// switchLiveLightsMode(this, !singleReferee2, true);
 			subItemSingleRef.setChecked(singleReferee2);
 			// immediateDecision.setChecked(!singleReferee2);
 			showDeclarations.setChecked(isLiveLights());
@@ -745,11 +802,11 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	protected HorizontalLayout decisionButtons(FlexLayout announcerBar) {
 		Button good = new Button(new Icon(VaadinIcon.CHECK), (e) -> goodLift());
 		good.getElement().setAttribute("theme", "success icon");
-		UI.getCurrent().addShortcutListener(() -> goodLift(), Key.F2);
+		currentUI.addShortcutListener(() -> goodLift(), Key.F2);
 
 		Button bad = new Button(new Icon(VaadinIcon.CLOSE), (e) -> badLift());
 		bad.getElement().setAttribute("theme", "error icon");
-		UI.getCurrent().addShortcutListener(() -> badLift(), Key.F4);
+		currentUI.addShortcutListener(() -> badLift(), Key.F4);
 
 		HorizontalLayout decisions = new HorizontalLayout(good, bad);
 		return decisions;
@@ -758,6 +815,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		super.onAttach(attachEvent);
+		this.ui = UI.getCurrent();
 		createTopBarGroupSelect();
 		// setLiveLights(!Config.getCurrent().featureSwitch("noLiveLights"));
 		// setCenterNotifications(Config.getCurrent().featureSwitch("centerAnnouncerNotifications"));
@@ -808,6 +866,9 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 			// jury can send multiple decisions.
 			this.juryConfirmationDialog.close();
 		}
+		if (this.stoppageAckNotification != null) {
+			this.stoppageAckNotification.close();
+		}
 		this.juryConfirmationDialog = new ConfirmDialog();
 		this.juryConfirmationDialog.setHeader(Translator.translate("Announcer.JuryDecisionTitle"));
 
@@ -851,8 +912,10 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		this.juryConfirmationDialog.setCancelText(Translator.translate("Announcer.IgnoreJuryDecision"));
 		// the last parameter to the event will trigger the processing of the pending jury decision.
 		// false indicates that the decision event comes from the announcer and not from the jury.
-		this.juryConfirmationDialog.addConfirmListener(c -> OwlcmsSession.getFop()
-		        .fopEventPost(new FOPEvent.JuryDecision(e.getAthlete(), e.getOrigin(), et == GOOD_LIFT, false)));
+		if (e.getAthlete() != null) {
+			this.juryConfirmationDialog.addConfirmListener(c -> OwlcmsSession.getFop()
+			        .fopEventPost(new FOPEvent.JuryDecision(e.getAthlete(), e.getOrigin(), et == GOOD_LIFT, false)));
+		}
 		this.juryConfirmationDialog
 		        .addCancelListener(c -> OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(this)));
 		this.juryConfirmationDialog.open();

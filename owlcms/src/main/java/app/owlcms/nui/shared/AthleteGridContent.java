@@ -277,6 +277,13 @@ public abstract class AthleteGridContent extends BaseContent
 	private long previousToggleMillis;
 	private HorizontalLayout decisionLights;
 	private String stopButtonVariant;
+	ArrayList<Notification> recordNotifications;
+	protected Notification stoppageAckNotification;
+	protected UI currentUI;
+
+	private void addRecordNotification(Notification n) {
+		recordNotifications.add(n);
+	}
 
 	/**
 	 * Instantiates a new announcer content. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
@@ -285,6 +292,7 @@ public abstract class AthleteGridContent extends BaseContent
 		init();
 		this.stopButtonVariant = Config.getCurrent().featureSwitch("blackStopButton") ? "contrast" : "error";
 		this.breakTimerElement = new BreakTimerElement();
+		this.recordNotifications = new ArrayList<>();
 	}
 
 	/**
@@ -631,7 +639,9 @@ public abstract class AthleteGridContent extends BaseContent
 
 			// logger.debug("%%%%%%% starting break {}", LoggerUtils./**/stackTrace());
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 		});
+
 	}
 
 	@Subscribe
@@ -663,6 +673,7 @@ public abstract class AthleteGridContent extends BaseContent
 	@Subscribe
 	public void slaveCeremonyStarted(UIEvent.CeremonyStarted e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
 			doCeremony(e);
 		});
 	}
@@ -670,10 +681,17 @@ public abstract class AthleteGridContent extends BaseContent
 	@Subscribe
 	public void slaveDecision(UIEvent.Decision e) {
 		Athlete athlete = e.getAthlete();
-		// logger.debug("athletegrid slaveDecision");
 		UIEventProcessor.uiAccess(this.topBar, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
 			warnOthersIfCurrent(e, athlete, e.getFop());
 		});
+	}
+
+	private synchronized void clearRecordNotifications() {
+		for (Notification n : recordNotifications) {
+			n.close();
+		}
+		recordNotifications.clear();
 	}
 
 	@Subscribe
@@ -684,8 +702,8 @@ public abstract class AthleteGridContent extends BaseContent
 			// doUpdateTopBar(fop.getCurAthlete(), 0);
 			getRouterLayout().setMenuArea(createInitialBar());
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 		});
-
 	}
 
 	@Subscribe
@@ -784,6 +802,19 @@ public abstract class AthleteGridContent extends BaseContent
 	}
 
 	@Subscribe
+	public void slaveRecordNotification(UIEvent.RecordNotification e) {
+		if (this instanceof MarshallContent) {
+			return;
+		}
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
+			Notification n = e.doNotification();
+			if (!e.isNewRecord()) {
+				addRecordNotification(n);
+			}
+		});
+	}
+
+	@Subscribe
 	public void slaveSetTimer(UIEvent.SetTime e) {
 		// we use stop because it is present on most screens; either button ok for
 		// locking
@@ -796,9 +827,11 @@ public abstract class AthleteGridContent extends BaseContent
 
 	@Subscribe
 	public void slaveStartLifting(UIEvent.StartLifting e) {
+		notifications.clear();
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			logger.trace("starting lifting");
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 			this.summonNotificationSent = false;
 			this.deliberationNotificationSent = false;
 		});
@@ -808,6 +841,7 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveStartTimer(UIEvent.StartTime e) {
 		// we use stop because it is present on most screens; either button ok for
 		// locking
+		notifications.clear();
 		if (this.stopTimeButton == null) {
 			return;
 		}
@@ -817,6 +851,7 @@ public abstract class AthleteGridContent extends BaseContent
 
 	@Subscribe
 	public void slaveStopTimer(UIEvent.StopTime e) {
+		notifications.clear();
 		// we use stop because it is present on most screens; either button ok for
 		// locking
 		if (this.stopTimeButton == null) {
@@ -830,6 +865,7 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 			updateURLLocation(getLocationUI(), getLocation(), e.getGroup());
 		});
 	}
@@ -840,6 +876,7 @@ public abstract class AthleteGridContent extends BaseContent
 		var fop = e.getFop();
 		// logger.debug("athletegrid slaveUpdateAnnouncerBar {}", fop.getName());
 		UIEventProcessor.uiAccess(this.topBar, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
 			warnOthersIfCurrent(e, athlete, fop);
 			doUpdateTopBar(athlete, e.getTimeAllowed());
 		});
@@ -1277,8 +1314,9 @@ public abstract class AthleteGridContent extends BaseContent
 	 * @param text
 	 * @param theme
 	 */
+	
+	protected List<Notification> notifications = new ArrayList<>();
 	protected void doNotification(String text, String theme) {
-
 		Notification n = new Notification();
 		n.getElement().getThemeList().add(theme);
 		n.setDuration(6000);
@@ -1294,7 +1332,7 @@ public abstract class AthleteGridContent extends BaseContent
 			n.setPosition(Position.TOP_START);
 		}
 		n.add(label);
-		n.open();
+		notifications.add(n);
 		n.open();
 	}
 
@@ -1475,9 +1513,7 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-		// logger.debug("attaching {} initial={} \\n{}",
-		// this.getClass().getSimpleName(), attachEvent.isInitialAttach(),
-		// LoggerUtils. stackTrace());
+		currentUI = attachEvent.getUI();;
 		// create the top bar.
 		syncWithFop(true, getFop());
 		// we listen on uiEventBus.
@@ -1649,7 +1685,7 @@ public abstract class AthleteGridContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(), null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -1723,7 +1759,7 @@ public abstract class AthleteGridContent extends BaseContent
 			} else {
 				text = Translator.translate("Weight_change_current_athlete", curDisplayAthlete.getFullName());
 			}
-			if (text != null) {
+			if (text != null && !ackDialogIsOpened()) {
 				doNotification(text, "warning");
 			}
 		}
@@ -1740,16 +1776,25 @@ public abstract class AthleteGridContent extends BaseContent
 			        && newWeight != null && newWeight > 0
 			        && Integer.compare(this.prevWeight, newWeight) != 0) {
 				// logger.debug("warnOthersIfCurrent {} {} {} -- {}", curAthlete, this.prevWeight, newWeight, LoggerUtils.whereFrom());
-				doNotification(Translator.translate("Notification.WeightToBeLoaded", newWeight), "info");
+				if (!ackDialogIsOpened()) {
+					doNotification(Translator.translate("Notification.WeightToBeLoaded", newWeight), "info");
+				}
 				this.prevWeight = newWeight;
 			}
 
 			if (e instanceof UIEvent.LiftingOrderUpdated && curDisplayAthlete != null && !curDisplayAthlete.equals(curAthlete)) {
 				String text = Translator.translate("ChangeOfAthlete", curAthlete.getFullName());
-				doNotification(text, "warning");
+				if (text != null && !ackDialogIsOpened()) {
+					doNotification(text, "warning");
+				}
 			}
+				
 		}
 
+	}
+
+	public boolean ackDialogIsOpened() {
+		return this.stoppageAckNotification != null && this.stoppageAckNotification.isOpened();
 	}
 
 }

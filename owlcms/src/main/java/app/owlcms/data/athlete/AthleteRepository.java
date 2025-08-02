@@ -7,9 +7,11 @@
 package app.owlcms.data.athlete;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,7 @@ public class AthleteRepository {
 		logger.setLevel(Level.INFO);
 	}
 	public static Set<String> allUnfinishedCategories;
+	private static final ThreadLocal<Map<String, Integer>> categoryAthleteCount = ThreadLocal.withInitial(HashMap::new);
 
 	public static Set<String> allUnfinishedCategories() {
 		Set<String> unfinishedCategories = new HashSet<>();
@@ -196,7 +199,7 @@ public class AthleteRepository {
 		if (group != null && group.getName() == "*") {
 			group = null;
 		}
-		// REVIEW this does not appear to work with ageDivision/Championship
+		// CODEREVIEW this does not appear to work with ageDivision/Championship
 		String qlString = "select a from Athlete a"
 		        + filteringSelection(lastName, group, category, ageGroup, ageDivision, gender, weighedIn, team)
 		        + " order by a.category";
@@ -354,6 +357,32 @@ public class AthleteRepository {
 		return (Athlete) query.getResultList().stream().findFirst().orElse(null);
 	}
 
+	public static int retrieveMastersAthleteCountForCategory(Category category) {
+		Map<String, Integer> map = categoryAthleteCount.get();
+		if (map.isEmpty()) {
+			populateCategoryMastersAthleteCountMap();
+		}
+		return map.getOrDefault(category.getCode(), 0);
+	}
+
+	private static void populateCategoryMastersAthleteCountMap() {
+		JPAService.runInTransaction(em -> {
+			Query query = em.createQuery(
+			        "select p.category.code, count(a.id) from Athlete a join a.participations p join p.category c join c.ageGroup ag where ag.minAge >= 30 group by p.category.code");
+			@SuppressWarnings("unchecked")
+			List<Object[]> results = query.getResultList();
+			Map<String, Integer> map = categoryAthleteCount.get();
+			map.putAll(results.stream()
+			        // .peek(result -> {
+			        // Category cat = (Category) result[0];
+			        // int count = ((Long) result[1]).intValue();
+			        // logger.debug("*** cat {} count {}", cat.getCode(), count);
+			        // })
+			        .collect(Collectors.toMap(result -> ((String) result[0]), result -> ((Long) result[1]).intValue())));
+			return null;
+		});
+	}
+
 	public static Set<Athlete> keepOnlyFinishedCategoryAthletes(Collection<Athlete> athletes) {
 		Set<String> unfinishedCategories = new HashSet<>();
 		Set<Athlete> finishedCategoryAthletes = new HashSet<>();
@@ -376,34 +405,40 @@ public class AthleteRepository {
 
 	/**
 	 * Use the athlete bodyweight (or presumed body weight if weigh-in has not taken place) to determine category.
+	 * 
+	 * @param clearParticipations     if true, clear the partications (normally always done)
+	 * @param recomputeParticipations if true, reassign the categories.
 	 */
-	public static void resetParticipations() {
+	public static void resetParticipations(boolean clearParticipations, boolean recomputeParticipations) {
+		if (recomputeParticipations || clearParticipations) {
+			JPAService.runInTransaction(em -> {
+				List<Athlete> athletes = AthleteRepository.doFindAll(em);
+				for (Athlete a : athletes) {
+					// do not clear category, required if no body weight
+					// a.setCategory(null);
+					a.setEligibleCategories(null);
+					em.merge(a);
+				}
+				em.flush();
+				Competition.getCurrent().setRankingsInvalid(true);
+				return null;
+			});
+		}
+		
+		if (recomputeParticipations) {
+			JPAService.runInTransaction(em -> {
+				List<Athlete> athletes = AthleteRepository.doFindAll(em);
+				for (Athlete a : athletes) {
+					a.computeMainAndEligibleCategories();
+					a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
+					em.merge(a);
+				}
 
-		JPAService.runInTransaction(em -> {
-			List<Athlete> athletes = AthleteRepository.doFindAll(em);
-			for (Athlete a : athletes) {
-				// do not clear category, required if no body weight
-				// a.setCategory(null);
-				a.setEligibleCategories(null);
-				em.merge(a);
-			}
-			em.flush();
-			Competition.getCurrent().setRankingsInvalid(true);
-			return null;
-		});
-
-		JPAService.runInTransaction(em -> {
-			List<Athlete> athletes = AthleteRepository.doFindAll(em);
-			for (Athlete a : athletes) {
-				a.computeMainAndEligibleCategories();
-				a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
-				em.merge(a);
-			}
-
-			em.flush();
-			Competition.getCurrent().setRankingsInvalid(true);
-			return null;
-		});
+				em.flush();
+				Competition.getCurrent().setRankingsInvalid(true);
+				return null;
+			});
+		}
 	}
 
 	/**

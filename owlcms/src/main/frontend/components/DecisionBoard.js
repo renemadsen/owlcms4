@@ -15,25 +15,98 @@ class DecisionBoard extends LitElement {
     return html` 
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/colors" + (this.autoversion ?? "")}.css"/>
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/decisionboard" + (this.autoversion ?? "")}.css"/>
-      
-      <div class="wrapper">
-        <div class="wrapper bigTitle" style="${this.waitingStyles()}">
-          <div class="competitionName">${this.competitionName}</div>
-          <br />
-          <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
+	  <style>
+      .container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        font-weight: light; /* This will affect text within the container if not overridden */
+        font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+      }
+
+      .octagon-container {
+        position: relative; /* Needed for stacking the octagons */
+        width: 65vh;
+        height: 65vh;
+      }
+
+      .octagon {
+        width: 100%;
+        height: 100%;
+        position: absolute; /* Allows overlapping */
+        clip-path: polygon(
+          30% 0%,
+          70% 0%,
+          100% 30%,
+          100% 70%,
+          70% 100%,
+          30% 100%,
+          0% 70%,
+          0% 30%
+        );
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .main-octagon {
+        background-color: red;
+        color: white;
+        font-size: 20vh;
+        font-weight: bold;
+        text-align: center;
+        z-index: 1; /* Ensure it's on top */
+      }
+
+      .border-octagon {
+        background-color: white;
+        width: calc(100% + 2vh); /* Adjust for border thickness */
+        height: calc(100% + 2vh); /* Adjust for border thickness */
+        top: -1vh; /* Center behind the main octagon */
+        left: -1vh; /* Center behind the main octagon */
+        z-index: 0; /* Ensure it's behind */
+      }
+
+        .blink {
+            animation: blink 1.5s step-end infinite;
+        }
+
+        @keyframes blink {
+            0%, 74% {  /*  1,5 seconds of 2.5s = 75% */
+                opacity: 1;
+            }
+            75%, 100% { /* 0.5 seconds of 2.5s = 25% */
+                opacity: 0;
+            }
+        }
+
+	  </style>
+    <div class="wrapper" style="${this.colorOverride}">
+      <div class="wrapper bigTitle" style="${this.waitingStyles()}">
+        <div class="competitionName">${this.competitionName}</div>
+        <br />
+        <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
+      </div>
+      <div class="container blink" style="${this.stopStyles()}">
+        <div class="octagon-container">
+          <div class="octagon border-octagon"></div>
+          <div class="octagon main-octagon">${this.STOP}</div>
         </div>
-        <div class="decisionBoard" style="${this.activeStyles()}">
-          <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
-            <timer-element id="athleteTimer"></timer-element>
-          </div>
-          <div class="timer breakTime" style="${this.breakTimerStyles()}">
-            <timer-element id="breakTimer"></timer-element>
-          </div>
-          <div class="decision" id="decisionDiv" style="${this.decisionStyles()}">
-            <decision-element id="decisions"></decision-element>
-          </div>
+      </div>
+      <div class="decisionBoard" style="${this.activeStyles()}">
+        <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
+          <timer-element id="athleteTimer"></timer-element>
         </div>
-      </div>`;
+        <div class="timer breakTime" style="${this.breakTimerStyles()}">
+          <timer-element id="breakTimer"></timer-element>
+        </div>
+        <div class="decision" id="decisionDiv" style="${this.decisionStyles()}">
+          <decision-element id="decisions"></decision-element>
+        </div>
+      </div>
+    </div>`;
   }
 
   /* what follows is integrally copied from attempt board */
@@ -104,7 +177,11 @@ class DecisionBoard extends LitElement {
   }
 
   activeStyles() {
-    return "display: " + (this.mode !== "WAIT" ? "grid" : "none");
+    return "display: " + ((this.mode !== "WAIT" && this.mode !== "INTERRUPTION") ? "grid" : "none");
+  }
+
+  stopStyles() {
+    return "display: " + (this.mode === "INTERRUPTION" ? "flex" : "none");
   }
 
   lastNameClasses() {

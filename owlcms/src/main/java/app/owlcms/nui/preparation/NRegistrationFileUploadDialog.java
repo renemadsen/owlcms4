@@ -11,18 +11,25 @@ import java.util.function.Consumer;
 
 import org.slf4j.LoggerFactory;
 
+import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H5;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
+import com.vaadin.flow.component.radiobutton.RadioGroupVariant;
 import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.category.CategoryRepository;
+import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
-import app.owlcms.spreadsheet.IRegistrationFileProcessor;
 import app.owlcms.spreadsheet.NRegistrationFileProcessor;
+import app.owlcms.spreadsheet.NRegistrationFileProcessor.AthleteOptions;
+import app.owlcms.spreadsheet.NRegistrationFileProcessor.SessionOptions;
+import app.owlcms.spreadsheet.RCompetition;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -35,19 +42,31 @@ public class NRegistrationFileUploadDialog extends Dialog {
 	static {
 		jxlsLogger.setLevel(Level.ERROR);
 	}
-	public IRegistrationFileProcessor processor;
+	public NRegistrationFileProcessor processor;
 	private boolean sbdeFormat;
 	public String fileName;
+	private AthleteOptions athleteOption;
+	private SessionOptions sessionOption;
 
 	public NRegistrationFileUploadDialog(boolean sbdeFormat) {
 		this.sbdeFormat = sbdeFormat;
 
 		H5 label = new H5(Translator.translate("Upload.WarningWillReplaceAll"));
 		label.getStyle().set("color", "red");
+		H5 sbdeLabel = new H5(Translator.translate("SBDE.AthleteOptions_WARNING"));
+		sbdeLabel.getStyle().set("color", "red");
 
 		MemoryBuffer buffer = new MemoryBuffer();
 		Upload upload = new Upload(buffer);
 		upload.setWidth("40em");
+
+		Component sos = sessionOptionSelectors();
+		Component aos = athleteOptionSelectors();
+
+		if (!sbdeFormat) {
+			athleteOption = NRegistrationFileProcessor.AthleteOptions.DELETE_ATHLETES;
+			sessionOption = NRegistrationFileProcessor.SessionOptions.DELETE_SESSIONS;
+		}
 
 		TextArea ta = new TextArea(Translator.translate("Errors"));
 		ta.setHeight("20ex");
@@ -59,12 +78,12 @@ public class NRegistrationFileUploadDialog extends Dialog {
 			        ? new NRegistrationFileProcessor(sbdeFormat)
 			        : new NRegistrationFileProcessor(sbdeFormat);
 			this.fileName = event.getFileName();
-			// try {
-			// buffer.getInputStream().reset();
-			processInput(buffer.getInputStream(), ta);
-			// } catch (IOException e) {
-			// throw new RuntimeException(e);
-			// }
+			try {
+				buffer.getInputStream().reset();
+				processInput(buffer.getInputStream(), ta);
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
 
 		});
 
@@ -74,39 +93,101 @@ public class NRegistrationFileUploadDialog extends Dialog {
 		});
 
 		H3 title = new H3(Translator.translate("UploadRegistrationFile"));
-		VerticalLayout vl = new VerticalLayout(title, label, upload, ta);
+		VerticalLayout vl;
+		if (sbdeFormat) {
+			vl = new VerticalLayout(title, sbdeLabel, aos, sos, upload, ta);
+		} else {
+			vl = new VerticalLayout(title, label, upload, ta);
+		}
 		add(vl);
 	}
 
+	RadioButtonGroup<NRegistrationFileProcessor.AthleteOptions> radioGroup = new RadioButtonGroup<>();
+
+	private Component athleteOptionSelectors() {
+		radioGroup.addThemeVariants(RadioGroupVariant.LUMO_VERTICAL);
+		radioGroup.setLabel(Translator.translate("SBDE.AthleteOptions"));
+		radioGroup.setItems(NRegistrationFileProcessor.AthleteOptions.values());
+		radioGroup.setItemLabelGenerator(o -> Translator.translate("SBDE.AthleteOptions_" + o.name()));
+		athleteOption = NRegistrationFileProcessor.AthleteOptions.DELETE_ATHLETES;
+		radioGroup.setValue(athleteOption);
+		radioGroup.addValueChangeListener(v -> {
+			this.athleteOption = v.getValue();
+			if (this.athleteOption != NRegistrationFileProcessor.AthleteOptions.DELETE_ATHLETES) {
+				sessionOption = NRegistrationFileProcessor.SessionOptions.IGNORE_SESSIONS;
+				sessionRadioGroup.setValue(sessionOption);			
+			}
+		});
+		return radioGroup;
+	}
+
+	private RadioButtonGroup<NRegistrationFileProcessor.SessionOptions> sessionRadioGroup = new RadioButtonGroup<>();
+
+	private Component sessionOptionSelectors() {
+		sessionRadioGroup.addThemeVariants(RadioGroupVariant.LUMO_VERTICAL);
+		sessionRadioGroup.setLabel(Translator.translate("SBDE.SessionOptions"));
+		sessionRadioGroup.setItems(NRegistrationFileProcessor.SessionOptions.values());
+		sessionRadioGroup.setItemLabelGenerator(o -> Translator.translate("SBDE.SessionOptions_" + o.name()));
+		sessionOption = NRegistrationFileProcessor.SessionOptions.DELETE_SESSIONS;
+		sessionRadioGroup.setValue(sessionOption);
+		sessionRadioGroup.addValueChangeListener(v -> {
+			this.sessionOption = v.getValue();
+		});
+		return sessionRadioGroup;
+	}
+
 	public void processInput(InputStream inputStream, TextArea ta) {
-		// clear athletes to be able to clear groups
+		this.processor.setAthleteOptions(athleteOption);
+		this.processor.setSessionOptions(sessionOption);
+
+		// clear athletes to be able to clear sessions
 		CategoryRepository.resetCodeMap();
-		if (eraseAthletes()) {
+		if (this.processor.isDeleteAthletes()) {
 			this.processor.resetAthletes();
 		}
 
-		// first do a dry run to count groups
-		int nbGroups = processGroups(inputStream, ta, true);
-		logger.info("{} groups found in file", nbGroups);
-		if (nbGroups > 0) {
-			if (eraseAthletes()) {
-				this.processor.resetGroups();
-			}
+		// first do a dry run to count sessions
+		if (this.processor.isIgnoreSessions()) {
+			logger.info("Ignoring session updates");
+			// we still need to process the existing ones
+			rememberSessionCodes();
+		} else {
+			rememberSessionCodes();
+			int nbSessions = processSessions(inputStream, ta, true);
+			logger.info("{} sessions found in file", nbSessions);
+			if (nbSessions > 0) {
+				if (this.processor.isDeleteSessions()) {
+					this.processor.resetSessions();
+					logger.info("cleared existing sessions", nbSessions);
+				}
 
-			// get the groups from the spreadsheet
-			processGroups(inputStream, ta, false);
-			logger.info("{} groups processed", nbGroups);
+				// get the sessions from the spreadsheet
+				processSessions(inputStream, ta, false);
+				logger.info("{} sessions processed", nbSessions);
+			}
 		}
 
 		if (this.sbdeFormat) {
 			processCompetition(inputStream, ta);
 		}
-		
-		// process athletes now that groups have been adjusted
-		processAthletes(inputStream, ta, false);
-		this.processor.adjustParticipations();
+
+		if (isProcessAthletes()) {
+			// process athletes now that groups have been adjusted
+			processAthletes(inputStream, ta, false);
+			this.processor.adjustParticipations();
+		}
 	}
-	
+
+	private void rememberSessionCodes() {
+		AthleteRepository.findAll().stream().forEach(a -> {
+			RCompetition.putSessionCode(a.getId(), a.getGroup() != null ? a.getGroup().getName() : "");
+		});
+	}
+
+	private boolean isProcessAthletes() {
+		boolean updatesAllowed = !Config.getCurrent().featureSwitch("noAthleteUpdates");
+		return updatesAllowed && this.fileName != null && !this.fileName.contains("_sessions");
+	}
 
 	private void processCompetition(InputStream inputStream, TextArea ta) {
 		StringBuffer sb = new StringBuffer();
@@ -115,18 +196,17 @@ public class NRegistrationFileUploadDialog extends Dialog {
 		this.processor.doProcessCompetitionHeader(inputStream, errorConsumer, displayUpdater);
 	}
 
-	private boolean eraseAthletes() {
-		return this.fileName != null && !this.fileName.contains("_add");
-	}
-
 	private int processAthletes(InputStream inputStream, TextArea ta, boolean dryRun) {
 		StringBuffer sb = new StringBuffer();
 		Consumer<String> errorConsumer = str -> sb.append(str);
 		Runnable displayUpdater = () -> updateDisplay(ta, sb);
-		return this.processor.doProcessAthletes(inputStream, dryRun, errorConsumer, displayUpdater, eraseAthletes());
+		if (this.fileName.contains("_add")) {
+			this.processor.setAthleteOptions(NRegistrationFileProcessor.AthleteOptions.ADD_ATHLETES);
+		}
+		return this.processor.doProcessAthletes(inputStream, dryRun, errorConsumer, displayUpdater);
 	}
 
-	private int processGroups(InputStream inputStream, TextArea ta, boolean dryRun) {
+	private int processSessions(InputStream inputStream, TextArea ta, boolean dryRun) {
 		StringBuffer sb = new StringBuffer();
 		Consumer<String> errorConsumer = str -> sb.append(str);
 		Runnable displayUpdater = () -> updateDisplay(ta, sb);

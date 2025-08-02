@@ -32,12 +32,12 @@ table.results tr td div {
 
 .showRank {
     display: table-cell;
-    text-align: left;
+    text-align: start;
     background-color: var(--BackgroundColor);
 }
 
 .showRank div, .totalRank div {
-    margin-left: 0.5em;
+    margin-inline-start: 0.5em;
     border: none;
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
@@ -45,14 +45,14 @@ table.results tr td div {
 }
 
 div > div.attemptBar > div.attempts > table > tr > td.totalRank {
-    margin-right: 0;
+    margin-inline-end: 0;
 }
 
 .wrapper {
     font-family: Arial, Helvetica, sans-serif;
     color: var(--videoTextColor);
     background-color: var(--videoHeaderBackgroundColor);
-    padding: 2vmin 2vmin 2vmin 2vmin;
+    padding: 2vmin; /* This is already logical */
     overflow: hidden;
 }
 
@@ -88,7 +88,7 @@ div > div.attemptBar > div.attempts > table > tr > td.totalRank {
 
 .attemptBar .bg .fullName {
     font-size: 110%;
-    justify-self: left;
+    justify-self: start;
     grid-column: 2/3;
     width: 100%;
 }
@@ -155,8 +155,9 @@ table.results {
     display: flex;
     flex-direction: row;
     width: 100%;
-    padding: 0.2em;
-    padding-right: 1em;
+    padding-block: 0.2em;
+    padding-inline-start: 0.2em; /* Assuming original padding: 0.2em; was for T,B,L */
+    padding-inline-end: 1em;
     flex-wrap: wrap;
 }
 
@@ -166,8 +167,9 @@ table.results {
     display: flex;
     flex-direction: row;
     width: 100%;
-    padding: 0.2em;
-    padding-right: 1em;
+    padding-block: 0.2em;
+    padding-inline-start: 0.2em; /* Assuming original padding: 0.2em; was for T,B,L */
+    padding-inline-end: 1em;
     flex-wrap: wrap;
 }
 
@@ -223,12 +225,11 @@ table.results td {
 :host .light table.results td.showRank div, :host .light table.results td.totalRank div {
     display: inherit;
     font-size: var(--fontSizeRows-height);
-    margin-right: 0.5em;
+    margin-inline-end: 0.5em;
     line-height: var(--divLineHeight);
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
 }
-
 
 :host .dark table.results td.showRank, :host .dark table.results td.totalRank {
     border: none;
@@ -241,7 +242,7 @@ table.results td {
 :host .dark table.results td.showRank div, :host .dark table.results td.totalRank div {
     display: inherit;
     font-size: var(--fontSizeRows-height);
-    margin-right: 0.5em;
+    margin-inline-end: 0.5em;
     line-height: var(--divLineHeight);
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
@@ -253,8 +254,7 @@ table.results td {
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
     font-size: calc(var(--fontSizeRows-height)*1.0);
-    padding-left: 1ch;
-    padding-right: 1ch;
+    padding-inline: 1ch;
 }
 
 :host .light table.results td.category {
@@ -263,8 +263,7 @@ table.results td {
     background-color: var(--BackgroundColor);
     color: var(--TextColor);
     font-size: calc(var(--fontSizeRows-height)*1.0);
-    padding-left: 1ch;
-    padding-right: 1ch;
+    padding-inline: 1ch;
 }
 
 :host .dark table.results td.category div {
@@ -296,7 +295,7 @@ table.results td {
 table.results td.liftName div {
     display: inherit;
     font-size: var(--fontSizeRows-height);
-    margin-right: 0.5em;
+    margin-inline-end: 0.5em;
     line-height: var(--divLineHeight);
 }
 
@@ -459,6 +458,15 @@ table.results td.liftName div {
 
 thead {
     display: none
+}
+
+.clubNameEllipsis {
+    max-width: var(--clubName-max-width);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: auto; /* Remains logical for centering block element */
+    text-align: start;
 }
 
 .hiddenTitle {

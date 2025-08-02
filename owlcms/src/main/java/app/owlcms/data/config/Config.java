@@ -82,6 +82,7 @@ public class Config {
 			if (ConfigRepository.findAll().isEmpty()) {
 				Config config = new Config();
 				config.setMqttInternal(true);
+				config.setLocalDateTimeUtcNormalized(true);
 				Config.setCurrent(config);
 			}
 			return null;
@@ -149,6 +150,11 @@ public class Config {
 	private IConfig mqttConfig;
 	private String videoColorOverrides;
 	private Boolean enableColorOverrides;
+	/**
+	 * Indicates if LocalDateTime fields have been normalized to UTC timestamps
+	 */
+	@Column(columnDefinition = "boolean default false")
+	private boolean localDateTimeUtcNormalized = false;
 
 	public String computeSalt() {
 		this.setSalt(null);
@@ -183,7 +189,6 @@ public class Config {
 			return !trueIfPresent;
 		}
 		String[] switches = paramFeatureSwitches.toLowerCase().split("[,; ]");
-		// logger.debug("featureSwitches {}",Arrays.asList(switches));
 		boolean present = Arrays.asList(switches).contains(string.toLowerCase());
 		return trueIfPresent ? present : !present;
 	}
@@ -1010,8 +1015,15 @@ public class Config {
 	}
 
 	public void setEnableColorOverrides(Boolean enableColorOverrides) {
-		logger.warn("setEnableColorOverrides {}", enableColorOverrides);
 		this.enableColorOverrides = enableColorOverrides;
+	}
+
+	public boolean isLocalDateTimeUtcNormalized() {
+		return localDateTimeUtcNormalized;
+	}
+
+	public void setLocalDateTimeUtcNormalized(boolean normalized) {
+		this.localDateTimeUtcNormalized = normalized;
 	}
 
 }
