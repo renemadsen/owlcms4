@@ -34,10 +34,12 @@ public enum Ranking {
     // global scoring systems
 	BW_SINCLAIR("Sinclair", true), // normal Sinclair
 	CAT_SINCLAIR("CatSinclair", true), // legacy Quebec federation, Sinclair computed at category boundary
+	CAT_QPOINTS("CatQPoints", true), // QPoints computed at category boundary
 	SMM("Smm", true), // Legacy name, kept for import/export backward compatibility Sinclair Meltzer Huebner Faber
 	ROBI("Robi", true), // IWF ROBI
 	QPOINTS("QPoints", true), // Huebner QPoints.
 	GAMX("GAMX", true), // Global Adjusted Mixed (Huebner)
+	// legacy
 	AGEFACTORS("QYouth", true),
 	QAGE("QMasters", true), // QPoints * SMHF age factors
 	;
@@ -94,6 +96,9 @@ public enum Ranking {
 			case CAT_SINCLAIR:
 				value = curLifter.getCatSinclairRank();
 				break;
+			case CAT_QPOINTS:
+				value = curLifter.getCatQPointsRank();
+				break;
 			case SMM:
 				value = curLifter.getSmhfRank();
 				break;
@@ -104,16 +109,15 @@ public enum Ranking {
 				value = curLifter.getqPointsRank();
 				break;
 			case QAGE:
-				value = curLifter.getqAgeRank();
+				value = curLifter.getQMastersRank();
 				break;
 			case AGEFACTORS:
-				value = curLifter.getAgeAdjustedTotalRank();
+				value = curLifter.getQYouthRank();
 				break;
 			case CATEGORY_SCORE:
 				value = curLifter.getCategoryScoreRank();
 				break;
 		}
-		// logger.debug("{} ranking value: {}", curLifter.getShortName(), value);
 		return value == null ? 0 : value;
 	}
 
@@ -128,6 +132,10 @@ public enum Ranking {
 		}
 		Double d = 0D;
 		Integer i = 0;
+		if (rankingType == CATEGORY_SCORE) {
+			// indirection -- find the category scoring system
+			rankingType = curLifter.getComputedScoringSystem();
+		}
 		switch (rankingType) {
 			case SNATCH:
 				i = curLifter.getBestSnatch();
@@ -164,11 +172,18 @@ public enum Ranking {
 					d = curLifter.getCategorySinclairForDelta();
 				}
 				break;
+			case CAT_QPOINTS:
+				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
+					d = curLifter.getCategoryQPoints();
+				} else {
+					d = curLifter.getCategoryQPointsForDelta();
+				}
+				break;
 			case SMM:
 				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
 					d = curLifter.getSmhf();
 				} else {
-					d = curLifter.getSmhfForDelta();
+					d = curLifter .getSmhfForDelta();
 				}
 				break;
 			case GAMX:
@@ -176,9 +191,9 @@ public enum Ranking {
 				break;
 			case AGEFACTORS:
 				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
-					d = curLifter.getAgeAdjustedTotal();
+					d = curLifter.getQYouth();
 				} else {
-					d = curLifter.getAgeAdjustedTotalForDelta();
+					d = curLifter.getQYouthForDelta();
 				}
 				break;
 			case QPOINTS:
@@ -190,18 +205,19 @@ public enum Ranking {
 				break;
 			case QAGE:
 				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
-					d = curLifter.getQAge();
+					d = curLifter.getQMasters();
 				} else {
-					d = curLifter.getQAgeForDelta();
+					d = curLifter.getQMastersForDelta();
 				}
 				break;
 			case CATEGORY_SCORE:
-				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
-					d = curLifter.getCategoryScoreForDelta();
-				} else {
-					d = curLifter.getCategoryScore();
-				}
-				break;
+				throw new RuntimeException("can't happen, CATEGORY_SCORE loop");
+//				if (JXLSWorkbookStreamSource.isNoInterimScoresInResults()) {
+//					d = curLifter.getCategoryScoreForDelta();
+//				} else {
+//					d = curLifter.getCategoryScore();
+//				}
+//				break;
 		}
 		return d != null ? d : 0D;
 	}
@@ -215,6 +231,7 @@ public enum Ranking {
 			case CUSTOM:
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SMM:
 			case GAMX:
 			case QPOINTS:
@@ -236,6 +253,7 @@ public enum Ranking {
 			case CUSTOM:
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SMM:
 			case GAMX:
 			case QPOINTS:
@@ -249,7 +267,7 @@ public enum Ranking {
 	}
 
 	public static List<Ranking> scoringSystems() {
-		List<Ranking> systems = new ArrayList<>(Arrays.asList(BW_SINCLAIR, SMM, ROBI, AGEFACTORS, QPOINTS, QAGE, GAMX, CAT_SINCLAIR));
+		List<Ranking> systems = new ArrayList<>(Arrays.asList(BW_SINCLAIR, SMM, ROBI, AGEFACTORS, QPOINTS, QAGE, GAMX, CAT_QPOINTS, CAT_SINCLAIR));
 		return systems;
 	}
 
@@ -283,6 +301,14 @@ public enum Ranking {
 
 	public void setMedalScore(boolean medalScore) {
 		this.medalScore = medalScore;
+	}
+
+	public String getReportingName() {
+		return reportingName;
+	}
+
+	public void setReportingName(String reportingName) {
+		this.reportingName = reportingName;
 	}
 
 }

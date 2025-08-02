@@ -30,7 +30,6 @@ import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
-import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.config.Config;
@@ -42,6 +41,8 @@ import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordEvent;
 import app.owlcms.data.records.RecordRepository;
+import app.owlcms.data.technicalofficial.TechnicalOfficial;
+import app.owlcms.data.technicalofficial.TechnicalOfficialRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.utils.LoggerUtils;
@@ -60,6 +61,7 @@ public class CompetitionData {
 	private List<Platform> platforms;
 	private List<RecordEvent> records;
 	private RecordConfig recordConfig;
+	private List<TechnicalOfficial> technicalOfficials;
 
 	public CompetitionData() {
 	}
@@ -151,6 +153,7 @@ public class CompetitionData {
 		setCompetitionForExport(Competition.getCurrent());
 		setRecords(RecordRepository.findAll());
 		setRecordConfig(RecordConfig.getCurrent());
+		setTechnicalOfficials(TechnicalOfficialRepository.findAll());
 		return this;
 	}
 
@@ -226,12 +229,17 @@ public class CompetitionData {
 
 				CompetitionData updated = this.importData(inputStream);
 				Config config = updated.getConfig();
+				
+				// all LocalDates and LocalDateTimes will be stored in the database as UTC Date.
+				config.setLocalDateTimeUtcNormalized(true);
+				
 				byte[] blob = config.getLocalZipBlob();
-
 				if (blob != null) {
 					logger.info("override zip found {} bytes", blob.length);
 				}
+				// this writes out the config as well.
 				Config.setCurrent(config);
+				
 				ResourceWalker.setInitializedLocalDir(false);
 				ResourceWalker.initLocalDir();
 
@@ -269,6 +277,12 @@ public class CompetitionData {
 					em.merge(updated.getRecordConfig());
 				}
 
+				if (updated.getTechnicalOfficials() != null) {
+					for (TechnicalOfficial p : updated.getTechnicalOfficials()) {
+						em.merge(p);
+					}
+				}
+				
 				em.merge(competition);
 				em.flush();
 			} catch (Exception e) {
@@ -280,9 +294,9 @@ public class CompetitionData {
 			return null;
 		});
 		Championship.reset();
-		CategoryRepository.resetCodeMap();
-		// register the new FOPs for events and MQTT
-		OwlcmsFactory.initDefaultFOP();
+//		CategoryRepository.resetCodeMap();
+//		// register the new FOPs for events and MQTT
+//		OwlcmsFactory.initDefaultFOP();
 
 		// set the record order if empty (compensate for issue #766)
 		RecordConfig current = RecordConfig.getCurrent();
@@ -367,6 +381,12 @@ public class CompetitionData {
 						em.remove(pX);
 					}
 				}
+				for (TechnicalOfficial p : this.getTechnicalOfficials()) {
+					TechnicalOfficial pX = em.find(TechnicalOfficial.class, p.getId());
+					if (pX != null) {
+						em.remove(pX);
+					}
+				}
 			} catch (Exception e) {
 				LoggerUtils.logError(logger, e);
 			}
@@ -387,5 +407,14 @@ public class CompetitionData {
 	 */
 	private void setConfigForExport(Config config) {
 		this.config = config;
+	}
+
+	public List<TechnicalOfficial> getTechnicalOfficials() {
+		return technicalOfficials;
+	}
+
+	public void setTechnicalOfficials(List<TechnicalOfficial> technicalOfficials) {
+		logger.info("read {} technical officials",technicalOfficials.size());
+		this.technicalOfficials = technicalOfficials;
 	}
 }

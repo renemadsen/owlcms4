@@ -1,18 +1,17 @@
 ## Windows Installer
 
-> - When the installer was first released, Windows <u>falsely</u> signaled a virus in the installer program.
->- If for some reason your computer rejects the file, you can still download and use the control panel executable program directly, as explained on [this page](LocalWindowsSetup)
+> - If for some reason your computer rejects the installer, you can still download and use the control panel executable program directly, as explained on [this page](LocalWindowsSetup)
 
 ### Installation
 
 - Click on this link: [Release Repository](https://github.com/owlcms/owlcms-controlpanel/releases).  **Scroll down to the Assets section**.
   
 - Download the file named **Windows_Control_Panel_Installer** 
-  If you get Warnings about the file as in the picture, see [these instructions](DefenderOff)
+  If you get Warnings about the file as in the picture, see [these instructions](DefenderOff).  You simply need to insist to keep the downloaded file, multiple times.
 
   ![10](img/DefenderOff/10.png)
 
-- Once the file downloads, use the "Open File" link, or go to you Downloads folder and execute the file.
+- Once the file downloads, use the "Open File" link, or go to your Downloads folder and execute the file.
 
   ![50](img/DefenderOff/50.png)
 

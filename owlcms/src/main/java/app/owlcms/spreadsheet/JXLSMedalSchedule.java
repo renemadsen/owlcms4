@@ -106,7 +106,10 @@ public class JXLSMedalSchedule extends JXLSWorkbookStreamSource {
 				if (this.gender != null && a.getGender() != this.gender) {
 					continue;
 				}
-				sessionCategories.addAll(a.getEligibleCategories());
+				if (!a.isEligibleForIndividualRanking()) {
+					continue;
+				}
+				sessionCategories.addAll(a.getEligibleCategories().stream().filter(c -> c.getAgeGroup().getMedals()).toList());
 			}
 			ArrayList<Category> returned = new ArrayList<>();
 			returned.addAll(sessionCategories);

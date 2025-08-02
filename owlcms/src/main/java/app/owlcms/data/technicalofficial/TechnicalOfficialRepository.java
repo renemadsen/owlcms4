@@ -34,17 +34,30 @@ public class TechnicalOfficialRepository {
 
 	public static List<TechnicalOfficial> findAll() {
 		return JPAService
-				.runInTransaction(em -> em.createQuery("select c from TechnicalOfficial c order by c.id", TechnicalOfficial.class)
+				.runInTransaction(em -> em.createQuery("select c from TechnicalOfficial c order by c.lastName, c.firstName", TechnicalOfficial.class)
 						.getResultList());
 	}
 
 	public static TechnicalOfficial findByName(String string) {
+		String[] t = string.split("[, ]+");
+		String lastName = t[0];
+		String firstName = t[1];
 		return JPAService.runInTransaction(em -> {
-			TypedQuery<TechnicalOfficial> query = em.createQuery("select c from TechnicalOfficial c where lower(name) = lower(:string)", TechnicalOfficial.class);
-			query.setParameter("string", string);
+			TypedQuery<TechnicalOfficial> query = em.createQuery("select c from TechnicalOfficial c where (lower(lastName) = lower(:lastName) and lower(firstName) = lower(:firstName))", TechnicalOfficial.class);
+			query.setParameter("lastName", lastName);
+			query.setParameter("firstName", firstName);
 			List<TechnicalOfficial> resultList = query.getResultList();
 			return resultList.isEmpty() ? null : resultList.get(0);
 		});
+	}
+	
+	public static TechnicalOfficial safeFindByName(String string) {
+		TechnicalOfficial to = findByName(string);
+		if (to == null) {
+			to = new TechnicalOfficial();
+			to.setLastName(string);
+		}
+		return to;
 	}
 
 	public static TechnicalOfficial getById(Long id, EntityManager em) {
@@ -52,11 +65,16 @@ public class TechnicalOfficialRepository {
 				TechnicalOfficial.class);
 		query.setParameter("id", id);
 
-		return (TechnicalOfficial) query.getResultList().stream().findFirst().orElse(null);
+		return query.getResultList().stream().findFirst().orElse(null);
 	}
 
 	public static TechnicalOfficial save(TechnicalOfficial technicalOfficial) {
 		TechnicalOfficial nTechnicalOfficial = JPAService.runInTransaction(em -> em.merge(technicalOfficial));
 		return nTechnicalOfficial;
+	}
+
+	public static void deleteAll(EntityManager em) {
+		// use JPQL to delete all rows
+		em.createQuery("delete from TechnicalOfficial").executeUpdate();
 	}
 }

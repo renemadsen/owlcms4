@@ -7,8 +7,8 @@
 package app.owlcms.spreadsheet;
 
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 import org.slf4j.LoggerFactory;
 
@@ -25,8 +25,9 @@ public class RCompetition {
 
 	static Map<String, Category> activeCategories = new HashMap<>();
 	static Map<String, Group> activeGroups = new HashMap<>();
-	static Map<Long, Set<Category>> athleteToEligibles = new HashMap<>();
-	static Map<Long, Set<Category>> athleteToTeams = new HashMap<>();
+	static Map<Long, LinkedHashSet<Category>> athleteToEligibles = new HashMap<>();
+	static Map<Long, LinkedHashSet<Category>> athleteToTeams = new HashMap<>();
+	static Map<Long, String> athleteToSession = new HashMap<>();
 	static Logger logger = (Logger) LoggerFactory.getLogger(RCompetition.class);
 
 	public static Map<String, Category> getActiveCategories() {
@@ -37,11 +38,11 @@ public class RCompetition {
 		return activeGroups;
 	}
 
-	public static Map<Long, Set<Category>> getAthleteToEligibles() {
+	public static Map<Long, LinkedHashSet<Category>> getAthleteToEligibles() {
 		return athleteToEligibles;
 	}
 
-	public static Map<Long, Set<Category>> getAthleteToTeams() {
+	public static Map<Long, LinkedHashSet<Category>> getAthleteToTeams() {
 		return athleteToTeams;
 	}
 
@@ -62,6 +63,10 @@ public class RCompetition {
 
 	public static void resetAthleteToEligibles() {
 		athleteToEligibles = new HashMap<>();
+	}
+	
+	public static void resetAthleteToSession() {
+		athleteToSession = new HashMap<>();
 	}
 
 	public static void resetAthleteToTeams() {
@@ -171,6 +176,32 @@ public class RCompetition {
 			return;
 		}
 		this.c.setFederationWebSite(federationWebSite);
+	}
+
+	public static void putEligibles(Long id, LinkedHashSet<Category> eligibleCategories) {
+		//logger.debug("putEligibles {} {} {}", id, eligibleCategories, LoggerUtils.whereFrom());
+		athleteToEligibles.put(id, eligibleCategories);
+	}
+	
+	public static LinkedHashSet<Category> getEligibles(Long id) {
+		return athleteToEligibles.get(id);
+	}
+
+	public static void putTeams(Long id, LinkedHashSet<Category> teams) {
+		//logger.debug("putTeams {} {} {}", id, teams, LoggerUtils.whereFrom());
+		athleteToTeams.put(id, teams);
+	}
+	
+	public static LinkedHashSet<Category> getTeams(Long id) {
+		return athleteToTeams.get(id);
+	}
+
+	public static void putSessionCode(Long id, String sessionName) {
+		athleteToSession.put(id, sessionName);
+	}
+	
+	public static String getSessionCode(Long id) {
+		return athleteToSession.get(id);
 	}
 
 }

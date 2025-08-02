@@ -25,10 +25,10 @@ import org.apache.commons.beanutils.converters.DateConverter;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
+import app.owlcms.apputils.LogbackConfigReloader;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.ChampionshipType;
-import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
@@ -39,6 +39,7 @@ import app.owlcms.data.jpa.BenchmarkData;
 import app.owlcms.data.jpa.DemoData;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.jpa.ProdData;
+import app.owlcms.data.jpa.UtcNormalizationMigration;
 import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordDefinitionReader;
 import app.owlcms.i18n.Translator;
@@ -46,6 +47,7 @@ import app.owlcms.init.InitialData;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.jetty.EmbeddedJetty;
+import app.owlcms.monitors.MQTTMonitor;
 import app.owlcms.uievents.AppEvent;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
@@ -131,6 +133,12 @@ public class Main {
 		}
 		// check for database override of resource files
 		Config.initConfig();
+
+		// Run UTC normalization migration after JPAService and Config are initialized
+		JPAService.runInTransaction(em -> {
+			UtcNormalizationMigration.normalizeAllToUtc(em);
+			return null;
+		});
 	}
 
 	/**
@@ -280,6 +288,9 @@ public class Main {
 		SLF4JBridgeHandler.install();
 		// disable poixml warning
 		StartupUtils.disableWarning();
+		
+		// needed otherwise history.replace does not work correctly in Vaadin 24
+		System.setProperty("vaadin.react.enable", "false");
 
 		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
 			@Override
@@ -332,6 +343,9 @@ public class Main {
 			boolean publicDemo = StartupUtils.getBooleanParam("publicDemo");
 			if (allCompetitions.isEmpty() || publicDemo) {
 				logger.info("injecting initial data {}", data);
+				Config current = Config.getCurrent();
+				current.setLocalDateTimeUtcNormalized(true);
+				Config.setCurrent(current); // forces a s save.
 				switch (data) {
 					case EMPTY_COMPETITION:
 						ProdData.insertInitialData(0);
@@ -370,14 +384,14 @@ public class Main {
 					Config.setCurrent(new Config());
 				}
 
-				int nbParts = CategoryRepository.countParticipations();
-				if (nbParts == 0
-				        && AthleteRepository.countFiltered(null, null, null, null, null, null, null, null) > 0) {
-					// database has athletes, but no participations. 4.22 and earlier.
-					// need to create Participation entries for the Athletes.
-					logger.debug("updating database: computing athlete eligibility to age groups and categories.");
-					AthleteRepository.resetParticipations();
-				}
+//				int nbParts = CategoryRepository.countParticipations();
+//				if (nbParts == 0
+//				        && AthleteRepository.countFiltered(null, null, null, null, null, null, null, null) > 0) {
+//					// database has athletes, but no participations. 4.22 and earlier.
+//					// need to create Participation entries for the Athletes.
+//					logger.debug("updating database: computing athlete eligibility to age groups and categories.");
+//					AthleteRepository.resetParticipations(false, true);
+//				}
 
 				List<Category> nullCodeCategories = CategoryRepository.findNullCodes();
 				if (!nullCodeCategories.isEmpty()) {
@@ -508,5 +522,13 @@ public class Main {
 			logger.info("public demo server shut down");
 		}));
 		System.exit(0);
+	}
+	
+	public static void restart() {
+		EmbeddedJetty.stop(true);
+		Main.stopMQTT();
+		LogbackConfigReloader.reloadLogbackConfiguration();
+		MQTTMonitor.reset();
+		Main.doRun();
 	}
 }

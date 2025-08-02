@@ -377,6 +377,14 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			// Boolean goodBad = curRefDecisions[i];
 			// logger.debug("existing ref {} {}", i, goodBad);
 			// }
+			this.decisions.getStyle().set("background-color", "black");
+			if (fop.isSingleReferee()) {
+				// improbable situation, kludge to make it look ok when demonstrating
+				this.decisions.getStyle().set("font-size", "14vh");
+			} else {
+				this.decisions.getStyle().set("font-size", "100%");
+			}
+			
 			if (fop.isRefereeForcedDecision()) {
 				this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview, null,
 				        curRefDecisions[1], null, null, curRefTimes[1], null, this, fop));
@@ -448,7 +456,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	private void buildRefereeBox(VerticalLayout container) {
 		this.refereeLabelWrapper = createRefereeLabel(null);
 
-		this.decisions = new JuryDisplayDecisionElement(false);
+		this.decisions = new JuryDisplayDecisionElement();
 		this.decisions.getElement().setAttribute("theme", "dark");
 		Div decisionWrapper = new Div(this.decisions);
 		decisionWrapper.getStyle().set("width", "50%");

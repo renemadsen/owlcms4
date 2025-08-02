@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       revision:
-        description: 'Revision for the release'
+        description: 'semver number for the release'
         required: true
-        default: '55.3.0'
+# checklist
+# - pull in translations and proofread
+# - run AllTests locally
+# - Release Notes
+        default: '58.3.4'
 
 env:
   REPO_OWNER: owlcms

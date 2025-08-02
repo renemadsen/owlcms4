@@ -30,6 +30,7 @@ import com.vaadin.flow.component.html.Paragraph;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.icon.Icon;
 import com.vaadin.flow.component.icon.VaadinIcon;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.radiobutton.RadioButtonGroup;
 import com.vaadin.flow.component.shared.Tooltip;
@@ -123,7 +124,9 @@ public class CompetitionEditingFormFactory
 		FormLayout competitionLayout = competitionForm();
 		FormLayout federationLayout = federationForm();
 		FormLayout teamsLayout = teamsForm();
-		FormLayout rulesLayout = rulesForm();
+		FormLayout generalRulesLayout = generalRulesForm();
+		FormLayout nonMastersRulesLayout = nonMastersRulesForm();
+		FormLayout mastersRulesLayout = mastersRulesForm();
 		FormLayout breakDurationLayout = breakDurationForm();
 		FormLayout specialLayout = specialRulesForm();
 		FormLayout pointScoresForm = pointScoresForm();
@@ -140,9 +143,11 @@ public class CompetitionEditingFormFactory
 		                federationLayout));
 		ts.add(Translator.translate("Competition.RulesTab"),
 		        new VerticalLayout(
-		                teamsLayout, separator(),
-		                rulesLayout, separator(),
-		                breakDurationLayout));
+		                generalRulesLayout, separator(),
+		                nonMastersRulesLayout, separator(),
+		                mastersRulesLayout, separator(),
+		                breakDurationLayout, separator(),
+		                teamsLayout));
 		ts.add(Translator.translate("Competition.specialRulesTitle"),
 		        new VerticalLayout(
 		                pointScoresForm, separator(),
@@ -258,9 +263,15 @@ public class CompetitionEditingFormFactory
 		        .bind(Competition::getCompetitionName, Competition::setCompetitionName);
 
 		DatePicker dateField = new DatePicker();
-		competitionLayout.addFormItem(dateField, Translator.translate("Competition.competitionDate"));
+		DatePicker endDateField = new DatePicker();
+		endDateField.setPlaceholder(Translator.translate("Competition.EndDate"));
+		endDateField.setHelperText(Translator.translate("Competition.LeaveEmpty"));
+		HorizontalLayout pickers = new HorizontalLayout(dateField, endDateField);
+		competitionLayout.addFormItem(pickers, Translator.translate("Competition.competitionDate"));
 		this.binder.forField(dateField)
 		        .bind(Competition::getCompetitionDate, Competition::setCompetitionDate);
+		this.binder.forField(endDateField)
+		        .bind(Competition::getCompetitionEndDate, Competition::setCompetitionEndDate);
 
 		TextField organizerField = new TextField();
 		organizerField.setWidthFull();
@@ -396,26 +407,26 @@ public class CompetitionEditingFormFactory
 		return layout;
 	}
 
-	private FormLayout rulesForm() {
+	private FormLayout generalRulesForm() {
 		FormLayout layout = createLayout();
 		Component title = createTitle("Competition.rulesTitle");
 		layout.add(title);
 		layout.setColspan(title, 2);
-
+		
 		Checkbox enforce20kgRuleField = new Checkbox();
 		layout.addFormItem(enforce20kgRuleField, Translator.translate("Competition.enforce20kgRule"));
 		this.binder.forField(enforce20kgRuleField)
 		        .bind(Competition::isEnforce20kgRule, Competition::setEnforce20kgRule);
 		
-		Checkbox masters20kgField = new Checkbox();
-		layout.addFormItem(masters20kgField, Translator.translate("Competition.masters20kg"));
-		this.binder.forField(masters20kgField)
-		        .bind(Competition::isMasters20kg, Competition::setMasters20kg);
-
 		Checkbox snatchCJTotalField = new Checkbox();
 		layout.addFormItem(snatchCJTotalField, Translator.translate("Competition.snatchCJTotalMedals"));
 		this.binder.forField(snatchCJTotalField)
 		        .bind(Competition::isSnatchCJTotalMedals, Competition::setSnatchCJTotalMedals);
+		
+		Checkbox deduct250gField = new Checkbox();
+		layout.addFormItem(deduct250gField, Translator.translate("Competition.isDeduct250g"));
+		this.binder.forField(deduct250gField)
+		        .bind(Competition::getDeduct250g, Competition::setDeduct250g);
 
 		Checkbox useBirthYearField = new Checkbox();
 		layout.addFormItem(useBirthYearField, Translator.translate("Competition.useBirthYear"));
@@ -427,11 +438,15 @@ public class CompetitionEditingFormFactory
 		this.binder.forField(announcerControlledJuryField)
 		        .bind(Competition::isAnnouncerControlledJuryDecision, Competition::setAnnouncerControlledJuryDecision);
 
-		Checkbox mastersField = new Checkbox();
-		layout.addFormItem(mastersField, Translator.translate("Competition.mastersStartOrder"));
-		this.binder.forField(mastersField)
-		        .bind(Competition::isMasters, Competition::setMasters);
-
+		return layout;
+	}
+	
+	private FormLayout nonMastersRulesForm() {
+		FormLayout layout = createLayout();
+		Component title = createTitle("Competition.nonMastersRulesTitle");
+		layout.add(title);
+		layout.setColspan(title, 2);
+		
 		Checkbox byAgeGroupField = new Checkbox();
 		layout.addFormItem(byAgeGroupField, Translator.translate("Competition.startNumbersByAgeGroup"));
 		this.binder.forField(byAgeGroupField)
@@ -439,6 +454,27 @@ public class CompetitionEditingFormFactory
 
 		return layout;
 	}
+	
+	private FormLayout mastersRulesForm() {
+		FormLayout layout = createLayout();
+		Component title = createTitle("Competition.mastersRulesTitle");
+		layout.add(title);
+		layout.setColspan(title, 2);
+		
+		Checkbox mastersField = new Checkbox(Translator.translate("Competition.mastersCompetitionCheckbox"));
+		layout.addFormItem(mastersField, Translator.translate("Competition.mastersCompetition"));
+		mastersField.setHelperText(Translator.translate("Competition.mastersCompetitionHelper"));
+		this.binder.forField(mastersField)
+		        .bind(Competition::isMasters, Competition::setMasters);
+
+		Checkbox imwaField = new Checkbox(Translator.translate("Competition.IMWARules"));
+		layout.addFormItem(imwaField, Translator.translate("Competition.IMWA"));
+		this.binder.forField(imwaField)
+		        .bind(Competition::isImwa, Competition::setImwa);
+
+		return layout;
+	}
+
 
 	private Hr separator() {
 		Hr hr = new Hr();

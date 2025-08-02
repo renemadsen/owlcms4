@@ -35,6 +35,7 @@ import org.supercsv.io.CsvListReader;
 import org.supercsv.io.ICsvListReader;
 import org.supercsv.prefs.CsvPreference;
 
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.i18n.I18NProvider;
 
 import app.owlcms.utils.LoggerUtils;
@@ -223,6 +224,11 @@ public class Translator implements I18NProvider {
 		return translationOrElseNull;
 	}
 
+	public static boolean isRTL(Locale locale) {
+		return "ar".contentEquals(locale.getLanguage()) || "he".contentEquals(locale.getLanguage())
+		        || "fa".contentEquals(locale.getLanguage());
+	}
+	
 	/**
 	 * Return a resource bundle created by reading a CSV files. This creates properties files, and uses the standard caching implementation and bundle hierarchy
 	 * as defined by Java.
@@ -289,6 +295,7 @@ public class Translator implements I18NProvider {
 						Files.createFile(outfile);
 						outFiles[i] = outfile;
 						languageProperties[i] = new Properties();
+						nbLanguages = i;
 					}
 
 					// reading to properties
@@ -346,6 +353,8 @@ public class Translator implements I18NProvider {
 						}
 					}
 				}
+				
+				//LocaleNameSorter.sortLocales(locales);
 
 			}
 
@@ -386,7 +395,13 @@ public class Translator implements I18NProvider {
 	@Override
 	public String getTranslation(String key, Locale locale, Object... params) {
 		locale = overrideLocale(locale);
-
+		if (UI.getCurrent() != null) {
+			if (isRTL(locale)) {
+				UI.getCurrent().getPage().executeJs("document.body.setAttribute('dir', 'rtl')");
+			} else {
+				UI.getCurrent().getPage().executeJs("document.body.setAttribute('dir', 'ltr')");
+			}
+		}
 		return doTranslation(key, locale, params);
 	}
 

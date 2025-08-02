@@ -39,7 +39,10 @@ class CurrentAttempt extends LitElement {
         <div class="${this.teamFlagImgClasses()}" style="${this.teamFlagImgStyles()}" .innerHTML="${this.teamFlagImg}"></div>
         <div class="${this.athleteImgClasses()}" style="${this.athleteImgStyles()}" .innerHTML="${this.athleteImg}"></div>
         <div class="${this.recordMessageClasses()}" style="${this.recordMessageStyles()}">
-          ${this.recordMessage}
+          <css-ticker
+            text="${this.recordMessage ? this.recordMessage + '     ' : ''}"
+            speed="${this.recordMessageSpeed}"
+          ></css-ticker>
         </div>
         <div class="startNumber" style="${this.startNumberStyles()}">
           <span>${this.startNumber}</span>
@@ -98,13 +101,15 @@ class CurrentAttempt extends LitElement {
 
       recordAttempt: {},
       recordBroken: {},
+      recordMessage: {},
+      recordMessageSpeed: {},
 
       // style sheets & misc.
       javaComponentId: {},
       stylesDir: {},
       autoVersion: {},
       video: {},
-	  colorOverride: {},
+	    colorOverride: {},
       athletePictures: { type: Boolean },
 
       // translation map
@@ -187,7 +192,8 @@ class CurrentAttempt extends LitElement {
   }
 
   recordMessageStyles() {
-    return "display: " + ((this.mode === "CURRENT_ATHLETE" && (this.recordAttempt || this.recordBroken)) ? "grid" : "none");
+    return "display: " + ((this.mode === "CURRENT_ATHLETE" && (this.recordAttempt || this.recordBroken)) ? "grid" : "none") +
+           "; height: auto; overflow: hidden; align-items: stretch; padding: 0; margin: 0;";
   }
 
   attemptStyles() {

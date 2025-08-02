@@ -42,6 +42,7 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 		LocalDateTime minTime = LocalDateTime.MAX; // long time in the future
 		int nbAthletes;
 		int nbAttemptedLifts;
+		private int cJBreakSeconds;
 
 		public SessionStats() {
 		}
@@ -169,6 +170,15 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 			double hours = delta.getSeconds() / 3600.0D;
 			return hours;
 		}
+
+
+		public int getCJBreakSeconds() {
+			return cJBreakSeconds;
+		}
+
+		public void setCJBreakSeconds(int cJBreakSeconds) {
+			this.cJBreakSeconds = cJBreakSeconds;
+		}
 	}
 
 	public static String formatDuration(Duration duration) {
@@ -213,7 +223,9 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 		for (Group curGroup : groups) {
 			String groupName = curGroup.getName();
 			curStat = new SessionStats(groupName);
+			curStat.setCJBreakSeconds(curGroup.getCleanJerkBreakMinutes()*60);
 			for (Athlete curAthlete : curGroup.getAthletes()) {
+
 				curGroup = curAthlete.getGroup();
 				if (curGroup == null) {
 					continue; // we simply skip over athletes with no groups
@@ -222,6 +234,7 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 				// update stats, min, max.
 				curStat.setNbAthletes(curStat.getNbAthletes() + 1);
 				LocalDateTime minTime = curAthlete.getFirstAttemptedLiftTime();
+				//logger.debug("minTime {} {}",curAthlete.getAbbreviatedName(), minTime);
 				curStat.updateMinTime(minTime);
 
 				LocalDateTime maxTime = curAthlete.getLastAttemptedLiftTime();

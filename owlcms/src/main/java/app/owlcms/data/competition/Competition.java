@@ -167,6 +167,7 @@ public class Competition {
 	private String cardsTemplateFileName;
 	private String competitionCity;
 	private LocalDate competitionDate = null;
+	private LocalDate competitionEndDate = null;
 	private String competitionName;
 	private String competitionOrganizer;
 	private String competitionSite;
@@ -202,10 +203,10 @@ public class Competition {
 	private String medalScheduleTemplateFileName;
 	private String medalsTemplateFileName;
 	/* this is really "keep best n results", backward compatibility with database exports */
-	@Column(name = "mensTeamSize", columnDefinition = "integer default 10")
+	@Column(name = "mensTeamSize", columnDefinition = "integer default 8")
 	@JsonProperty("mensTeamSize")
-	private Integer mensBestN = 10;
-	@Column(columnDefinition = "integer default 10")
+	private Integer mensBestN = 8;
+	@Column(columnDefinition = "integer default 8")
 	private Integer maxTeamSize = 10;
 	@Column(columnDefinition = "integer default 2")
 	private Integer maxPerCategory = 2;
@@ -260,9 +261,9 @@ public class Competition {
 	@Deprecated
 	private boolean useRegistrationCategory = false;
 	/* this is really "keep best n results", backward compatibility with database exports */
-	@Column(name = "womensTeamSize", columnDefinition = "integer default 10")
+	@Column(name = "womensTeamSize", columnDefinition = "integer default 8")
 	@JsonProperty("womensTeamSize")
-	private Integer womensBestN = 10;
+	private Integer womensBestN = 8;
 	@Column(columnDefinition = "boolean default false")
 	private boolean sinclairMeet;
 	@Column(columnDefinition = "integer default 3")
@@ -296,6 +297,11 @@ public class Competition {
 	private String currentRecordsTemplateFileName;
 	@Column(columnDefinition = "boolean default false")
 	private boolean masters20kg = false;
+	private String technicalOfficialsTemplateFileName;
+	@Column(columnDefinition = "boolean default true")
+	private boolean imwa = true;
+	@Column(columnDefinition = "boolean default true")
+	private Boolean deduct250g = true;
 
 	public Competition() {
 		this.medalsByGroup = new HashMap<>();
@@ -519,6 +525,7 @@ public class Competition {
 			doReporting(nodupAthletes, Ranking.QPOINTS, true);
 			doReporting(nodupAthletes, Ranking.QAGE, true); // Q-masters
 			doReporting(nodupAthletes, Ranking.CAT_SINCLAIR, true);
+			doReporting(nodupAthletes, Ranking.CAT_QPOINTS, true);
 			doReporting(nodupAthletes, Ranking.GAMX, true);
 			doReporting(nodupAthletes, Ranking.AGEFACTORS, true); // Q-youth
 			// long afterReporting = System.currentTimeMillis();
@@ -750,6 +757,15 @@ public class Competition {
 		return this.teamsListTemplateFileName;
 	}
 
+	@Transient
+	@JsonIgnore
+	public String getComputedTechnicalOfficialsTemplateFileName() {
+		if (this.technicalOfficialsTemplateFileName == null) {
+			return "toAssignments.xlsx";
+		}
+		return this.technicalOfficialsTemplateFileName;
+	}
+
 	public String getCurrentRecordsTemplateFileName() {
 		return this.currentRecordsTemplateFileName;
 	}
@@ -936,9 +952,11 @@ public class Competition {
 					        return true; // remove from list.
 				        }
 				        // logger.trace("athletes {} {}", k, athletes);
+
 				        // category includes an athlete that has not finished, mark it as "to be
-				        // removed"
-				        boolean anyMatch = athletes.stream().anyMatch(a -> !a.isDone(g));
+				        // removed". Athletes out of competition don't count as not being done.
+				        boolean anyMatch = athletes.stream().anyMatch(a -> (!a.isDone(g) && a.isEligibleForIndividualRanking()));
+
 				        // logger.trace("category {} has finished {}", k, !anyMatch);
 				        // return those that have not finished
 				        return anyMatch;
@@ -956,7 +974,7 @@ public class Competition {
 	@Transient
 	@JsonIgnore
 	public Integer getMenBestNElseDefault() {
-		return this.mensBestN != null ? this.mensBestN : 10;
+		return this.mensBestN != null ? this.mensBestN : this.maxTeamSize;
 	}
 
 	public Integer getMensBestN() {
@@ -1026,6 +1044,10 @@ public class Competition {
 		return this.teamsListTemplateFileName;
 	}
 
+	public String getTechnicalOfficialsTemplateFileName() {
+		return this.technicalOfficialsTemplateFileName;
+	}
+
 	public String getTranslatedScoringSystemName() {
 		String translate = Translator.translateOrElseNull("Ranking." + getScoringSystem(), OwlcmsSession.getLocale());
 		return translate != null ? translate : Translator.translate("Score");
@@ -1038,7 +1060,7 @@ public class Competition {
 	@Transient
 	@JsonIgnore
 	public Integer getWomenBestNElseDefault() {
-		return this.womensBestN != null ? this.womensBestN : 10;
+		return this.womensBestN != null ? this.womensBestN : this.maxTeamSize;
 	}
 
 	public Integer getWomensBestN() {
@@ -1077,11 +1099,11 @@ public class Competition {
 	}
 
 	public boolean isDisplayScoreRanks() {
-		return this.displayScoreRanks;
+		return this.displayScoreRanks || Config.getCurrent().featureSwitch("displayBestScoreRank");
 	}
 
 	public boolean isDisplayScores() {
-		return this.displayScores;
+		return this.displayScores || Config.getCurrent().featureSwitch("displayBestScore");
 	}
 
 	/**
@@ -1524,6 +1546,10 @@ public class Competition {
 		this.teamsListTemplateFileName = teamsListTemplateFileName;
 	}
 
+	public void setTechnicalOfficialsTemplateFileName(String technicalOfficialsTemplateFileName) {
+		this.technicalOfficialsTemplateFileName = technicalOfficialsTemplateFileName;
+	}
+
 	/**
 	 * Sets the use birth year.
 	 *
@@ -1610,11 +1636,13 @@ public class Competition {
 		getOrCreateBean("mCustom" + suffix).clear();
 		getOrCreateBean("wCustom" + suffix).clear();
 		getOrCreateBean("mwCustom" + suffix).clear();
+		getOrCreateBean("mTeamBest" + suffix).clear();
+		getOrCreateBean("wTeamBest" + suffix).clear();
 	}
 
 	private void doComputeReportingInfo(boolean full, List<Athlete> athletes, String ageGroupPrefix,
 	        Championship ad) {
-		
+
 		// reporting does many database queries. fork a low-priority thread.
 		// logger.trace("doComputeReportingInfo {}",LoggerUtils.whereFrom());
 		runInThread(() -> {
@@ -1625,23 +1653,28 @@ public class Competition {
 				return;
 			}
 
-			// the ranks within a category are stored in the database and
-			// not recomputed
-			categoryRankings(athletes);
+			try {
+				// the ranks within a category are stored in the database and
+				// not recomputed
+				categoryRankings(athletes);
 
-			// splitResultsByGroups(athletes);
-			if (full) {
-				this.reportingBeans.put("athletes", athletes);
-				// logger.trace("championship={} ageGroupPrefix={}", ad, ageGroupPrefix);
-				if (ad != null && (ageGroupPrefix == null || ageGroupPrefix.isBlank())) {
-					// iterate over all age groups present in championship ad
-					teamRankingsForAgeDivision(ad);
-				} else {
-					teamRankings(athletes, ageGroupPrefix);
+				// splitResultsByGroups(athletes);
+				if (full) {
+					this.reportingBeans.put("athletes", athletes);
+					// logger.trace("championship={} ageGroupPrefix={}", ad, ageGroupPrefix);
+					if (ad != null && (ageGroupPrefix == null || ageGroupPrefix.isBlank())) {
+						// iterate over all age groups present in championship ad
+						teamRankingsForAgeDivision(ad);
+					} else {
+						teamRankings(athletes, ageGroupPrefix);
+					}
 				}
-			}
 
-			doGlobalRankings(athletes, false);
+				doGlobalRankings(athletes, false);
+			} catch (Throwable t) {
+				t.printStackTrace();
+				throw t;
+			}
 			// globalRankings();
 		}, Thread.MIN_PRIORITY);
 	}
@@ -1710,8 +1743,7 @@ public class Competition {
 	 */
 	private void doTeamRankings(List<Athlete> athletes, String suffix, boolean singleAgeGroup) {
 		// team-oriented rankings. These rankings put all the athletes from the same
-		// team
-		// together, sorted according to their points, so the top n can be kept if
+		// team together, sorted according to their points, so the top n can be kept if
 		// needed.
 		// substitutes are not included -- they should be marked as
 		// !isEligibleForTeamRanking
@@ -1757,11 +1789,15 @@ public class Competition {
 			reportCustom(sortedAthletes, sortedMen, sortedWomen);
 		}
 
-		// this is most likely obsolete
-		sortedMen = getOrCreateBean("mTeamSinclair" + suffix);
-		sortedWomen = getOrCreateBean("wTeamSinclair" + suffix);
-		AthleteSorter.teamPointsOrder(sortedMen, Ranking.BW_SINCLAIR);
-		AthleteSorter.teamPointsOrder(sortedWomen, Ranking.BW_SINCLAIR);
+		AthleteSorter.teamPointsOrder(sortedMen, Competition.getCurrent().getScoringSystem());
+		AthleteSorter.teamPointsOrder(sortedWomen, Competition.getCurrent().getScoringSystem());
+		addToReportingBean("mTeamBest" + suffix, sortedMen);
+//		logger.debug("mteamBest {} {}",
+//				sortedMen.stream()
+//				.filter(a -> a.getTeam().equals("Category 5 Athletics"))
+//				.map(a -> a.getAbbreviatedName() + " " + a.getBestLifterScore() + " " +a.getBestLifterRank())
+//				.collect(Collectors.joining("\n")));
+		addToReportingBean("wTeamBest" + suffix, sortedWomen);
 	}
 
 	private String getMedalsTemplateFileName() {
@@ -2024,11 +2060,51 @@ public class Competition {
 	}
 
 	public boolean isMasters20kg() {
-		return masters20kg || Config.getCurrent().featureSwitch("masters20kg");
+		return !imwa || Config.getCurrent().featureSwitch("masters20kg");
 	}
-	
-	public void setMasters20kg(boolean masters20kg) {
-		this.masters20kg = masters20kg;
+
+	// public void setMasters20kg(boolean masters20kg) {
+	// this.masters20kg = masters20kg;
+	// }
+
+	public LocalDate getCompetitionEndDate() {
+		return competitionEndDate;
+	}
+
+	public void setCompetitionEndDate(LocalDate competitionEndDate) {
+		this.competitionEndDate = competitionEndDate;
+	}
+
+	public boolean isImwa() {
+		return this.imwa;
+	}
+
+	public void setImwa(boolean imwa) {
+		this.imwa = imwa;
+	}
+
+	public List<Category> computeReferenceCategories(Gender g) {
+//		logger.debug("all {}", AgeGroupRepository.findAll().stream()
+//				.map(ag -> ag.getCode())
+//				.collect(Collectors.joining(", ")));
+		
+		var ag = AgeGroupRepository.findFiltered("SR",g, null, null, false, 0, 0);
+		List<Category> allCategories;
+		if (ag.size() > 0) {
+			allCategories = ag.get(0).getAllCategories();
+		} else {
+			allCategories = null;
+		}
+//		logger.debug("allCategories {}",allCategories);
+		return allCategories;
+	}
+
+	public Boolean getDeduct250g() {
+		return this.deduct250g;
+	}
+
+	public void setDeduct250g(Boolean deduct250g) {
+		this.deduct250g = deduct250g;
 	}
 
 }

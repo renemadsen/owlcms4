@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.nui.home;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -13,11 +14,15 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.MessageFormat;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -59,7 +64,6 @@ import com.vaadin.flow.server.VaadinService;
 
 import app.owlcms.Main;
 import app.owlcms.apputils.DebugUtils;
-import app.owlcms.apputils.LogbackConfigReloader;
 import app.owlcms.components.ConfirmationDialog;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.jpa.JPAService;
@@ -67,7 +71,6 @@ import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.jetty.EmbeddedJetty;
-import app.owlcms.monitors.MQTTMonitor;
 import app.owlcms.nui.displays.DisplayNavigationContent;
 import app.owlcms.nui.displays.VideoNavigationContent;
 import app.owlcms.nui.lifting.LiftingNavigationContent;
@@ -191,12 +194,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 				        cdRestart.setAction(() -> {
 					        cdRestart.close();
 					        UI.getCurrent().push();
-
-					        MQTTMonitor.reset();
-					        EmbeddedJetty.stop(true);
-					        Main.stopMQTT();
-					        LogbackConfigReloader.reloadLogbackConfiguration();
-					        Main.doRun();
+					        Main.restart();
 				        });
 				        cdRestart.open();
 			        });
@@ -242,6 +240,12 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 			logUsage();
 		}
 
+		String launcherVersion = System.getenv("OWLCMS_LAUNCHER");
+		String cpvHtml = null;
+		if (launcherVersion != null) {
+			cpvHtml = checkControlPanelVersion(launcherVersion);
+		}
+
 		VerticalLayout intro = new VerticalLayout();
 		intro.setSpacing(false);
 		intro.setId("homeIntro");
@@ -278,6 +282,28 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		intro.add(ul);
 		intro.add(div);
 
+		var osName = System.getProperty("os.name");
+		if (osName.startsWith("Windows") || osName.startsWith("windows")) {
+			osName = "windows";
+		} else if (osName.startsWith("Mac") || osName.startsWith("mac")) {
+			osName = "macos";
+		} else if (osName.startsWith("Linux") || osName.startsWith("linux")) {
+			osName = "linux";
+		}
+		if (osName.equals("Linux") && !JPAService.isLocalDb()) {
+			osName = "cloud";
+		}
+
+		String motd = getMotd(osName + ".html");
+		if (motd != null && !motd.isBlank()) {
+			intro.add(new Hr());
+			intro.add(new Html(motd));
+		}
+		if (cpvHtml != null) {
+			intro.add(new Hr());
+			intro.add(new Html(cpvHtml));
+		}
+
 		div.getStyle().set("margin-bottom", "1ex");
 		Hr hr = new Hr();
 		hr.getStyle().set("margin-bottom", "2ex");
@@ -294,88 +320,195 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		return intro;
 	}
 
+	private static final String REPO_OWNER = "jflamy";
+	private static final String REPO_NAME = "owlcms4";
+	private static final String CONTROL_PANEL_VERSION = "controlPanelVersion.txt";
+	private static final String GITHUB_API_URL = "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME + "/contents/";
+	private static LocalDateTime cpWarningEmitted = LocalDateTime.MIN;
+	private static LocalDateTime motdEmitted = LocalDateTime.MIN;
+
+	public static String checkControlPanelVersion(String curVer) {
+		if (LocalDateTime.now().minusHours(1).isBefore(cpWarningEmitted)) {
+			return null;
+		}
+		cpWarningEmitted = LocalDateTime.now();
+		HttpClient client = HttpClient.newBuilder()
+		        .connectTimeout(Duration.ofSeconds(2))
+		        .build();
+		HttpRequest request = HttpRequest.newBuilder()
+		        .uri(URI.create(GITHUB_API_URL + CONTROL_PANEL_VERSION))
+		        .timeout(Duration.ofSeconds(2))
+		        .build();
+
+		try {
+			HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+			if (response.statusCode() != 200) {
+				throw new IOException(request.uri() + " Unexpected code " + response.statusCode());
+			}
+			String contentType = response.headers().firstValue("Content-Type").orElse("");
+			if (!contentType.contains("application/json")) {
+				throw new IOException(request.uri() + "Unexpected content type: " + contentType);
+			}
+
+			String responseBody = response.body();
+			JSONObject json = new JSONObject(responseBody);
+			String content = json.getString("content");
+			content = content.strip();
+			String string = new String(Base64.getDecoder().decode(content));
+
+			// compare the versions using semantic versioning conventions.
+			ComparableVersion currentVersion = new ComparableVersion(curVer);
+			ComparableVersion requiredVersion = new ComparableVersion(string);
+			int comparison = currentVersion.compareTo(requiredVersion);
+			if (comparison < 0) {
+				logger.error("Control panel version is out of date. Current version: {}, required version: {}", curVer, string);
+				return getMotd("controlPanel.html");
+			} else {
+				logger.info("Control panel version is up to date. Current version: {}, required version: {}", curVer, string);
+				return null;
+			}
+		} catch (Exception e) {
+			logger.error("Error fetching control panel version: {} {}", e.getMessage(), request.uri());
+			return null;
+		}
+	}
+
+	static boolean localFileTesting = false;
+	public static String getMotd(String fileName) {
+		// testing
+		if (localFileTesting) {
+			try {
+				Path parentDir = Paths.get("").toAbsolutePath().getParent();
+				Path filePath = parentDir.resolve(fileName);
+				return new String(java.nio.file.Files.readAllBytes(filePath));
+			} catch (IOException e) {
+				return null;
+			}
+		}
+
+		if (LocalDateTime.now().minusHours(1).isBefore(motdEmitted)) {
+			return null;
+		}
+		motdEmitted = LocalDateTime.now();
+		HttpClient client = HttpClient.newBuilder()
+		        .connectTimeout(Duration.ofSeconds(2))
+		        .build();
+		HttpRequest request = HttpRequest.newBuilder()
+		        .uri(URI.create(GITHUB_API_URL + fileName))
+		        .timeout(Duration.ofSeconds(2))
+		        .build();
+
+		try {
+			HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+			if (response.statusCode() != 200) {
+				throw new IOException("Unexpected code " + response.statusCode());
+			}
+			String contentType = response.headers().firstValue("Content-Type").orElse("");
+			if (!contentType.contains("application/json")) {
+				throw new IOException("Unexpected content type: " + contentType);
+			}
+
+			String responseBody = response.body();
+			JSONObject json = new JSONObject(responseBody);
+			String content = json.getString("content");
+			if (content != null && !content.isEmpty()) {
+				content = content.strip();
+				content = content.replaceAll("\n", "");
+				content = content.replaceAll(" ", "");
+				if (!content.isEmpty()) {
+					String string = new String(Base64.getDecoder().decode(content));
+					return string;
+				}
+			}
+			return null;
+		} catch (Exception e) {
+			logger.error("Error fetching motd: {} {}", e.getMessage(), request.uri());
+			return null;
+		}
+	}
+
 	private Html checkVersion() {
-	    this.currentVersionString = OwlcmsFactory.getVersion();
-	    String suffix = this.currentVersionString.contains("-") ? "-prerelease" : "";
+		this.currentVersionString = OwlcmsFactory.getVersion();
+		String suffix = this.currentVersionString.contains("-") ? "-prerelease" : "";
 
-	    String apiUrl = "https://api.github.com/repos/owlcms/owlcms4" + suffix + "/releases";
-	    HttpRequest request = HttpRequest.newBuilder(URI.create(apiUrl))
-	            .header("Accept", "application/vnd.github.v3+json")
-	            .build();
-	    HttpClient client = HttpClient.newHttpClient();
-	    CompletableFuture<HttpResponse<String>> future = client.sendAsync(request, BodyHandlers.ofString());
-	    try {
-	        future.orTimeout(3000, TimeUnit.MILLISECONDS).whenComplete((response, exception) -> {
-	            if (exception != null) {
-	                return;
-	            }
-	            JSONArray releases = new JSONArray(response.body());
-	            if (releases.length() > 0) {
-	                List<ComparableVersion> versions = new ArrayList<>();
-	                for (int i = 0; i < releases.length(); i++) {
-	                    JSONObject release = releases.getJSONObject(i);
-	                    versions.add(new ComparableVersion(release.getString("tag_name")));
-	                }
-	                versions.sort((v1, v2) -> v2.compareTo(v1)); // Sort in descending order
-	                this.referenceVersionString = versions.get(0).toString();
-	                ComparableVersion currentVersion = new ComparableVersion(this.currentVersionString);
-	                ComparableVersion referenceVersion = new ComparableVersion(this.referenceVersionString);
-	                this.comparison = currentVersion.compareTo(referenceVersion);
-	            }
-	        }).join();
-	    } catch (Throwable e) {
-	        logger.error("version fetch timed out");
-	    }
+		String apiUrl = "https://api.github.com/repos/owlcms/owlcms4" + suffix + "/releases";
+		HttpRequest request = HttpRequest.newBuilder(URI.create(apiUrl))
+		        .header("Accept", "application/vnd.github.v3+json")
+		        .build();
+		HttpClient client = HttpClient.newHttpClient();
+		CompletableFuture<HttpResponse<String>> future = client.sendAsync(request, BodyHandlers.ofString());
+		try {
+			future.orTimeout(3000, TimeUnit.MILLISECONDS).whenComplete((response, exception) -> {
+				if (exception != null) {
+					return;
+				}
+				JSONArray releases = new JSONArray(response.body());
+				if (releases.length() > 0) {
+					List<ComparableVersion> versions = new ArrayList<>();
+					for (int i = 0; i < releases.length(); i++) {
+						JSONObject release = releases.getJSONObject(i);
+						versions.add(new ComparableVersion(release.getString("tag_name")));
+					}
+					versions.sort((v1, v2) -> v2.compareTo(v1)); // Sort in descending order
+					this.referenceVersionString = versions.get(0).toString();
+					ComparableVersion currentVersion = new ComparableVersion(this.currentVersionString);
+					ComparableVersion referenceVersion = new ComparableVersion(this.referenceVersionString);
+					this.comparison = currentVersion.compareTo(referenceVersion);
+				}
+			}).join();
+		} catch (Throwable e) {
+			logger.error("version fetch timed out");
+		}
 
-	    Html div = new Html("<div></div>");
+		Html div = new Html("<div></div>");
 
-	    if (this.comparison < 999) {
-	        String runningMsg = Translator.translate("CheckVersion.running", this.currentVersionString);
-	        String referenceVersionMsg = Translator.translate(
-	                "CheckVersion.reference" + (this.referenceVersionString.contains("-") ? "Prerelease" : "Stable"),
-	                this.referenceVersionString);
-	        String okVersionMsg = Translator.translate("CheckVersion.ok");
-	        String behindVersionMsg = Translator.translate("CheckVersion.behind");
+		if (this.comparison < 999) {
+			String runningMsg = Translator.translate("CheckVersion.running", this.currentVersionString);
+			String referenceVersionMsg = Translator.translate(
+			        "CheckVersion.reference" + (this.referenceVersionString.contains("-") ? "Prerelease" : "Stable"),
+			        this.referenceVersionString);
+			String okVersionMsg = Translator.translate("CheckVersion.ok");
+			String behindVersionMsg = Translator.translate("CheckVersion.behind");
 
-	        String owlcmsLauncher = System.getenv("OWLCMS_LAUNCHER");
+			String owlcmsLauncher = System.getenv("OWLCMS_LAUNCHER");
 
-	        if (JPAService.isLocalDb()) {
-	        	HttpServletRequest httpRequest = (HttpServletRequest) VaadinService.getCurrentRequest();
-	        	String remoteAddr = httpRequest.getRemoteAddr();
-	        	InetAddress inetAddress;
-	        	try {
-	        	    inetAddress = InetAddress.getByName(remoteAddr);
-	        	    if (inetAddress.isLoopbackAddress()) {
-	        	        if (owlcmsLauncher != null && !owlcmsLauncher.isBlank()) {
-	        	            behindVersionMsg = "<b>"+Translator.translate("CheckVersion.ControlPanelUpdate")+"</b>";
-	        	        }
-	        	    }
-	        	} catch (UnknownHostException e) {
-	        	    logger.error("Error checking remote address: {}", e.getMessage());
-	        	}
-	        } else {
-	            behindVersionMsg = """
-	                               <a href='https://owlcms-cloud.fly.dev/apps' style='text-decoration:underline'>%s</a>
-	                               """
-	                    .formatted(Translator.translate("CheckVersion.clickCloudUpdate"));
-	        }
+			if (JPAService.isLocalDb()) {
+				HttpServletRequest httpRequest = (HttpServletRequest) VaadinService.getCurrentRequest();
+				String remoteAddr = httpRequest.getRemoteAddr();
+				InetAddress inetAddress;
+				try {
+					inetAddress = InetAddress.getByName(remoteAddr);
+					if (inetAddress.isLoopbackAddress()) {
+						if (owlcmsLauncher != null && !owlcmsLauncher.isBlank()) {
+							behindVersionMsg = "<b>" + Translator.translate("CheckVersion.ControlPanelUpdate") + "</b>";
+						}
+					}
+				} catch (UnknownHostException e) {
+					logger.error("Error checking remote address: {}", e.getMessage());
+				}
+			} else {
+				behindVersionMsg = """
+				                   <a href='https://owlcms-cloud.fly.dev/apps' style='text-decoration:underline'>%s</a>
+				                   """
+				        .formatted(Translator.translate("CheckVersion.clickCloudUpdate"));
+			}
 
-	        String aheadVersionMsg = Translator.translate("CheckVersion.ahead");
+			String aheadVersionMsg = Translator.translate("CheckVersion.ahead");
 
-	        if (this.referenceVersionString.contains("-alpha")) {
-	            // do not recommend update to an alpha version.
-	            this.comparison = 0;
-	        }
-	        String warningUnicode = this.comparison < 0 ? "\u26A0 " : "";
-	        String formatted = MessageFormat.format(
-	                "<div>{6}{1} {0, choice, 0#{2} {3}|1#{4}|2#{2} {5}}</div>",
-	                this.comparison + 1, runningMsg, referenceVersionMsg, behindVersionMsg, okVersionMsg, aheadVersionMsg, warningUnicode);
-	        div.setHtmlContent(formatted);
-	        if (this.comparison < 0) {
-	            div.getStyle().set("color", "red");
-	        }
-	    }
-	    return div;
+			if (this.referenceVersionString.contains("-alpha")) {
+				// do not recommend update to an alpha version.
+				this.comparison = 0;
+			}
+			String warningUnicode = this.comparison < 0 ? "\u26A0 " : "";
+			String formatted = MessageFormat.format(
+			        "<div>{6}{1} {0, choice, 0#{2} {3}|1#{4}|2#{2} {5}}</div>",
+			        this.comparison + 1, runningMsg, referenceVersionMsg, behindVersionMsg, okVersionMsg, aheadVersionMsg, warningUnicode);
+			div.setHtmlContent(formatted);
+			if (this.comparison < 0) {
+				div.getStyle().set("color", "red");
+			}
+		}
+		return div;
 	}
 
 	private void logUsage() {

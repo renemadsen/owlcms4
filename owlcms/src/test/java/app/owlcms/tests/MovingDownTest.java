@@ -343,7 +343,7 @@ public class MovingDownTest {
         // get updated allAthletes as they are in database
         groupAthletes = fopState.getDisplayOrder();
         for (Athlete a : groupAthletes) {
-        	System.err.println(a.getShortName());
+        	System.err./**/println(a.getShortName());
         }
         schneiderF = groupAthletes.get(0);
         simpsonR = groupAthletes.get(1);
@@ -409,7 +409,7 @@ public class MovingDownTest {
             TestData.insertSampleLifters(em, 5, gA, gB, gC);
             return null;
         });
-        AthleteRepository.resetParticipations();
+        AthleteRepository.resetParticipations(false, true);
     }
 
     @Test
@@ -880,7 +880,7 @@ public class MovingDownTest {
             logger.debug("calling lifter: {}", curLifter);
             fopState.fopEventPost(new FOPEvent.TimeStarted(null));
             fopState.fopEventPost(new FOPEvent.DownSignal(null));
-            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false));
+            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false, false));
             logger.debug("failed lift for {}", curLifter);
             fopState.fopEventPost(new FOPEvent.DecisionReset(null));
             return em.merge(curLifter);
@@ -911,7 +911,7 @@ public class MovingDownTest {
             logger.debug("calling lifter: {}", curLifter);
             fopState.fopEventPost(new FOPEvent.TimeStarted(null));
             fopState.fopEventPost(new FOPEvent.DownSignal(null));
-            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false));
+            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false, false));
             logger.debug("successful lift for {}", curLifter);
             fopState.fopEventPost(new FOPEvent.DecisionReset(null));
             return em.merge(curLifter);

@@ -101,7 +101,11 @@ public class MQTTMonitor extends Thread implements IUnregister {
 			logger.debug("{}lost connection to MQTT: {}", FieldOfPlay.getLoggingName(MQTTMonitor.this.getFop()),
 			        cause.getLocalizedMessage());
 			// Called when the client lost the connection to the broker
-			connectionLoop(MQTTMonitor.this.client);
+			try {
+				connectionLoop(MQTTMonitor.this.client);
+			} catch (Throwable e) {
+				logger.error("connectionLost {}", e);
+			}
 		}
 
 		@Override
@@ -247,18 +251,30 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		}
 
 		private void postFopTimeEvents(String topic, String messageStr) {
+			int index = messageStr.indexOf(' ');
+			if (index > 0) {
+				// ignore second part
+				messageStr = messageStr.substring(0, index);
+			}
 			messageStr = messageStr.trim();
+			FieldOfPlay fop2 = MQTTMonitor.this.getFop();
 			if (messageStr.equalsIgnoreCase("start")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.TimeStarted(this));
+				fop2.fopEventPost(new FOPEvent.TimeStarted(this));
 			} else if (messageStr.equalsIgnoreCase("stop")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.TimeStopped(this));
+				fop2.fopEventPost(new FOPEvent.TimeStopped(this));
+			} else if (messageStr.equalsIgnoreCase("toggle")) {
+				if (fop2.getAthleteTimer().isRunning()) {
+					fop2.fopEventPost(new FOPEvent.TimeStopped(this));	
+				} else {
+					fop2.fopEventPost(new FOPEvent.TimeStarted(this));
+				}
 			} else if (messageStr.equalsIgnoreCase("60")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.ForceTime(60000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(60000, this));
 			} else if (messageStr.equalsIgnoreCase("120")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.ForceTime(120000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(120000, this));
 			} else {
 				logger.error("{}Malformed MQTT clock message topic='{}' message='{}'",
-				        FieldOfPlay.getLoggingName(MQTTMonitor.this.getFop()), topic, messageStr);
+				        FieldOfPlay.getLoggingName(fop2), topic, messageStr);
 			}
 		}
 	}
@@ -375,6 +391,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 				payload.put("athleteName", currentAthlete.getFullName());
 				payload.put("liftType", liftType.toString());
 				payload.put("attemptNumber", attemptNumber);
+				payload.put("session", getFop().getGroup().getName());
 
 				String json;
 				try {
@@ -390,9 +407,9 @@ public class MQTTMonitor extends Thread implements IUnregister {
 				        new MqttMessage("{}".getBytes(StandardCharsets.UTF_8)));
 			}
 		} catch (MqttPersistenceException e1) {
-			logger.warn("cannot publish start athlete timer", e1);
+			logger.error("cannot publish start athlete timer", e1);
 		} catch (MqttException e1) {
-			logger.warn("cannot publish start athlete timer", e1);
+			logger.error("cannot publish start athlete timer", e1);
 		}
 	}
 
@@ -405,9 +422,9 @@ public class MQTTMonitor extends Thread implements IUnregister {
 			this.client.publish("owlcms/fop/stop/" + this.getFop().getName(),
 			        new MqttMessage(("" + timeRemaining).getBytes(StandardCharsets.UTF_8)));
 		} catch (MqttPersistenceException e1) {
-			logger.warn("cannot publish stop athlete timer", e1);
+			logger.error("cannot publish stop athlete timer", e1);
 		} catch (MqttException e1) {
-			logger.warn("cannot publish stop athlete timer", e1);
+			logger.error("cannot publish stop athlete timer", e1);
 		}
 	}
 
@@ -422,6 +439,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 			payload.put("athleteName", currentAthlete.getFullName());
 			payload.put("liftType", liftType.toString());
 			payload.put("attemptNumber", attemptNumber);
+			payload.put("session", getFop().getGroup().getName());
 
 			String json;
 			try {
@@ -651,6 +669,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 				        e1.getCause() != null ? e1.getCause().getMessage() : e1);
 				logger.error("{}MQTT refereeing device server: {}", FieldOfPlay.getLoggingName(this.getFop()),
 				        e1.getCause() != null ? e1.getCause().getMessage() : e1);
+				break;
 			}
 			sleep(1000);
 		}

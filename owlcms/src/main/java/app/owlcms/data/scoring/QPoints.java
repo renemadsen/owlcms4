@@ -121,6 +121,10 @@ public class QPoints {
 		if (bw == null) {
 			return 0.0D;
 		}
+		// outside of validity range
+		if ((gender == Gender.M && bw <= 45.0D) || (gender == Gender.F && bw <= 40.0D) || (gender == Gender.I)) {
+			return 0.0D;
+		}
 		Double qPointsFactor = qPointsFactor(gender, bw);
 		return value * qPointsFactor;
 	}
@@ -175,7 +179,7 @@ public class QPoints {
 		return qPointsFactor;
 	}
 
-	private void loadCoefficients() {
+	private synchronized void loadCoefficients() {
 		if (this.menTMax != null) {
 			return;
 		}

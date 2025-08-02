@@ -37,6 +37,9 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
+import app.owlcms.data.competition.Competition;
+import app.owlcms.i18n.Translator;
+import app.owlcms.spreadsheet.JXLSWorkbookStreamSource;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -142,7 +145,11 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	@Transient
 	@JsonIgnore
 	private Boolean forceSave = null;
-
+	private ChampionshipType championshipType;
+	private Ranking bestAthleteScoringSystem;
+	@Column(columnDefinition = "boolean default true")
+	private Boolean medals = true;
+	
 	public AgeGroup() {
 	}
 
@@ -228,8 +235,10 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		if (other.getId() == this.getId()) {
 			return true;
 		}
+		var cs1 = this.ageDivision;
+		var cs2 = other.ageDivision;
 		return this.active == other.active
-		        && this.ageDivision.contentEquals(other.ageDivision)
+				&& ((cs1 == null) ? (cs2 == null) : cs1.contentEquals(cs2))
 		        && Objects.equals(this.getChampionshipName(), other.getChampionshipName())
 		        && Objects.equals(this.categories, other.categories)
 		        && Objects.equals(this.code, other.code)
@@ -281,11 +290,17 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		return this.championshipName;
 	}
 
-	@JsonIgnore
-	@Transient
 	public ChampionshipType getChampionshipType() {
-		Championship of = Championship.of(this.computeChampionshipName());
-		return of != null ? of.getType() : ChampionshipType.DEFAULT;
+		if (this.championshipType == null) {
+			Championship of = Championship.of(this.computeChampionshipName());
+			return of != null ? of.getType() : ChampionshipType.U;
+		} else {
+			return this.championshipType;
+		}
+	}
+	
+	public void setChampionshipType(ChampionshipType c) {
+		this.championshipType = c;
 	}
 
 	public String getCode() {
@@ -537,5 +552,32 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		// OwlcmsSession.getLocale());
 		// return translatedCode != null ? translatedCode : code2;
 		return code2;
+	}
+
+	public void setBestAthleteScoringSystem(Ranking rv) {
+		this.bestAthleteScoringSystem = rv;
+	}
+
+	public Ranking getBestAthleteScoringSystem() {
+		return bestAthleteScoringSystem;
+	}
+	
+	public String getBestAthleteScoringSystemTitle() {
+		var explicitBLR = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
+		if (explicitBLR != null) {
+			return Translator.translate("Ranking."+explicitBLR);
+		} else if (bestAthleteScoringSystem != null) {
+			return Translator.translate("Ranking."+bestAthleteScoringSystem);
+		} else {
+			return Translator.translate("Ranking."+Competition.getCurrent().getScoringSystem());
+		}
+	}
+
+	public Boolean getMedals() {
+		return medals;
+	}
+
+	public void setMedals(Boolean medals) {
+		this.medals = medals;
 	}
 }

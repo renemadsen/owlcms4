@@ -45,6 +45,7 @@ class TopTeamsSinclair extends LitElement {
                   )}
                 </tbody>
               </table>
+              <h4>&nbsp;</h4>
             `
           : html``}
         ${this.topTeamsMen 
@@ -57,21 +58,38 @@ class TopTeamsSinclair extends LitElement {
                     <th class="medium" .innerHTML="${this.t?.ScoringTitle}"></th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr>
-                    <td class="spacer" style="grid-column: 1 / -1; justify-content: left;" innerHTML="-" ></td>
-                  </tr>
-                  ${(this.mensTeams ?? []).map(
-                    (item) => html`
-                      <tr class="athlete">
-                        <td class="club"><div>${item.team}</div></td>
-                        <td class="medium"><div>${item.score}</div></td>
-                      </tr>
-                    `
-                  )}
-                </tbody>
+                ${(this.mensTeams ?? []).map(
+                  (item) => html`
+                    <tr>
+                      <td class="club"><div>${item.team}</div></td>
+                      <td class="medium"><div>${item.score}</div></td>
+                    </tr>
+                  `
+                )}
               </table>
-              <h2>&nbsp;</h2>
+              <h4>&nbsp;</h4>
+            `
+          : html``}
+        ${this.topTeamsMixed 
+          ? html` 
+              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsMixed}"></h2>
+              <table class="results" id="orderDiv" style$="">
+                <thead>
+                  <tr>
+                    <th class="club" .innerHTML="${this.t?.Team}"></th>
+                    <th class="medium" .innerHTML="${this.t?.ScoringTitle}"></th>
+                  </tr>
+                </thead>
+                ${(this.mixedTeams ?? []).map(
+                  (item) => html`
+                    <tr>
+                      <td class="club"><div>${item.team}</div></td>
+                      <td class="medium"><div>${item.score}</div></td>
+                    </tr>
+                  `
+                )}
+              </table>
+              <h4>&nbsp;</h4>
             `
           : html``}
       </div>`;

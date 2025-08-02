@@ -5,7 +5,7 @@
 * Running Locally
   * [owlcms Control Panel](LocalControlPanel)
   * [Initial Installation](LocalDownloads)
-    * [Windows](LocalWindowsSetup)
+    * [Windows](LocalWindowsInstaller)
     * [macOS](LocalMacSetup)
     * [Raspberry Pi/Linux](LocalPiLinuxSetup)
   * [Equipment Setup](EquipmentSetup)
@@ -29,6 +29,7 @@
 * Refereeing
   * [Refereeing](Refereeing)
   * [Jury](Jury)
+  * [Jury Replays](JuryReplays)
 * Scoreboards and Results
   * [Scoreboards](Displays)
   * [Result Documents](ResultDocuments)

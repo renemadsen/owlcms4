@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.spreadsheet;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
@@ -20,6 +21,7 @@ import com.vaadin.flow.component.UI;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
+import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
@@ -41,6 +43,7 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 	@SuppressWarnings("unused")
 	private Logger logger = LoggerFactory.getLogger(JXLSCompetitionBook.class);
 	private boolean isIncludeUnfinished;
+	private boolean winnersOnly;
 
 	public JXLSCompetitionBook(boolean excludeNotWeighed, UI ui) {
 	}
@@ -143,15 +146,38 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 
 		reportingBeans.put("records", records);
 
-		Ranking overallScoringSystem = this.getBestLifterScoringSystem();
-		overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
-		// make available to the Athlete class in this Thread (and subThreads).
-		JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(overallScoringSystem);
+		Ranking overallScoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
 		JXLSWorkbookStreamSource.setNoInterimScoresInResults(Config.getCurrent().featureSwitch("noInterimScoresInResults"));
-		reportingBeans.put("bestRankingTitle", Ranking.getScoringTitle(overallScoringSystem));
+		if (overallScoringSystem == null) {
+			overallScoringSystem = Competition.getCurrent().getScoringSystem();
+		} else {
+			// recompute mBest and wBest according to overallScoringSystem
+			List<Athlete> sortedMen = (List<Athlete>) reportingBeans.get("mBest");
+			List<Athlete> sortedWomen = (List<Athlete>) reportingBeans.get("wBest");
+			reportingBeans.put("mBest", AthleteSorter.resultsOrderCopy(sortedMen, overallScoringSystem));
+			reportingBeans.put("wBest", AthleteSorter.resultsOrderCopy(sortedWomen, overallScoringSystem));
+		}
+		
+		String brt = overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete");
+		reportingBeans.put("bestRankingTitle", brt);
 
-		reportingBeans.put("mBest", reportingBeans.get(overallScoringSystem.getMReportingName()));
-		reportingBeans.put("wBest", reportingBeans.get(overallScoringSystem.getWReportingName()));
+		if (isWinnersOnly()) {
+			Collection<Athlete> bestMen = ((Collection<Athlete>) reportingBeans
+			        .get(overallScoringSystem.getMReportingName()));
+			if (this.winnersOnly) {
+				bestMen = bestMen.stream().filter(a -> a.getTotalRank() == 1).toList();
+			}
+			reportingBeans.put("mBest", bestMen);
+			Collection<Athlete> bestWomen = ((Collection<Athlete>) reportingBeans
+			        .get(overallScoringSystem.getWReportingName()));
+			if (this.winnersOnly) {
+				bestWomen = bestWomen.stream().filter(a -> a.getTotalRank() == 1).toList();
+			}
+			reportingBeans.put("wBest", bestWomen);
+		} else {
+			reportingBeans.put("mBest", reportingBeans.get(overallScoringSystem.getMReportingName()));
+			reportingBeans.put("wBest", reportingBeans.get(overallScoringSystem.getWReportingName()));
+		}
 		setReportingBeans(reportingBeans);
 	}
 
@@ -217,6 +243,14 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 				curSheet.getFooter().setRight(rightFooter);
 			}
 		}
+	}
+
+	public void setWinnersOnly(boolean winnersOnly) {
+		this.winnersOnly = winnersOnly;
+	}
+
+	public boolean isWinnersOnly() {
+		return winnersOnly;
 	}
 
 }

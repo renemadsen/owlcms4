@@ -78,7 +78,7 @@ public class AgeGroupRepository {
 			if (!activeOnly || ag.isActive()) {
 				if (ag.computeChampionshipName() != null && !ag.computeChampionshipName().isBlank()) {
 					ts.add(ag.computeChampionshipName());
-				} else {
+				} else if (ag.getAgeDivision() != null){
 					ts.add(ag.getAgeDivision());
 				}
 			}
@@ -276,7 +276,7 @@ public class AgeGroupRepository {
 
 	@SuppressWarnings("unchecked")
 	public static AgeGroup doFindByName(String name, EntityManager em) {
-		TypedQuery<AgeGroup> query = em.createQuery("select u from AgeGroup u where u.name=:name", AgeGroup.class);
+		TypedQuery<AgeGroup> query = em.createQuery("select u from AgeGroup u where u.code=:name", AgeGroup.class);
 		query.setParameter("name", name);
 		AgeGroup ag = query.getResultList().stream().findFirst().orElse(null);
 		fixAg(ag);
@@ -414,7 +414,7 @@ public class AgeGroupRepository {
 
 	public static void insertAgeGroups(EntityManager em, EnumSet<ChampionshipType> forcedInsertion) {
 		try {
-			String localizedName = ResourceWalker.getLocalizedResourceName("/agegroups/AgeGroups.xlsx");
+			String localizedName = ResourceWalker.getLocalizedResourceName("/agegroups/AgeGroups_2025-06.xlsx");
 			AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(forcedInsertion, localizedName);
 		} catch (FileNotFoundException e1) {
 			// ignore
@@ -433,13 +433,13 @@ public class AgeGroupRepository {
 	public static void reloadDefinitions(InputStream inputStream) {
 		cleanUpExisting();
 		AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(inputStream);
-		AthleteRepository.resetParticipations();
+		AthleteRepository.resetParticipations(false, true);
 	}
 
 	public static void reloadDefinitions(String localizedFileName) {
 		cleanUpExisting();
 		AgeGroupDefinitionReader.doInsertRobiAndAgeGroups(null, "/agegroups/" + localizedFileName);
-		AthleteRepository.resetParticipations();
+		AthleteRepository.resetParticipations(false, true);
 	}
 
 	/**
@@ -573,7 +573,7 @@ public class AgeGroupRepository {
 		for (Athlete a : as) {
 			logger.debug("removing athlete {} from category {}", a, nc.getId());
 			Athlete na = em.contains(a) ? a : em.merge(a);
-			na.setCategory(null);
+			na.computeCategory(null);
 		}
 	}
 
@@ -630,11 +630,12 @@ public class AgeGroupRepository {
 		return mAgeGroup;
 	}
 
+	@SuppressWarnings("unused")
 	private static void cleanUpExisting() {
 		JPAService.runInTransaction(em -> {
 			List<Athlete> athletes = AthleteRepository.doFindAll(em);
 			for (Athlete a : athletes) {
-				a.setCategory(null);
+				a.computeCategory(null);
 				a.setEligibleCategories(null);
 				em.merge(a);
 			}

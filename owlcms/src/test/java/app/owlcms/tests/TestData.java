@@ -73,7 +73,7 @@ public class TestData {
             setupTestData(em, nbAthletes);
             return null;
         });
-        AthleteRepository.resetParticipations();
+        AthleteRepository.resetParticipations(false, true);
 
     }
 
@@ -105,7 +105,7 @@ public class TestData {
         p.setBodyWeight(81 - nextDouble);
         p.setGender(Gender.M);
         Category cat = CategoryRepository.findByCode("Open_M81");
-        p.setCategory(cat);
+        p.computeCategory(cat);
         // logger.debug("athlete {} category {} participations{} group {}", p, p.getCategory(), p.getParticipations(), p.getGroup());
     }
 
@@ -133,6 +133,7 @@ public class TestData {
     protected static void createGroup(EntityManager em, Group group, final String[] fnames, final String[] lnames,
             Random r,
             int cat1, int cat2, int liftersToLoad) {
+    	logger.debug("liftersToLoad", liftersToLoad);
         for (int i = 0; i < liftersToLoad; i++) {
             Athlete ath = new Athlete();
             Group mg = (em.contains(group) ? group : em.merge(group));
@@ -185,7 +186,7 @@ public class TestData {
         groupC.setPlatform(platform1);
 
         insertSampleLifters(em, liftersToLoad, groupA, groupB, groupC);
-        AthleteRepository.resetParticipations();
+        AthleteRepository.resetParticipations(false, true);
 
 //        em.persist(groupA);
 //        em.persist(groupB);
