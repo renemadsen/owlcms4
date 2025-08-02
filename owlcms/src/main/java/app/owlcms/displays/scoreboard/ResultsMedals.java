@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -36,6 +36,7 @@ import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.team.Team;
 import app.owlcms.fieldofplay.FOPState;
@@ -107,7 +108,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 			// logger.debug("ceremony event = {} {} {} {}", e, ceremonyGroup, ceremonyCategory, LoggerUtils.stackTrace());
 
 			// medalsInit();
-			checkVideo(this);
+			computeStylesDir(this);
 			this.teamFlags = URLUtils.checkFlags();
 			doMedals(this.getFop());
 
@@ -330,10 +331,11 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 					doRefresh(new UIEvent.SwitchGroup(fop.getGroup(), FOPState.BREAK, fop.getCurAthlete(), this, fop));
 				}
 				break;
-			// default:
-			// setDisplay();
-			// updateDisplay(null, fop);
 		}
+		ui.access(() -> {
+			pushEmSize(this.getElement());
+			pushTeamWidth(this.getElement());
+		});
 	}
 
 	@Override
@@ -415,11 +417,10 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 		ja.put("custom1", a.getCustom1() != null ? a.getCustom1() : "");
 		ja.put("custom2", a.getCustom2() != null ? a.getCustom2() : "");
 
-		// only show flags when medals are for a single category
 		String prop = null;
-		if (getCategory() != null) {
+		if (!Config.getCurrent().featureSwitch("medalsForCategoryOnly")) {
+			// only show flags when medals are for a single category
 			String team = a.getTeam();
-
 			if (this.teamFlags && !team.isBlank()) {
 				prop = Team.getImgTag(team, "");
 			}
@@ -637,7 +638,7 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 
 	private void doMedalsDisplay() {
 		medalsInit();
-		checkVideo(this);
+		computeStylesDir(this);
 		this.teamFlags = URLUtils.checkFlags();
 		doMedals(this.getFop());
 

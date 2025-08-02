@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -48,7 +48,6 @@ public class DecisionElement extends LitTemplate
 	protected EventBus uiEventBus;
 	private boolean silenced;
 	private boolean juryMode;
-	private boolean singleRef;
 	private boolean dontReset;
 	private boolean publicFacing;
 	protected boolean downSlave;
@@ -88,6 +87,7 @@ public class DecisionElement extends LitTemplate
 	        Integer ref3Time) {
 		Object origin = this.getOrigin();
 		OwlcmsSession.withFop((fop) -> {
+			//logger.debug("masterRefereeUpdate {} {} {}",ref1, ref2, ref3);
 			if (!fopName.contentEquals(fop.getName())) {
 				return;
 			}
@@ -95,7 +95,7 @@ public class DecisionElement extends LitTemplate
 			        new FOPEvent.DecisionFullUpdate(origin, fop.getCurAthlete(), ref1, ref2, ref3,
 			                Long.valueOf(ref1Time),
 			                Long.valueOf(ref2Time),
-			                Long.valueOf(ref3Time), false, fop.isSingleReferee()));
+			                Long.valueOf(ref3Time), false));
 		});
 
 	}
@@ -138,7 +138,7 @@ public class DecisionElement extends LitTemplate
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			logger.debug("slaveBreakStart disable");
-			this.getElement().callJsFunction("setEnabled", false);
+			this.getElement().callJsFunction("setEnabled", true);
 		});
 	}
 
@@ -183,14 +183,14 @@ public class DecisionElement extends LitTemplate
 
 	@Subscribe
 	public void slaveShowDecision(UIEvent.Decision e) {
-		//logger.debug("decision {} {} {}", e.ref1, e.ref2, e.ref3);
+		//logger.debug("decision {} {} {} --- {}", e.ref1, e.ref2, e.ref3, e.isSingleReferee());
 		UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this.getOrigin(), () -> {
 			if (e.isSingleReferee()) {
-				getElement().setProperty("singleRef", this.singleRef);
+				getElement().setProperty("singleRef", e.isSingleReferee());
 				this.getElement().callJsFunction("showSingleDecision", e.decision);
 				this.getElement().callJsFunction("setEnabled", false);
 			} else {
-				getElement().setProperty("singleRef", this.singleRef);
+				getElement().setProperty("singleRef", e.isSingleReferee());
 				this.getElement().callJsFunction("showDecisions", false, e.ref1, e.ref2, e.ref3);
 				this.getElement().callJsFunction("setEnabled", false);
 			}

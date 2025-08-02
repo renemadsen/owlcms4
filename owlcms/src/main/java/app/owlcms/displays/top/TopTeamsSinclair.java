@@ -197,7 +197,7 @@ public class TopTeamsSinclair extends AbstractTop {
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-		checkVideo(this);
+		computeStylesDir(this);
 		setWide(false);
 		setTranslationMap();
 		for (FieldOfPlay fop : OwlcmsFactory.getFOPs()) {

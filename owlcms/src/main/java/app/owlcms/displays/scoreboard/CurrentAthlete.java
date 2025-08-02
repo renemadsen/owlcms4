@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -316,6 +316,12 @@ public class CurrentAthlete extends Results {
 		// logger.debug("doUpdate {} {} {}", e != null ? e.getClass().getSimpleName() : "no event", a,
 		// a != null ? a.getAttemptsDone() : null);
 		boolean leaveTopAlone = false;
+		FieldOfPlay fop = e.getFop();
+		
+		if (fop != null && fop.getState() == FOPState.DECISION_VISIBLE) {
+			// next event will refresh.
+			return;
+		}
 		if (e instanceof UIEvent.LiftingOrderUpdated) {
 			LiftingOrderUpdated e2 = (UIEvent.LiftingOrderUpdated) e;
 			if (e2.isInBreak()) {
@@ -325,7 +331,6 @@ public class CurrentAthlete extends Results {
 			}
 		}
 
-		FieldOfPlay fop = e.getFop();
 		if (!leaveTopAlone) {
 			if (a != null) {
 				Group group = fop.getGroup();
@@ -506,7 +511,7 @@ public class CurrentAthlete extends Results {
 		// fop obtained via FOPParameters interface default methods.
 		OwlcmsSession.withFop(fop -> {
 			init();
-			checkVideo(this);
+			computeStylesDir(this);
 
 			// get the global category rankings attached to each athlete
 			this.order = fop.getDisplayOrder();

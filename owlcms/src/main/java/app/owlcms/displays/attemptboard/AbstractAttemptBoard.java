@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.displays.attemptboard;
 
+import java.text.MessageFormat;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -110,9 +111,11 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	private boolean publicFacing;
 	private boolean showBarbell;
 	private boolean video;
+	private boolean publicDisplay;
 	private FieldOfPlay fop;
 	private Group group;
 	private boolean abbreviatedName;
+	private UI ui;
 
 	/**
 	 * Instantiates a new attempt board.
@@ -293,6 +296,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 
 	@Override
 	public void setPublicDisplay(boolean publicDisplay) {
+		this.publicDisplay = publicDisplay;
 	}
 
 	/**
@@ -599,10 +603,6 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		this.getElement().setProperty("athletePictures", isAthletePictures());
 
 		String team = a.getTeam();
-		if (team == null) {
-			team = "";
-		}
-		this.getElement().setProperty("teamName", team);
 		this.getElement().setProperty("teamFlagImg", "");
 		String teamFileName = URLUtils.sanitizeFilename(team);
 		if (this.teamFlags && !team.isBlank()) {
@@ -610,6 +610,8 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 			        .anyMatch(ext -> URLUtils.setImgProp("teamFlagImg", "flags/", teamFileName, ext, this));
 		}
 
+		this.getElement().setProperty("teamName", computeTeamName(a));
+		
 		String membership = a.getMembership();
 		this.getElement().setProperty("athleteImg", "");
 		if (isAthletePictures() && membership != null) {
@@ -628,6 +630,35 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		// this will push the changes done so far
 		spotlightRecords(fop, a);
 		setDone(false);
+	}
+
+	public String computeTeamName(Athlete a) {
+		String team = a.getTeam();
+		if (team == null) {
+			team = "";
+		}
+
+		if (Config.getCurrent().featureSwitch("customTeamName")) {
+			var customTeamFormatString = Translator.translateOrElseNull("AttemptBoard.TeamFormat");
+			if (customTeamFormatString != null) {
+				String custom1 = a.getCustom1();
+				String custom2 = a.getCustom2();
+				boolean custom1Present = custom1 != null && !custom1.isBlank();
+				boolean custom2Present = custom2 != null && !custom2.isBlank();
+				int count = custom1Present && custom2Present ? 3 : (custom2Present ? 2 : (custom1Present ? 1 : 0));
+
+				// The message format is expected to be something similar to
+				// {0, choice, 0#{1}|1#{1}, {2}|2#{1}, {3}|3#{1}, {2}, {3}}
+				// a "binary" encoding is used to control the format
+				// count = 0 show only team (00)
+				// count = 1 show team and custom1 (01)
+				// count = 2 show team and custom2 (10)
+				// count = 3 show team, custom1 and custom 2 (11)
+				
+				team = MessageFormat.format(customTeamFormatString, count, team, custom1 != null ? custom1 : "", custom2 != null ? custom2 : "");
+			}
+		}
+		return team;
 	}
 
 	/**
@@ -679,8 +710,8 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		if (fop2.getGroup() == null) {
 			setDisplayedWeight("");
 		}
-		this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
 			setBoardMode(fop2.getState(), fop2.getBreakType(), fop2.getCeremonyType(), this.getElement());
 		});
 	}
@@ -706,10 +737,11 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		// fop obtained via FOPParameters interface default methods.
+		ui = UI.getCurrent();
 		OwlcmsSession.withFop(fop -> {
 			logger.debug("{}onAttach {}", FieldOfPlay.getLoggingName(fop), fop.getState());
 			init();
-			checkVideo(this);
+			computeStylesDir(this);
 			ThemeList themeList = UI.getCurrent().getElement().getThemeList();
 			themeList.remove(Lumo.LIGHT);
 			themeList.add(Lumo.DARK);
@@ -862,7 +894,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 
 	private void hideRecordInfo(Athlete a) {
 		this.getElement().setProperty("recordName", "");
-		this.getElement().setProperty("teamName", a.getTeam());
+		this.getElement().setProperty("teamName", computeTeamName(a));
 		this.getElement().setProperty("hideBecauseRecord", "");
 		this.getElement().setProperty("recordAttempt", false);
 		this.getElement().setProperty("recordBroken", false);
@@ -913,7 +945,9 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	}
 
 	private void spotlightNewRecord(List<RecordEvent> records) {
-		UI.getCurrent().push();
+		if (ui != null) {
+			ui.push();
+		}
 		try {
 			Thread.sleep(200);
 		} catch (InterruptedException e) {
@@ -922,11 +956,15 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		this.getElement().setProperty("recordAttempt", false);
 		String prefix = Translator.translate("Scoreboard.NewRecord(s)", records.size());
 		computeMessageProperties(records, prefix);
-		UI.getCurrent().push();
+		if (ui != null) {
+			ui.push();
+		}
 	}
 
 	private void spotlightRecordAttempt(List<RecordEvent> records) {
-		UI.getCurrent().push();
+		if (ui != null) {
+			ui.push();
+		}
 		try {
 			Thread.sleep(200);
 		} catch (InterruptedException e) {
@@ -935,7 +973,9 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		this.getElement().setProperty("recordAttempt", true);
 		String prefix = Translator.translate("Scoreboard.RecordAttempt(s)", records.size());
 		computeMessageProperties(records, prefix);
-		UI.getCurrent().push();
+		if (ui != null) {
+			ui.push();
+		}
 	}
 
 	public void computeMessageProperties(List<RecordEvent> records, String prefix) {
@@ -947,7 +987,9 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 
 	private void spotlightRecords(FieldOfPlay fop, Athlete a) {
 		if (Config.getCurrent().featureSwitch("disableRecordHighlight")) {
-			UI.getCurrent().push();
+			if (ui != null) {
+				ui.push();
+			}
 			return;
 		}
 		if (fop.getState() == FOPState.INACTIVE || fop.getState() == FOPState.BREAK) {
@@ -965,6 +1007,11 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 				}
 			}
 		}
+	}
+
+	@Override
+	public boolean isPublicDisplay() {
+		return publicDisplay;
 	}
 
 }

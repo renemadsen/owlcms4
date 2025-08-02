@@ -48,7 +48,9 @@ import app.owlcms.monitors.OBSMonitor;
 import app.owlcms.nui.displays.attemptboards.PublicFacingAttemptBoardPage;
 import app.owlcms.nui.displays.attemptboards.PublicFacingDecisionBoardPage;
 import app.owlcms.nui.displays.scoreboards.CurrentAthletePage;
+import app.owlcms.nui.displays.scoreboards.JuryDecisionsPage;
 import app.owlcms.nui.displays.scoreboards.MedalsPage;
+import app.owlcms.nui.displays.scoreboards.NCurrentAthletePage;
 import app.owlcms.nui.displays.scoreboards.RankingsPage;
 import app.owlcms.nui.displays.scoreboards.WarmupMultiRanksPage;
 import app.owlcms.nui.displays.scoreboards.WarmupNoLeadersPage;
@@ -91,18 +93,28 @@ public class VideoNavigationContent extends BaseNavigationContent
 		intro.getStyle().set("margin-bottom", "0");
 		fillH(intro, this);
 
-        colorOverride();
-        
-		Button currentAthlete = openInNewTabQueryParameters(CurrentAthletePage.class,
-		        Translator.translate("CurrentAthleteTitle"), "video=true");
+		colorOverride();
+
+		FlexibleGridLayout grid3;
 		Button attempt = openInNewTabQueryParameters(PublicFacingAttemptBoardPage.class,
 		        Translator.translate("AttemptBoard"), "video=true");
-		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(attempt, currentAthlete);
+		if (Config.getCurrent().featureSwitch("iwfLook")) {
+			Button nCurrentAthlete = openInNewTabQueryParameters(NCurrentAthletePage.class,
+			        Translator.translate("CurrentAthleteTitle") + " (New)", "video=true");
+			grid3 = HomeNavigationContent.navigationGrid(nCurrentAthlete, attempt);
+		} else {
+			Button currentAthlete = openInNewTabQueryParameters(CurrentAthletePage.class,
+			        Translator.translate("CurrentAthleteTitle"), "video=true");
+			grid3 = HomeNavigationContent.navigationGrid(currentAthlete, attempt);
+		}
+
 		doGroup(Translator.translate("AttemptBoard"), grid3, this);
 
 		Button publicDecisions = openInNewTabQueryParameters(PublicFacingDecisionBoardPage.class,
 		        Translator.translate("RefereeDecisions"), "video=true");
-		FlexibleGridLayout grid31 = HomeNavigationContent.navigationGrid(publicDecisions);
+		Button juryDecisions = openInNewTabQueryParameters(JuryDecisionsPage.class,
+		        Translator.translate("JuryDecisions.Title"), "video=true");
+		FlexibleGridLayout grid31 = HomeNavigationContent.navigationGrid(publicDecisions, juryDecisions);
 		doGroup(Translator.translate("RefereeDecisions"), grid31, this);
 
 		Button scoreboard = openInNewTabQueryParameters(WarmupNoLeadersPage.class,
@@ -182,7 +194,6 @@ public class VideoNavigationContent extends BaseNavigationContent
 		addP(intro4, Translator.translate("OBS.MonitoringExplanation", Translator.translate("OBS.MonitoringButton")));
 		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(eventMonitor, obsMonitor);
 		doGroup(Translator.translate("OBS.MonitoringButton"), intro4, grid4, this);
-		
 
 		DebugUtils.gc();
 	}
@@ -193,45 +204,44 @@ public class VideoNavigationContent extends BaseNavigationContent
 		enableColorOverrideCheckbox.setMaxWidth("40%");
 		ColorPicker colorPicker = new ColorPicker();
 		colorPicker.setEnabled(enableColorOverrides);
-		
-        enableColorOverrideCheckbox.addClickListener(event -> {
-        	boolean selected = Boolean.TRUE.equals(enableColorOverrideCheckbox.getValue());
-        	Config.getCurrent().setEnableColorOverrides(selected);
-        	colorPicker.setEnabled(selected);
-        	logger.debug("selected {}",selected);
-        });
-        enableColorOverrideCheckbox.setLabel(Translator.translate("ColorSelection.EnabledLabel"));
-        enableColorOverrideCheckbox.setHelperText(Translator.translate("ColorSelection.EnabledHelperText"));
 
-        colorPicker.setLabel(Translator.translate("ColorSelection.Label"));
-        colorPicker.setMaxWidth("40%");
-        colorPicker.setHelperText(Translator.translate("ColorSelection.Helper"));
-        colorPicker
-                .setPresets(Arrays.asList(
-                		new ColorPreset("#000000", "Black"),
-                		new ColorPreset("#696969", "Dim Grey"),
-                		new ColorPreset("#8b0000", "Dark Red"),
-                        new ColorPreset("#006400", "Dark Green"),
-                        new ColorPreset("#00008b", "Dark Blue")
-                        ));
+		enableColorOverrideCheckbox.addClickListener(event -> {
+			boolean selected = Boolean.TRUE.equals(enableColorOverrideCheckbox.getValue());
+			Config.getCurrent().setEnableColorOverrides(selected);
+			colorPicker.setEnabled(selected);
+			logger.debug("selected {}", selected);
+		});
+		enableColorOverrideCheckbox.setLabel(Translator.translate("ColorSelection.EnabledLabel"));
+		enableColorOverrideCheckbox.setHelperText(Translator.translate("ColorSelection.EnabledHelperText"));
 
-        colorPicker.addValueChangeListener(event -> {
-        	Config.getCurrent().setVideoColorOverrides("--videoHeaderBackgroundColor: "+event.getValue());
-            Notification.show(event.getValue());
-        });
-        
+		colorPicker.setLabel(Translator.translate("ColorSelection.Label"));
+		colorPicker.setMaxWidth("40%");
+		colorPicker.setHelperText(Translator.translate("ColorSelection.Helper"));
+		colorPicker
+		        .setPresets(Arrays.asList(
+		                new ColorPreset("#000000", "Black"),
+		                new ColorPreset("#696969", "Dim Grey"),
+		                new ColorPreset("#8b0000", "Dark Red"),
+		                new ColorPreset("#006400", "Dark Green"),
+		                new ColorPreset("#00008b", "Dark Blue")));
+
+		colorPicker.addValueChangeListener(event -> {
+			Config.getCurrent().setVideoColorOverrides("--videoHeaderBackgroundColor: " + event.getValue());
+			Notification.show(event.getValue());
+		});
+
 		VerticalLayout intro5 = new VerticalLayout();
 		intro5.setSpacing(false);
-        intro5.add(new Div(Translator.translate("ColorSelection.Intro")));
-        intro5.setMargin(false);
-        intro5.setPadding(false);
-        HorizontalLayout horizontalLayout = new HorizontalLayout(enableColorOverrideCheckbox, colorPicker);
-        horizontalLayout.setMargin(false);
-        horizontalLayout.setAlignItems(Alignment.CENTER);
+		intro5.add(new Div(Translator.translate("ColorSelection.Intro")));
+		intro5.setMargin(false);
+		intro5.setPadding(false);
+		HorizontalLayout horizontalLayout = new HorizontalLayout(enableColorOverrideCheckbox, colorPicker);
+		horizontalLayout.setMargin(false);
+		horizontalLayout.setAlignItems(Alignment.CENTER);
 		intro5.add(horizontalLayout);
 
 		doGroup(Translator.translate("ColorSelection"), intro5, new FlexibleGridLayout(), this);
-		
+
 	}
 
 	@Override
