@@ -53,7 +53,7 @@ class ResultsMedals extends LitElement {
             ? html`
                 <table class="${this.athleteClasses()}" style="${this.athleteStyles()}">
                   ${(this.medalCategories ?? []).map(
-                    (mc) => html`
+                    (mc, index, array) => html`
                       <tr class="head" style="${this.leadersDisplay}">
                         <td style="grid-column: 1 / -1; justify-content: left; font-weight: bold; font-size: 120%" .innerHTML="${mc.categoryName}" ></td>
                       </tr>
@@ -114,7 +114,7 @@ class ResultsMedals extends LitElement {
                             ${(leader.sattempts ?? []).map(
                               (attempt) => html`
                                 <td class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}" >
-                                  <div>${attempt.stringValue}</div>
+                                  <div class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}">${attempt.stringValue}</div>
                                 </td>
                               `)}
                             <td class="best">
@@ -127,7 +127,7 @@ class ResultsMedals extends LitElement {
                             ${(leader.cattempts ?? []).map(
                               (attempt) => html`
                                 <td class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}" >
-                                  <div>${attempt.stringValue}</div>
+                                  <div class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}">${attempt.stringValue}</div>
                                 </td>
                               `)}
                             <td class="best">
@@ -152,9 +152,11 @@ class ResultsMedals extends LitElement {
                           </tr>
                         `
                       )}
-                      <tr>
-                        <td class="filler" style="${"grid-column: 1 / -1; line-height:100%;" + (this.fillerDisplay ?? "")}">&nbsp;</td>
-                      </tr>
+                      ${index < array.length - 1 ? html`
+                        <tr>
+                          <td class="filler" style="${"grid-column: 1 / -1; line-height:100%;" + (this.fillerDisplay ?? "")}">&nbsp;</td>
+                        </tr>
+                      ` : ''}
                     `)}
                 </table>
               `
@@ -198,7 +200,7 @@ class ResultsMedals extends LitElement {
       teamWidthClass: {},
       sizeOverride: {},
       twOverride: {},
-	  colorOverride: {},
+	    colorOverride: {},
       video: {},
       showLiftRanks: {type: Boolean},
       showBest: {type: Boolean},

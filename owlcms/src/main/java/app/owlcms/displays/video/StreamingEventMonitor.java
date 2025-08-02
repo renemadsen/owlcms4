@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -136,6 +136,7 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 	private FieldOfPlay fop;
 	private Group group;
 	private QueryParameters defaultParameters;
+	private boolean publicDisplay;
 
 	/**
 	 * Instantiates a new results board.
@@ -307,7 +308,7 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 		OwlcmsSession.withFop(fop -> {
 			init();
 
-			checkVideo(this);
+			computeStylesDir(this);
 			// sync with current status of FOP
 			syncWithFOP(null);
 			// we listen on uiEventBus.
@@ -581,5 +582,15 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 
 	private long waitBeforeChangingStatus() {
 		return getExpiryBeforeChangingStatus() - System.currentTimeMillis();
+	}
+	
+	@Override
+	public void setPublicDisplay(boolean publicDisplay) {
+		this.publicDisplay = publicDisplay;
+	}
+
+	@Override
+	public boolean isPublicDisplay() {
+		return publicDisplay;
 	}
 }

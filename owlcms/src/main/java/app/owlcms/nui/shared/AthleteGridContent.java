@@ -632,12 +632,10 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
 		this.summonNotificationSent = false;
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
-			if (e.isDisplayToggle()) {
+			if (e.isDisplayToggle() && e.getBreakType() != BreakType.TEST_BUTTONS) {
 				logger.debug("{} ignoring switch to break", this.getClass().getSimpleName());
 				return;
 			}
-
-			// logger.debug("%%%%%%% starting break {}", LoggerUtils./**/stackTrace());
 			syncWithFop(true, e.getFop());
 			clearRecordNotifications();
 		});
@@ -1316,6 +1314,7 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	
 	protected List<Notification> notifications = new ArrayList<>();
+	private boolean publicDisplay;
 	protected void doNotification(String text, String theme) {
 		Notification n = new Notification();
 		n.getElement().getThemeList().add(theme);
@@ -1587,6 +1586,11 @@ public abstract class AthleteGridContent extends BaseContent
 				topBarWarning(fop.getGroup(), curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone(),
 				        fop.getState(), fop.getLiftingOrder());
 			}
+			if (state == FOPState.BREAK) {
+				busyBreakButton();
+			} else {
+				quietBreakButton(Translator.translate("Pause"));
+			}
 		} else {
 			getRouterLayout().setMenuTitle("");
 			getRouterLayout().setMenuArea(createTopBar());
@@ -1631,8 +1635,10 @@ public abstract class AthleteGridContent extends BaseContent
 			String string = Translator.translate("NoGroupSelected");
 			String text = group == null ? "\u2013" : string;
 			if (!this.initialBar) {
+				logger.debug("====== initial bar");
 				topBarMessage(string, text);
 			} else {
+				logger.debug("====== hiding buttons");
 				hideButtons();
 				this.warning.setText(string);
 			}
@@ -1795,6 +1801,16 @@ public abstract class AthleteGridContent extends BaseContent
 
 	public boolean ackDialogIsOpened() {
 		return this.stoppageAckNotification != null && this.stoppageAckNotification.isOpened();
+	}
+	
+	@Override
+	public void setPublicDisplay(boolean publicDisplay) {
+		this.publicDisplay = publicDisplay;
+	}
+
+	@Override
+	public boolean isPublicDisplay() {
+		return publicDisplay;
 	}
 
 }

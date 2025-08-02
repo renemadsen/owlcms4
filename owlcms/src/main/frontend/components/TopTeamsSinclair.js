@@ -19,8 +19,8 @@ class TopTeamsSinclair extends LitElement {
         <timer-element id="timer"></timer-element>
         <timer-element id="breakTimer"></timer-element>
         <decision-element id="decisions"></decision-element>
-      </div>
-     <div id="resultBoardDiv" class="${this.activeClasses()}">
+      </div> 
+     <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode??"dark"}">
         ${this.topTeamsWomen
           ? html`
               <h2 class="fullName" id="fullNameDivWomen" .innerHTML="${this.topTeamsWomen}" ></h2>

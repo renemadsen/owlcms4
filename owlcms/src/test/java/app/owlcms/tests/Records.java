@@ -147,7 +147,7 @@ public class Records {
         assertEquals(schneiderF, curLifter);
         successfulLift(fopBus, curLifter, fopState);
         
-        // TODO Check that record has been set and assigned
+        // Check that record has been set and assigned
 
         // schneiderF snatch2
         curLifter = fopState.getCurAthlete();
@@ -155,7 +155,7 @@ public class Records {
         assertEquals(120000, fopState.getTimeAllowed());
         successfulLift(fopBus, curLifter, fopState);
         
-        // TODO Check that record has been improved
+        // Check that record has been improved
     }
 
     /**
@@ -197,7 +197,7 @@ public class Records {
         logger.debug("calling lifter: {}", curLifter);
         fopBus.post(new FOPEvent.TimeStarted(null));
         fopBus.post(new FOPEvent.DownSignal(null));
-        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false, false));
+        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false));
         logger.debug("failed lift for {}", curLifter);
 //        fopState.finalDecision(null);
         fopBus.post(new FOPEvent.DecisionReset(null));
@@ -208,7 +208,7 @@ public class Records {
         logger.debug("calling lifter: {}", curLifter);
         fopBus.post(new FOPEvent.TimeStarted(null));
         fopBus.post(new FOPEvent.DownSignal(null));
-        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false, false));
+        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false));
         logger.debug("successful lift for {}", curLifter);
 //        fopState.finalDecision(null);
         fopBus.post(new FOPEvent.DecisionReset(null));

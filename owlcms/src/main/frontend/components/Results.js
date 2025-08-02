@@ -93,7 +93,7 @@ class Results extends LitElement {
                             </tr>
                           `
                           : html`
-                            <tr class="athlete">
+                            <tr class="${"athlete" + (item?.classname ?? "")}">
                               <td class="${"start " + (item?.classname ?? "")}">
                                 <div class="${item?.classname}"> ${item?.startNumber}</div>
                               </td>
@@ -164,11 +164,11 @@ class Results extends LitElement {
                   `)}
               `
               : html``}
-            <tr>
-              <td class="filler" .style="grid-column: 1 / -1; ${this.fillerStyles()}"> &nbsp; </td>
-            </tr>
             ${this.leaders
               ? html`
+                <tr>
+                  <td class="filler" .style="grid-column: 1 / -1; ${this.fillerStyles()}"> &nbsp; </td>
+                </tr>
                 <tbody class="leaders" style="${this.leadersStyles()}">
                   <tr class="head">
                     <td class="leaderTitle" .innerHTML="${(this.t?.Leaders ?? "") + " " + (this.categoryName ?? "")}"></td>
@@ -307,6 +307,7 @@ class Results extends LitElement {
       showSinclairRanks: {type: Boolean},
       showLeaders: {type: Boolean},
       showRecords: {type: Boolean},
+      logoSrc: {},
 
       // translation map
       t: { type: Object },
@@ -315,7 +316,6 @@ class Results extends LitElement {
       javaComponentId: {},
       stylesDir: {},
       autoVersion: {},
-
     };
   }
 
