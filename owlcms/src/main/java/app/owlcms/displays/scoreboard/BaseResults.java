@@ -265,7 +265,7 @@ public class BaseResults extends LitTemplate
 		String formattedTW = null;
 		if (this.teamWidth != null) {
 			formattedTW = ResultsParameters.formatEN_US.format(this.teamWidth);
-			element.setProperty("twOverride", "--nameWidth: 1fr; --clubWidth:" + formattedTW + "em;");
+			element.setProperty("twOverride", "--clubWidth:" + formattedTW + "em;");
 		}
 	}
 
@@ -302,7 +302,7 @@ public class BaseResults extends LitTemplate
 
 	@Override
 	public final void setEmFontSize(Double emFontSize) {
-		// logger.trace("%%%%% setEmFontSize {}", emFontSize);
+		logger.warn("%%%%% setEmFontSize {}", emFontSize);
 		this.emFontSize = emFontSize;
 		pushEmSize(this.getElement());
 	}
@@ -645,12 +645,12 @@ public class BaseResults extends LitTemplate
 	public void setBottomSize(int normal) {
 		// we stretch video and TV ONLY when using the old standard nogrid or grid styles, or if the corresponding "stretch" feature toggle is present
 		if (this.isPublicDisplay() || this.isVideo()) {
-			logger.warn("isPublicDisplay {} {} {} {}",
-					isPublicDisplay(),
-					Config.getCurrent().getParamPublicStylesDir().endsWith("grid"),
-					Config.getCurrent().featureSwitch("stretchPublic"),
-					(isPublicDisplay() && !(Config.getCurrent().getParamPublicStylesDir().endsWith("grid") || Config.getCurrent().featureSwitch("stretchPublic")))
-					);
+//			logger.debug("isPublicDisplay {} {} {} {}",
+//					isPublicDisplay(),
+//					Config.getCurrent().getParamPublicStylesDir().endsWith("grid"),
+//					Config.getCurrent().featureSwitch("stretchPublic"),
+//					(isPublicDisplay() && !(Config.getCurrent().getParamPublicStylesDir().endsWith("grid") || Config.getCurrent().featureSwitch("stretchPublic")))
+//					);
 			boolean noStretch = 
 					(isPublicDisplay() && !(Config.getCurrent().getParamPublicStylesDir().endsWith("grid") || Config.getCurrent().featureSwitch("stretchPublic"))) 
 					|| (isVideo() && !(Config.getCurrent().getParamVideoStylesDir().endsWith("grid") || Config.getCurrent().featureSwitch("stretchVideo")));
@@ -886,6 +886,7 @@ public class BaseResults extends LitTemplate
 
 		// logger.debug("{} {} {}", a.getShortName(), fop.getState(), highlight);
 		ja.put("classname", highlight);
+		ja.put("entryTotal", formatInt(a.getEntryTotal()));
 
 		setTeamFlag(a, ja);
 	}
