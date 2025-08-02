@@ -6,54 +6,90 @@
  *******************************************************************************/
 package app.owlcms.nui.displays.scoreboards;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import org.slf4j.LoggerFactory;
 
+import com.vaadin.flow.component.AttachEvent;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.config.Config;
-import app.owlcms.displays.scoreboard.ResultsMedals;
+import app.owlcms.displays.scoreboard.Results;
+import app.owlcms.displays.scoreboard.ResultsStartList;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
-@Route("displays/resultsMedals")
+@Route("displays/publicStartList")
 
-public class MedalsPage extends AbstractResultsDisplayPage {
+public class PublicStartListPage extends AbstractResultsDisplayPage {
 
-	Logger logger = (Logger) LoggerFactory.getLogger(MedalsPage.class);
+	Logger logger;
+	Logger uiEventLogger;
+	Map<String, List<String>> urlParameterMap = new HashMap<>();
+	private Results resultsBoard;
+	protected UI ui;
 
-	public MedalsPage() {
+	public PublicStartListPage() {
 		// intentionally empty. superclass will call init() as required.
+
 	}
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("CeremonyType.MEDALS") + OwlcmsSession.getFopNameIfMultiple();
+		return Translator.translate("Scoreboard.StartList") + OwlcmsSession.getFopNameIfMultiple();
+	}
+
+	public final Results getResultsBoard() {
+		return this.resultsBoard;
+	}
+
+
+	protected void createComponents() {
+		var board = new ResultsStartList();
+		this.setBoard(board);
+
+		this.ui = UI.getCurrent();
 	}
 
 	@Override
 	protected void init() {
-		var board = new ResultsMedals();
-		this.setBoard(board);
-		this.addComponent(board);
+		this.logger = (Logger) LoggerFactory.getLogger(this.getClass());
+		this.uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
+		createComponents();
+		setDefaultParameters();
+	}
 
+	@Override
+	protected void onAttach(AttachEvent attachEvent) {
+		DisplayParameters board = (DisplayParameters) this.getBoard();
+		board.setFop(getFop());
+
+		this.setResultsBoard((Results) board);
+
+		this.addComponent((Component) board);
+	}
+
+	protected void setDefaultParameters() {
 		// when navigating to the page, Vaadin will call setParameter+readParameters
 		// these parameters will be applied.
 		var initialMap = Map.of(
 		        SoundParameters.SILENT, "true",
 		        SoundParameters.DOWNSILENT, "true",
 		        DisplayParameters.DARK, "true",
-		        DisplayParameters.LEADERS, "false",
-		        DisplayParameters.RECORDS, "false",
+		        DisplayParameters.LEADERS, "true",
+		        DisplayParameters.RECORDS, "true",
 		        DisplayParameters.VIDEO, "false",
-		        DisplayParameters.PUBLIC, "false",
+		        DisplayParameters.PUBLIC, "true",
 		        SoundParameters.SINGLEREF, "false",
 		        DisplayParameters.ABBREVIATED, Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")));
 		var additionalMap = Map.of(
@@ -66,31 +102,9 @@ public class MedalsPage extends AbstractResultsDisplayPage {
 		fullMap.putAll(additionalMap);
 		setDefaultParameters(QueryParameters.simple(fullMap));
 	}
-	
-	@Override
-	public void setEmFontSize(Double emFontSize) {
-		Double medalFontSize;
-		// subjective visual kludging.
-		if (emFontSize == null) {
-			emFontSize = 1.0;
-			medalFontSize = 1.5;
-		} else {
-			//medalFontSize = emFontSize * 1.5;
-			medalFontSize = emFontSize;
-		}
-		super.setEmFontSize(emFontSize);
-		pushEmSize(this.getBoard().getElement(), medalFontSize);
 
+	protected void setResultsBoard(Results board) {
+		this.resultsBoard = board;
 	}
-	
-	@Override
-	final public void setTeamWidth(Double tw) {
-		if (tw == null) {
-			return;
-		}
-		super.setTeamWidth(tw);
-		pushTeamWidth(this.getBoard().getElement(),tw*1.4);
-	}
-
 
 }
