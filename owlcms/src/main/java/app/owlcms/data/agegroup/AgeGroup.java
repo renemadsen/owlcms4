@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -35,16 +35,17 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
+import app.owlcms.spreadsheet.JXLSWorkbookStreamSource;
 import ch.qos.logback.classic.Logger;
 
 /**
  * An AgeGroup designates an age range and the associated bodyweight categories, for a given gender.
  *
  * @author Jean-François Lamy
- *
  */
 
 // must be listed in app.owlcms.data.jpa.JPAService.entityClassNames()
@@ -55,10 +56,37 @@ import ch.qos.logback.classic.Logger;
 public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 	private static final long serialVersionUID = 8154757158144876816L;
+	@Transient
+	static Logger logger = (Logger) LoggerFactory.getLogger(AgeGroup.class);
+	public static Comparator<AgeGroup> registrationComparator = (a, b) -> {
+		if (a == null || b == null) {
+			return ObjectUtils.compare(a, b, true);
+		}
+
+		int compare = ObjectUtils.compare(a.getGender(), b.getGender());
+		if (compare != 0) {
+			// logger.debug("agegroup gender {} {} {} ", a.getGender(), compare > 0 ? ">" : "<", b.getGender());
+			return compare;
+		}
+
+		compare = ObjectUtils.compare(a.getMaxAge(), b.getMaxAge());
+		if (compare != 0) {
+			// logger.debug("maxage {} {} {} ", a.getMaxAge(), compare > 0 ? ">" : "<", b.getMaxAge());
+			return compare;
+		}
+
+		compare = ObjectUtils.compare(a.getMinAge(), b.getMinAge());
+		if (compare != 0) {
+			// logger.debug("agegroup minage {} {} {} ", a.getMinAge(), compare > 0 ? ">" : "<", b.getMinAge());
+			return compare;
+		}
+
+		return compare;
+	};
 
 	/**
-	 * don't deep compare the categories inside age group to avoid circularities. This method is used when comparing
-	 * categories (rely on code and other top-level properties only)
+	 * don't deep compare the categories inside age group to avoid circularities. This method is used when comparing categories (rely on code and other
+	 * top-level properties only)
 	 *
 	 * @param firstAgeGroup
 	 * @param otherAgeGroup
@@ -74,9 +102,8 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		} else if (otherAgeGroup == null) {
 			ageGroupEquals = false;
 		} else {
-			ageGroupEquals = 
-					Objects.equals(firstAgeGroup.computeChampionshipName(), otherAgeGroup.computeChampionshipName())
-					&& Objects.equals(firstAgeGroup.getCode(), otherAgeGroup.getCode())
+			ageGroupEquals = Objects.equals(firstAgeGroup.computeChampionshipName(), otherAgeGroup.computeChampionshipName())
+			        && Objects.equals(firstAgeGroup.getCode(), otherAgeGroup.getCode())
 			        && Objects.equals(firstAgeGroup.getGender(), otherAgeGroup.getGender())
 			        && Objects.equals(firstAgeGroup.getMinAge(), otherAgeGroup.getMinAge())
 			        && Objects.equals(firstAgeGroup.getMaxAge(), otherAgeGroup.getMaxAge());
@@ -91,23 +118,18 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	String code;
 	@Column(name = "agkey")
 	String key;
-	@Transient
-	static Logger logger = (Logger) LoggerFactory.getLogger(AgeGroup.class);
-	Integer maxAge;
-	Integer minAge;
-
+	Integer maxAge = 999;
+	Integer minAge = 0;
 	/*
-	 * ageDivision is the legacy name for a championship type. MASTERS, U, DEFAULT. The only value that has special
-	 * meaning is MASTERS.
-	 * 
-	 * A championship is a set of age groups. Most championships group only one age group (a U15 championship at the
-	 * same time as a U17 and a U20). Masters are the exception where multiple age groups are combined to create a
-	 * single team competition. But there might be other situations -- like a SCHOOL championship where there are two
-	 * age groups, but still only one school team wins by combining the two, or any combination.
-	 * 
+	 * ageDivision is the legacy name for a championship type. MASTERS, U, DEFAULT. The only value that has special meaning is MASTERS.
+	 *
+	 * A championship is a set of age groups. Most championships group only one age group (a U15 championship at the same time as a U17 and a U20). Masters are
+	 * the exception where multiple age groups are combined to create a single team competition. But there might be other situations -- like a SCHOOL
+	 * championship where there are two age groups, but still only one school team wins by combining the two, or any combination.
+	 *
 	 */
 	private String ageDivision;
-	private String championshipName; // foreign key: PanAm, SouthAm, etc. Same the type if not specified explicitly.
+	private String championshipName; // foreign key; also shown to users.
 	@OneToMany(mappedBy = "ageGroup", cascade = { CascadeType.ALL }, orphanRemoval = true, fetch = FetchType.LAZY)
 	private List<Category> categories = new ArrayList<>();
 	@Enumerated(EnumType.STRING)
@@ -119,7 +141,15 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	private Integer qualificationTotal;
 	@Column(columnDefinition = "boolean default false")
 	private Boolean alreadyGendered = false;
-
+	private Ranking scoringSystem;
+	@Transient
+	@JsonIgnore
+	private Boolean forceSave = null;
+	private ChampionshipType championshipType;
+	private Ranking bestAthleteScoringSystem;
+	@Column(columnDefinition = "boolean default true")
+	private Boolean medals = true;
+	
 	public AgeGroup() {
 	}
 
@@ -148,69 +178,50 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 			return 1; // we are bigger.
 		}
 		int compare = 0;
-		
+
 		String championshipName1 = this.computeChampionshipName();
 		String championshipName2 = o.computeChampionshipName();
-		
-//		int length1 = championshipName1 != null ? championshipName1.length() : 0;
-//		int length2 = championshipName2 != null ? championshipName2.length() : 0;	
-//		compare = ObjectUtils.compare(length1, length2);
-//		if (compare != 0) {
-//			//logger.trace("(agegroup championshipName length) {} {} {}", -compare, championshipName1, championshipName2);
-//			return compare; // shorter first
-//		}
+
+		// int length1 = championshipName1 != null ? championshipName1.length() : 0;
+		// int length2 = championshipName2 != null ? championshipName2.length() : 0;
+		// compare = ObjectUtils.compare(length1, length2);
+		// if (compare != 0) {
+		// //logger.trace("(agegroup championshipName length) {} {} {}", -compare, championshipName1, championshipName2);
+		// return compare; // shorter first
+		// }
 		compare = ObjectUtils.compare(championshipName1, championshipName2);
 		if (compare != 0) {
-			//logger.trace("(agegroup championshipName) {} {} {}", compare, championshipName1, championshipName2);
+			// logger.trace("(agegroup championshipName) {} {} {}", compare, championshipName1, championshipName2);
 			return compare;
 		}
 
 		compare = ObjectUtils.compare(this.gender, o.getGender());
 		if (compare != 0) {
-			//logger.trace("(agegroup gender) {} {} {}", compare, this.gender, o.getGender());
+			// logger.trace("(agegroup gender) {} {} {}", compare, this.gender, o.getGender());
 			return compare;
 		}
-		
+
 		compare = ObjectUtils.compare(this.maxAge, o.getMaxAge());
 		if (compare != 0) {
-			//logger.trace("(agegroup maxage) {} {} {}", compare, this.maxAge, o.getMaxAge());
+			// logger.trace("(agegroup maxage) {} {} {}", compare, this.maxAge, o.getMaxAge());
 			return compare;
 		}
-		
+
 		compare = ObjectUtils.compare(this.minAge, o.getMinAge());
 		if (compare != 0) {
-			//logger.trace("(agegroup minage) {} {} {}", compare, this.minAge, o.getMinAge());
+			// logger.trace("(agegroup minage) {} {} {}", compare, this.minAge, o.getMinAge());
 			return compare;
 		}
 
 		return compare;
 	}
-	
-	public static Comparator<AgeGroup> registrationComparator = (a,b) -> {
-		if (a == null || b == null) {
-			return ObjectUtils.compare(a, b, true);
-		}
 
-		int compare = ObjectUtils.compare(a.getGender(), b.getGender());
-		if (compare != 0) {
-			//logger.debug("agegroup gender {} {} {} ", a.getGender(), compare > 0 ? ">" : "<",  b.getGender());
-			return compare;
-		}
-		
-		compare = ObjectUtils.compare(a.getMaxAge(), b.getMaxAge());
-		if (compare != 0) {
-			//logger.debug("maxage {} {} {} ", a.getMaxAge(), compare > 0 ? ">" : "<",  b.getMaxAge());
-			return compare;
-		}
-		
-		compare = ObjectUtils.compare(a.getMinAge(), b.getMinAge());
-		if (compare != 0) {
-			//logger.debug("agegroup minage {} {} {} ", a.getMinAge(), compare > 0 ? ">" : "<",  b.getMinAge());
-			return compare;
-		}
-		
-		return compare;
-	};
+	@JsonIgnore
+	@Transient
+	public String computeChampionshipName() {
+		return (this.getChampionshipName() != null && !this.getChampionshipName().isBlank()) ? this.getChampionshipName()
+		        : this.ageDivision;
+	}
 
 	@Override
 	public boolean equals(Object obj) {
@@ -224,9 +235,11 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		if (other.getId() == this.getId()) {
 			return true;
 		}
-		return this.active == other.active 
-				&& this.ageDivision.contentEquals(other.ageDivision)
-				&& Objects.equals(this.getChampionshipName(), other.getChampionshipName())
+		var cs1 = this.ageDivision;
+		var cs2 = other.ageDivision;
+		return this.active == other.active
+				&& ((cs1 == null) ? (cs2 == null) : cs1.contentEquals(cs2))
+		        && Objects.equals(this.getChampionshipName(), other.getChampionshipName())
 		        && Objects.equals(this.categories, other.categories)
 		        && Objects.equals(this.code, other.code)
 		        && this.gender == other.gender && Objects.equals(this.id, other.id)
@@ -236,6 +249,14 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 	public String getAgeDivision() {
 		return this.ageDivision;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getAgeFirstSortCode() {
+		String core = scoreCodeCore();
+		String result = core + "_" + this.gender.ordinal();
+		return result;
 	}
 
 	@JsonIgnore
@@ -265,22 +286,34 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		return Championship.of(this.computeChampionshipName());
 	}
 
-	@JsonIgnore
-	@Transient
-	public ChampionshipType getChampionshipType() {
-		Championship of = Championship.of(this.computeChampionshipName());
-		return of != null ? of.getType() : ChampionshipType.DEFAULT;
+	public String getChampionshipName() {
+		return this.championshipName;
 	}
 
-	@JsonIgnore
-	@Transient
-	public String computeChampionshipName() {
-		return (this.getChampionshipName() != null && !this.getChampionshipName().isBlank()) ? this.getChampionshipName()
-		        : this.ageDivision;
+	public ChampionshipType getChampionshipType() {
+		if (this.championshipType == null) {
+			Championship of = Championship.of(this.computeChampionshipName());
+			return of != null ? of.getType() : ChampionshipType.U;
+		} else {
+			return this.championshipType;
+		}
+	}
+	
+	public void setChampionshipType(ChampionshipType c) {
+		this.championshipType = c;
 	}
 
 	public String getCode() {
 		return this.code;
+	}
+
+	@Transient
+	@JsonIgnore
+	public Ranking getComputedScoringSystem() {
+		if (this.scoringSystem == null) {
+			return Ranking.TOTAL;
+		}
+		return this.scoringSystem;
 	}
 
 	@JsonIgnore
@@ -292,7 +325,7 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 		String value = null;
 		String translatedCode = getTranslatedCode(code2);
-		if (this.isAlreadyGendered() || this.getAgeDivision().contentEquals(Championship.MASTERS)) {
+		if (this.isAlreadyGendered() || this.getChampionship().getType() == ChampionshipType.MASTERS) {
 			value = translatedCode;
 		} else {
 			value = translatedCode + " " + getTranslatedGender();
@@ -300,8 +333,21 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		return value;
 	}
 
+	public Boolean getForceSave() {
+		return this.forceSave;
+	}
+
 	public Gender getGender() {
 		return this.gender;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getGenderFirstSortCode() {
+		// all women before all men
+		String core = scoreCodeCore();
+		String result = this.gender.ordinal() + "_" + core;
+		return result;
 	}
 
 	public Long getId() {
@@ -317,6 +363,12 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		return this.maxAge;
 	}
 
+	@Transient
+	@JsonIgnore
+	public Ranking getMedalScoringSystem() {
+		return this.scoringSystem != null && this.scoringSystem.isMedalScore() ? this.scoringSystem : null;
+	}
+
 	public Integer getMinAge() {
 		return this.minAge;
 	}
@@ -330,9 +382,9 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 		String value = null;
 		String translatedCode = getTranslatedCode(code2);
-		if (this.ageDivision.contentEquals(Championship.of(Championship.MASTERS).getName()) || this.isAlreadyGendered()) {
+		if (this.getChampionshipType() == ChampionshipType.MASTERS || this.isAlreadyGendered()) {
 			value = translatedCode;
-		} else if (this.ageDivision.contentEquals(Championship.DEFAULT)) {
+		} else if (this.getChampionshipType() == ChampionshipType.DEFAULT) {
 			value = getTranslatedGender();
 		} else {
 			value = translatedCode + " " + getTranslatedGender();
@@ -345,6 +397,17 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	 */
 	public Integer getQualificationTotal() {
 		return this.qualificationTotal;
+	}
+
+	public Ranking getScoringSystem() {
+		return this.scoringSystem;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getScoringTitle() {
+		var scoringSystem = getComputedScoringSystem();
+		return Ranking.getScoringTitle(scoringSystem);
 	}
 
 	public String getTranslatedGender() {
@@ -367,11 +430,43 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		return this.active;
 	}
 
+	public boolean isAlreadyGendered() {
+		return this.alreadyGendered == null ? false : this.alreadyGendered;
+	}
+
+	/**
+	 * @return a code that changes if the categories were edited in a way that requires reassigning athletes
+	 */
+	public int reassignmentHashCode() {
+		List<Category> a = getCategories();
+		if (a == null) {
+			return 0;
+		}
+		int result = 1;
+		for (Category element : a) {
+			result = 31 * result + (element == null ? 0 : element.reassignmentHashCode());
+		}
+		return result;
+	}
+
 	public void removeCategory(Category category) {
 		if (category != null) {
 			category.setAgeGroup(null);
 			this.categories.remove(category);
 		}
+	}
+
+	public String scoreCodeCore() {
+		// younger group firsts (max age)
+		// 15-20 should come before 17-20 (min age)
+		// but 85-999 must come before 0-999
+		// then with categories before no categories (score medals last within an age range)
+		Integer maxAge2 = this.getMaxAge();
+		Integer minAge2 = this.getMinAge();
+		String core = String.format("%03d", maxAge2)
+		        + "_" + String.format("%03d", maxAge2 >= 900 ? maxAge2 : minAge2)
+		        + "_" + String.format("%03d", 999 - this.getCategories().size());
+		return core;
 	}
 
 	public void setActive(boolean active) {
@@ -382,12 +477,22 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		this.ageDivision = ageDivision;
 	}
 
+	@Transient
+	@JsonIgnore
+	public void setAgeFirstSortCode(String ignored) {
+	}
+
+	public void setAlreadyGendered(boolean b) {
+		this.alreadyGendered = b;
+	}
+
 	public void setCategories(List<Category> value) {
 		this.categories = value;
 	}
 
 	public void setChampionship(Championship championship) {
-		this.ageDivision = championship.getType().name();
+		logger.debug("setting {} championship to {}", this, championship.getName());
+		this.setChampionshipName(championship.getName());
 	}
 
 	public void setChampionshipName(String championshipName) {
@@ -398,8 +503,19 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		this.code = code;
 	}
 
+	@Transient
+	@JsonIgnore
+	public void setForceSave(boolean b) {
+		this.forceSave = true;
+	}
+
 	public void setGender(Gender gender) {
 		this.gender = gender;
+	}
+
+	@Transient
+	@JsonIgnore
+	public void setGenderFirstSortCode(String ignored) {
 	}
 
 	public void setKey(String key) {
@@ -421,28 +537,47 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		this.qualificationTotal = qualificationTotal;
 	}
 
+	public void setScoringSystem(Ranking setScoringSystem) {
+		this.scoringSystem = setScoringSystem;
+	}
+
 	@Override
 	public String toString() {
 		return getDisplayName();
 	}
 
 	private String getTranslatedCode(String code2) {
-		String translatedCode = Translator.translateOrElseNull(
-		        "AgeGroup." + code2,
-		        OwlcmsSession.getLocale());
-		return translatedCode != null ? translatedCode : code2;
+		// String translatedCode = Translator.translateOrElseNull(
+		// "AgeGroup." + code2,
+		// OwlcmsSession.getLocale());
+		// return translatedCode != null ? translatedCode : code2;
+		return code2;
 	}
 
-	public void setAlreadyGendered(boolean b) {
-		this.alreadyGendered = b;
+	public void setBestAthleteScoringSystem(Ranking rv) {
+		this.bestAthleteScoringSystem = rv;
 	}
 
-	public boolean isAlreadyGendered() {
-		return alreadyGendered == null ? false : alreadyGendered;
+	public Ranking getBestAthleteScoringSystem() {
+		return bestAthleteScoringSystem;
+	}
+	
+	public String getBestAthleteScoringSystemTitle() {
+		var explicitBLR = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
+		if (explicitBLR != null) {
+			return Translator.translate("Ranking."+explicitBLR);
+		} else if (bestAthleteScoringSystem != null) {
+			return Translator.translate("Ranking."+bestAthleteScoringSystem);
+		} else {
+			return Translator.translate("Ranking."+Competition.getCurrent().getScoringSystem());
+		}
 	}
 
-	public String getChampionshipName() {
-		return championshipName;
+	public Boolean getMedals() {
+		return medals;
 	}
 
+	public void setMedals(Boolean medals) {
+		this.medals = medals;
+	}
 }

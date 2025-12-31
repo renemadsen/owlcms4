@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -76,6 +76,11 @@ public class TeamTreeItem {
 	}
 
 	public void addTreeItemChild(Athlete a, boolean done) {
+		List<TeamTreeItem> members = getTeamMembers();
+		boolean already = members.stream().anyMatch(m -> m.getAthlete().getId().equals(a.getId()));
+		if (already) {
+			return;
+		}
 		TeamTreeItem child = new TeamTreeItem(null, a.getGender(), a, done);
 		child.setParent(this);
 		getTeamMembers().add(child);
@@ -170,13 +175,23 @@ public class TeamTreeItem {
 	public Double getSinclairScore() {
 		return (this.team != null ? this.team.getSinclairScore() : this.athlete.getSinclairForDelta());
 	}
+	
+	public Double getQPointsScore() {
+		return (this.team != null ? this.team.getQPoints() : this.athlete.getQPointsForDelta());
+	}
+	
+	public Double getQMastersScore() {
+		return (this.team != null ? this.team.getQMasters() : this.athlete.getQMastersForDelta());
+	}
+
+
 
 	public long getSize() {
 		return this.team != null ? this.team.getSize() : 0;
 	}
 
 	public Double getSmfScore() {
-		return (this.team != null ? this.team.getSmfScore() : this.athlete.getSmfForDelta());
+		return (this.team != null ? this.team.getSmfScore() : this.athlete.getSmhfForDelta());
 	}
 
 	public Integer getSnatchPoints() {

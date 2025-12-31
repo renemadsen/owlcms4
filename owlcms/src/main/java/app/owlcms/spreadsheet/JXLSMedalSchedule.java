@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -34,6 +34,32 @@ import ch.qos.logback.classic.Logger;
 @SuppressWarnings("serial")
 public class JXLSMedalSchedule extends JXLSWorkbookStreamSource {
 
+	public class CategoryStat {
+		private Category category;
+		private Group session;
+
+		CategoryStat(Category category, Group session) {
+			this.category = category;
+			this.session = session;
+		}
+
+		public Category getCategory() {
+			return this.category;
+		}
+
+		public Group getSession() {
+			return this.session;
+		}
+
+		public void setCategory(Category category) {
+			this.category = category;
+		}
+
+		public void setSession(Group session) {
+			this.session = session;
+		}
+	}
+
 	public class SessionStats {
 		TreeSet<Category> categories = new TreeSet<>();
 		Group session;
@@ -43,48 +69,51 @@ public class JXLSMedalSchedule extends JXLSWorkbookStreamSource {
 			this.session = session;
 		}
 
-		List<Category> computeSessionCategories() {
-			TreeSet<Category> sessionCategories = new TreeSet<>();
-			for (Athlete a : session.getAthletes()) {
-				if (this.gender != null && a.getGender() != this.gender) {
-					continue;
-				}
-				sessionCategories.addAll(a.getEligibleCategories());
-			}
-			ArrayList<Category> returned = new ArrayList<Category>();
-			returned.addAll(sessionCategories);
-			return returned;
+		public TreeSet<Category> getCategories() {
+			return this.categories;
 		}
 
 		public String getCategoriesAsString() {
 			return getCategories().stream().map(c -> c.toString()).distinct().collect(Collectors.joining(", "));
 		}
 
-		public void setCategoriesAsString(String unused) {
-		}
-
-		public TreeSet<Category> getCategories() {
-			return categories;
-		}
-
-		public void setCategories(List<Category> newCategories) {
-			this.categories = new TreeSet<Category>(newCategories);
+		public Gender getGender() {
+			return this.gender;
 		}
 
 		public Group getSession() {
-			return session;
+			return this.session;
+		}
+
+		public void setCategories(List<Category> newCategories) {
+			this.categories = new TreeSet<>(newCategories);
+		}
+
+		public void setCategoriesAsString(String unused) {
+		}
+
+		public void setGender(Gender gender) {
+			this.gender = gender;
 		}
 
 		public void setSession(Group session) {
 			this.session = session;
 		}
 
-		public Gender getGender() {
-			return gender;
-		}
-
-		public void setGender(Gender gender) {
-			this.gender = gender;
+		List<Category> computeSessionCategories() {
+			TreeSet<Category> sessionCategories = new TreeSet<>();
+			for (Athlete a : this.session.getAthletes()) {
+				if (this.gender != null && a.getGender() != this.gender) {
+					continue;
+				}
+				if (!a.isEligibleForIndividualRanking()) {
+					continue;
+				}
+				sessionCategories.addAll(a.getEligibleCategories().stream().filter(c -> c.getAgeGroup().getMedals()).toList());
+			}
+			ArrayList<Category> returned = new ArrayList<>();
+			returned.addAll(sessionCategories);
+			return returned;
 		}
 
 	}
@@ -107,6 +136,7 @@ public class JXLSMedalSchedule extends JXLSWorkbookStreamSource {
 	protected void setReportingInfo() {
 		Set<String> alreadyMedaledCodes = new HashSet<>();
 		TreeMap<Group, SessionStats> medalingPerSession = new TreeMap<>(Group.groupWeighinTimeComparator);
+		TreeMap<Category, Group> categorySessions = new TreeMap<>();
 
 		Competition competition = Competition.getCurrent();
 		getReportingBeans().put("t", Translator.getMap());
@@ -123,19 +153,29 @@ public class JXLSMedalSchedule extends JXLSWorkbookStreamSource {
 			SessionStats sessionStats = new SessionStats(session);
 			List<Category> newCategories = sessionStats.computeSessionCategories();
 
-			//List<String> ncCodes = newCategories.stream().map(c -> c.getCode()).toList();
+			// List<String> ncCodes = newCategories.stream().map(c -> c.getCode()).toList();
 			newCategories = newCategories.stream().filter(c -> !alreadyMedaledCodes.contains(c.getCode())).toList();
 
 			sessionStats.setCategories(newCategories);
 			alreadyMedaledCodes.addAll(newCategories.stream().map(c -> c.getCode()).toList());
+			newCategories.stream().forEach(c -> {
+				categorySessions.put(c, session);
+			});
 
 			// the key set will be in the expected ascending order
 			medalingPerSession.put(session, sessionStats);
 		}
 
-		ArrayList<SessionStats> all = new ArrayList<SessionStats>();
+		ArrayList<SessionStats> all = new ArrayList<>();
 		all.addAll(medalingPerSession.values());
 		getReportingBeans().put("medalStatsPerSession", all);
+
+		ArrayList<CategoryStat> categories = new ArrayList<>();
+		categorySessions.forEach((Category category, Group session) -> {
+			categories.add(new CategoryStat(category, session));
+		});
+		categories.sort((a, b) -> a.getCategory().compareTo(b.getCategory()));
+		getReportingBeans().put("medalStatsPerCategory", categories);
 	}
 
 	// @Override

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -9,7 +9,6 @@ package app.owlcms.data.category;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -33,11 +32,12 @@ import app.owlcms.utils.ResourceWalker;
 import ch.qos.logback.classic.Logger;
 
 /**
- * This class is used to compute the Robi score for athletes based on their body weight. It locates what the athlete's
- * category if the Athlete was competing in a IWF competition.
+ * This class is used to compute the Robi score for athletes based on their body weight. It locates what the athlete's category if the Athlete was competing in
+ * a IWF competition.
  */
 public class RobiCategories {
 
+	@SuppressWarnings("unused")
 	private class RobiComparator implements Comparator<Category> {
 
 		@Override
@@ -64,7 +64,7 @@ public class RobiCategories {
 					return 1;
 				}
 			} catch (Exception e) {
-				// e.printStackTrace();
+
 			}
 			return 0;
 		}
@@ -76,8 +76,7 @@ public class RobiCategories {
 	private static ArrayList<Category> ythReferenceCategories;
 
 	/**
-	 * Create category templates that will be copied to instantiate the actual categories. The world records are read
-	 * and included in the template.
+	 * Create category templates that will be copied to instantiate the actual categories. The world records are read and included in the template.
 	 *
 	 * @param workbook
 	 * @return
@@ -151,6 +150,10 @@ public class RobiCategories {
 	}
 
 	public static Category findRobiCategory(Athlete a) {
+		return findIWFCategory(a, false);
+	}
+
+	public static Category findIWFCategory(Athlete a, boolean forceJrSr) {
 		if (a.getBodyWeight() == null || a.getBodyWeight() < 0.1) {
 			return null;
 		}
@@ -160,23 +163,19 @@ public class RobiCategories {
 		if (ythReferenceCategories == null) {
 			loadYthReferenceCategories();
 		}
-		RobiCategories x = new RobiCategories();
+		//RobiCategories x = new RobiCategories();
 		List<Category> categories;
 		Integer age = a.getAge();
-		if (age != null && age <= 17) {
+		if (!forceJrSr && (age != null && age <= 17)) {
 			categories = ythReferenceCategories;
 		} else {
 			categories = jrSrReferenceCategories;
 		}
-		int index = Collections.binarySearch(categories,
-		        new Category(a.getBodyWeight(), a.getBodyWeight(), a.getGender(), true, 0, 0, 0, null, 0),
-		        x.new RobiComparator());
 
-		if (index >= 0) {
-			return categories.get(index);
-		} else {
-			return null;
-		}
+        return categories.stream().filter(iwfCategory ->
+                        iwfCategory.getGender().equals(a.getGender())
+                                && a.getBodyWeight() > iwfCategory.minimumWeight && a.getBodyWeight() <= iwfCategory.maximumWeight)
+                .findFirst().orElse(null);
 	}
 
 	@SuppressWarnings("unused")

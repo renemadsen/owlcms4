@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -97,12 +97,12 @@ public class TeamPointsComparator extends AbstractLifterComparator implements Co
 				final Double sinclair1 = lifter1.getSinclairForDelta();
 				final Double sinclair2 = lifter2.getSinclairForDelta();
 				final int compareSinclair = sinclair1.compareTo(sinclair2);
-				logger.trace(
-				        lifter1 + " " + sinclair1 + " [" + compareSinclair + "]" + lifter2 + " " + sinclair2);
+//					logger.debug(
+//					        lifter1.getAbbreviatedName() + " " + sinclair1 + " [" + compareSinclair + "] " + lifter2.getAbbreviatedName() + " " + sinclair2);
 				return compareSinclair;
 			case SMM:
-				final Double smf1 = lifter1.getSmfForDelta();
-				final Double smf2 = lifter2.getSmfForDelta();
+				final Double smf1 = lifter1.getSmhfForDelta();
+				final Double smf2 = lifter2.getSmhfForDelta();
 				final int compareSmf = smf1.compareTo(smf2);
 				logger.trace(
 				        lifter1 + " " + smf1 + " [" + compareSmf + "]" + lifter2 + " " + smf2);

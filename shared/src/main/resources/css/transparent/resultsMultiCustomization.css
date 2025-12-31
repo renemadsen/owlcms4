@@ -2,7 +2,7 @@
     /*************************
      * Customization section
      *************************/
-    --pageBackgroundColor: #00ff00;
+    --pageBackgroundColor: transparent;
     --pageTextColor: white;
 
     /* variable-size columns. fr = free space after other columns have been allocated.
@@ -104,7 +104,7 @@
 .blockPositioningWrapper {
     background-color: var(--blockBackgroundColor);
     padding: 0.75em;
-    margin-top: 1em;
+    margin-block-start: 1em;
     flex-grow: 0;
 }
 

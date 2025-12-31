@@ -15,8 +15,12 @@ import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification.Position;
 import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.dom.Style;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.Championship;
@@ -34,9 +38,8 @@ import app.owlcms.utils.StartupUtils;
 import ch.qos.logback.classic.Logger;
 
 /**
- * UIEvents are triggered in response to field of play events (FOPEvents). Each field of play has an associated
- * uiEventBus on which the user interface commands are posted. The various browsers subscribe to UIEvents and react
- * accordingly.
+ * UIEvents are triggered in response to field of play events (FOPEvents). Each field of play has an associated uiEventBus on which the user interface commands
+ * are posted. The various browsers subscribe to UIEvents and react accordingly.
  *
  * @author owlcms
  */
@@ -61,7 +64,7 @@ public class UIEvent {
 		 *
 		 * @param origin    the origin
 		 * @param breakType
-		 * @param fop originating field of play
+		 * @param fop       originating field of play
 		 */
 		public BreakDone(Object origin, BreakType breakType, FieldOfPlay fop) {
 			super(origin, fop);
@@ -168,7 +171,7 @@ public class UIEvent {
 		 * @param indefinite
 		 * @param origin
 		 * @param trace
-		 * @param fop originating field of play
+		 * @param fop           originating field of play
 		 */
 		public BreakSetTime(BreakType bt, CountdownType ct, Integer timeRemaining, LocalDateTime end,
 		        boolean indefinite, Object origin, String trace, FieldOfPlay fop) {
@@ -321,8 +324,9 @@ public class UIEvent {
 
 		/**
 		 * Instantiates a new break done.
+		 *
 		 * @param origin    the origin
-		 * @param fop originating field of play
+		 * @param fop       originating field of play
 		 * @param breakType
 		 */
 		public CeremonyDone(CeremonyType ceremonyType, Object origin, FieldOfPlay fop) {
@@ -369,14 +373,6 @@ public class UIEvent {
 			}
 		}
 
-		private void setCeremonyChampionship(Championship championship) {
-			this.championship=championship;
-		}
-
-		private void setCeremonyAgeGroup(AgeGroup ageGroup) {
-			this.setAgeGroup(ageGroup);
-		}
-
 		@Override
 		public boolean equals(Object obj) {
 			if (this == obj) {
@@ -391,6 +387,10 @@ public class UIEvent {
 			        && this.ceremonyType == other.ceremonyType;
 		}
 
+		public AgeGroup getAgeGroup() {
+			return this.ageGroup;
+		}
+
 		public Category getCeremonyCategory() {
 			return this.ceremonyCategory;
 		}
@@ -403,9 +403,17 @@ public class UIEvent {
 			return this.ceremonyType;
 		}
 
+		public Championship getChampionship() {
+			return this.championship;
+		}
+
 		@Override
 		public int hashCode() {
 			return Objects.hash(this.ceremonyCategory, this.ceremonySession, this.ceremonyType);
+		}
+
+		public void setAgeGroup(AgeGroup ageGroup) {
+			this.ageGroup = ageGroup;
 		}
 
 		public void setCeremonySession(Group ceremonyGroup2) {
@@ -416,30 +424,26 @@ public class UIEvent {
 			this.ceremonyType = ceremonyType;
 		}
 
+		public void setChampionship(Championship championship) {
+			this.championship = championship;
+		}
+
 		@Override
 		public String toString() {
 			return "CeremonyStarted [ceremonyType=" + this.ceremonyType + ", ceremonyCategory=" + this.ceremonyCategory
 			        + ", ceremonySession=" + this.ceremonySession + "]";
 		}
 
+		private void setCeremonyAgeGroup(AgeGroup ageGroup) {
+			this.setAgeGroup(ageGroup);
+		}
+
 		private void setCeremonyCategory(Category ceremonyCategory2) {
 			this.ceremonyCategory = ceremonyCategory2;
 		}
 
-		public Championship getChampionship() {
-			return championship;
-		}
-
-		public void setChampionship(Championship championship) {
+		private void setCeremonyChampionship(Championship championship) {
 			this.championship = championship;
-		}
-
-		public AgeGroup getAgeGroup() {
-			return ageGroup;
-		}
-
-		public void setAgeGroup(AgeGroup ageGroup) {
-			this.ageGroup = ageGroup;
 		}
 	}
 
@@ -456,6 +460,7 @@ public class UIEvent {
 		public Boolean ref2;
 		/** ref 3. */
 		public Boolean ref3;
+		private boolean singleReferee;
 
 		/**
 		 * Instantiates a new referee decision.
@@ -472,9 +477,25 @@ public class UIEvent {
 			this.ref1 = ref1;
 			this.ref2 = ref2;
 			this.ref3 = ref3;
-			if (this.trace == null || this.trace.isBlank()) {
-				this.setTrace(() -> LoggerUtils.stackTrace());
+			this.setTrace(() -> LoggerUtils.stackTrace());
+			this.setSingleReferee(fop.isSingleReferee());
+			if (fop.isSingleReferee()) {
+				if (this.ref1 != null) {
+					this.ref2 = this.ref1;
+					this.ref1 = null;
+				} else if (this.ref3 != null) {
+					this.ref2 = this.ref3;
+					this.ref3 = null;
+				}
 			}
+		}
+
+		public boolean isSingleReferee() {
+			return this.singleReferee;
+		}
+
+		public void setSingleReferee(boolean singleReferee) {
+			this.singleReferee = singleReferee;
 		}
 	}
 
@@ -505,7 +526,7 @@ public class UIEvent {
 		 * Instantiates a new down signal.
 		 *
 		 * @param origin the origin
-		 * @param fop originating field of play
+		 * @param fop    originating field of play
 		 */
 		public DownSignal(Object origin, FieldOfPlay fop) {
 			super(origin, fop);
@@ -530,8 +551,9 @@ public class UIEvent {
 
 		/**
 		 * Instantiates a new athlete announced.
+		 *
 		 * @param ui      the ui
-		 * @param fop originating field of play
+		 * @param fop     originating field of play
 		 * @param athlete the athlete
 		 */
 		public GroupDone(Group group, UI ui, String stackTrace, FieldOfPlay fop) {
@@ -557,32 +579,41 @@ public class UIEvent {
 		private JuryDeliberationEventType deliberationEventType;
 		private Boolean newRecord;
 		private Boolean reversal;
-		private boolean requestForAnnounce = false;
+		private boolean waitForAnnouncer = false;
+		private Integer actualLift;
 
 		public JuryNotification(Athlete athleteUnderReview, Object origin,
 		        JuryDeliberationEventType deliberationEventType, Boolean reversal, Boolean newRecord,
-		        boolean requestForAnnounce, FieldOfPlay fop) {
+		        boolean waitForAnnouncer, FieldOfPlay fop, Integer actualLift) {
 			super(athleteUnderReview, origin, fop);
 			this.setDeliberationEventType(deliberationEventType);
 			this.setReversal(reversal);
 			this.setNewRecord(newRecord != null && newRecord);
 			this.setTrace(() -> LoggerUtils.stackTrace());
-			this.requestForAnnounce = requestForAnnounce;
+			this.waitForAnnouncer = waitForAnnouncer;
 			if (this.trace == null || this.trace.isBlank()) {
 				this.setTrace(() -> LoggerUtils.stackTrace());
 			}
+			this.setActualLift(actualLift);
+			this.logger.trace("====== JuryNotification wait {} newRecord {} {}", waitForAnnouncer, getNewRecord(), getTrace());
 		}
 
 		/**
 		 * Instantiates a new Notification.
+		 *
 		 * @param origin the origin
-		 * @param fop originating field of play
+		 * @param fop    originating field of play
 		 */
 		public JuryNotification(Athlete a, Object origin, String notificationString, String fopEventString, FieldOfPlay fop) {
 			super(a, origin, fop);
 			if (this.trace == null || this.trace.isBlank()) {
 				this.setTrace(() -> LoggerUtils.stackTrace());
 			}
+			this.logger.trace("JuryNotification notificationString {} {}", notificationString, getTrace());
+		}
+
+		public Integer getActualLift() {
+			return this.actualLift;
 		}
 
 		/**
@@ -603,8 +634,12 @@ public class UIEvent {
 			return this.reversal;
 		}
 
-		public boolean isRequestForAnnounce() {
-			return this.requestForAnnounce;
+		public boolean isWaitForAnnouncer() {
+			return this.waitForAnnouncer;
+		}
+
+		public void setActualLift(Integer actualLift) {
+			this.actualLift = actualLift;
 		}
 
 		/**
@@ -619,6 +654,10 @@ public class UIEvent {
 		 */
 		public void setReversal(Boolean reversal) {
 			this.reversal = reversal;
+		}
+
+		public void setWaitForAnnouncer(boolean waitForAnnouncer) {
+			this.waitForAnnouncer = waitForAnnouncer;
 		}
 
 		private void setNewRecord(Boolean newRecord) {
@@ -713,7 +752,7 @@ public class UIEvent {
 		 * @param displayToggle   if true, just update display according to lifting order.
 		 * @param origin          the origin
 		 * @param newWeight       newly requested weight, null if no change from previous
-		 * @param fop originating field of play
+		 * @param fop             originating field of play
 		 */
 		public LiftingOrderUpdated(Athlete athlete, Athlete nextAthlete, Athlete previousAthlete,
 		        Athlete changingAthlete, List<Athlete> liftingOrder, List<Athlete> displayOrder, Integer timeAllowed,
@@ -727,7 +766,7 @@ public class UIEvent {
 			this.timeAllowed = timeAllowed;
 			this.liftingOrder = liftingOrder;
 			this.displayOrder = displayOrder;
-			this.currentDisplayAffected = currentDisplayAffected;
+			this.setCurrentDisplayAffected(currentDisplayAffected);
 			this.setDisplayToggle(displayToggle);
 			this.setInBreak(inBreak);
 			this.setNewWeight(newWeight);
@@ -816,6 +855,10 @@ public class UIEvent {
 			this.newWeight = newWeight;
 		}
 
+		private void setCurrentDisplayAffected(boolean currentDisplayAffected) {
+			this.currentDisplayAffected = currentDisplayAffected;
+		}
+
 	}
 
 	/**
@@ -876,7 +919,7 @@ public class UIEvent {
 			if (getFopEventString() != null && !getFopEventString().isEmpty()) {
 				div.setText(FOPError.translateMessage(getNotificationString(), getFopEventString()) + close);
 			} else {
-				div.setText(Translator.translate(getNotificationString(), (Object[]) getInfos()) + close);
+				div.getElement().setProperty("innerHTML", Translator.translate(getNotificationString(), (Object[]) getInfos()) + close);
 			}
 			div.getStyle().set("font-size", "large");
 			n.add(div);
@@ -945,6 +988,147 @@ public class UIEvent {
 	}
 
 	/**
+	 * Class Notification.
+	 */
+	static public class RecordNotification extends UIEvent {
+
+		public enum Level {
+			SUCCESS, INFO;
+		}
+
+		public static final int NORMAL_DURATION = 3000;
+		private String notificationString;
+		private Level level;
+		private String[] infos;
+		private Integer msDuration;
+		private String title;
+		private boolean newRecord;
+
+		/**
+		 * Instantiates a new Notification.
+		 *
+		 * @param origin the origin
+		 * @param string
+		 */
+		public RecordNotification(
+		        Athlete a,
+		        Object origin,
+		        RecordNotification.Level level,
+		        String title,
+		        String notificationString,
+		        Integer msDuration,
+		        boolean newRecord,
+		        FieldOfPlay fop,
+		        String... infos) {
+			super(a, origin, fop);
+			this.setNotificationString(notificationString);
+			this.setTitle(title);
+			this.setLevel(level);
+			this.setInfos(infos);
+			this.setMsDuration(msDuration);
+			this.setNewRecord(newRecord);
+			if (this.trace == null || this.trace.isBlank()) {
+				this.setTrace(() -> LoggerUtils.stackTrace());
+			}
+		}
+
+		public com.vaadin.flow.component.notification.Notification doNotification() {
+			return showNotification(this.title, this.getNotificationString());
+		}
+
+		public String[] getInfos() {
+			return this.infos;
+		}
+
+		public Level getLevel() {
+			return this.level;
+		}
+
+		public Integer getMsDuration() {
+			return this.msDuration;
+		}
+
+		public String getNotificationString() {
+			return this.notificationString;
+		}
+
+		public boolean isNewRecord() {
+			return this.newRecord;
+		}
+
+		public void setLevel(Level level) {
+			this.level = level;
+		}
+
+		public void setNotificationString(String notificationString) {
+			this.notificationString = notificationString;
+		}
+
+		public com.vaadin.flow.component.notification.Notification showNotification(String title, String text) {
+			Div titleAndCloseDiv = new Div();
+			titleAndCloseDiv.setWidthFull();
+			titleAndCloseDiv.getStyle().set("display", "flex").set("align-items", "center");
+
+			Span titleSpan = new Span(title);
+			titleSpan.getStyle().set("flex-grow", "1");
+			titleSpan.getStyle().set("font-size", "1.6em");
+
+			Span closeSpan = new Span("\u2715");
+			Style closeStyle = closeSpan.getStyle();
+			closeStyle.setCursor("pointer");
+			closeStyle.setFontSize("1.6em");
+			closeStyle.setMarginLeft("auto");
+
+			HorizontalLayout titleLayout = new HorizontalLayout(titleSpan, closeSpan);
+			titleLayout.setWidthFull();
+			titleLayout.setAlignItems(Alignment.CENTER);
+
+			Div textDiv = new Div();
+			textDiv.getElement().setProperty("innerHTML", "<nobr>" + text + "</nobr>");
+			textDiv.getStyle().set("padding-top", "var(--lumo-space-s)"); // Add some spacing
+			textDiv.getStyle().set("font-size", "1.4em");
+			textDiv.getStyle().set("line-height", "1.4");
+
+			Div notificationContent = new Div(titleLayout, textDiv);
+			notificationContent.getStyle().set("display", "flex").set("flex-direction", "column");
+			notificationContent.setWidthFull();
+
+			com.vaadin.flow.component.notification.Notification notification = new com.vaadin.flow.component.notification.Notification(notificationContent);
+			notification.setDuration(this.msDuration);
+			closeSpan.addClickListener(event -> notification.close());
+
+			switch (getLevel()) {
+				case INFO:
+					notification.setPosition(Position.BOTTOM_END);
+					notification.addThemeVariants(NotificationVariant.LUMO_PRIMARY);
+					break;
+				case SUCCESS:
+					notification.setPosition(Position.BOTTOM_END);
+					notification.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
+					break;
+			}
+			notification.open();
+			return notification;
+		}
+
+		private void setInfos(String[] infos) {
+			this.infos = infos;
+		}
+
+		private void setMsDuration(Integer msDuration) {
+			this.msDuration = msDuration;
+		}
+
+		private void setNewRecord(boolean newRecord) {
+			this.newRecord = newRecord;
+		}
+
+		private void setTitle(String title) {
+			this.title = title;
+		}
+	}
+
+	/**
 	 * Individual referee decision.
 	 *
 	 * No subclassing wrt ExplicitDecision because @Subscribe must be distinct.
@@ -971,6 +1155,16 @@ public class UIEvent {
 			if (this.trace == null || this.trace.isBlank()) {
 				this.setTrace(() -> LoggerUtils.stackTrace());
 			}
+			if (fop.isSingleReferee()) {
+				if (this.ref1 != null) {
+					this.ref2 = this.ref1;
+					this.ref1 = null;
+				} else if (this.ref3 != null) {
+					this.ref2 = this.ref3;
+					this.ref3 = null;
+				}
+			}
+			this.logger.debug("RefereeUpdate {} {} {}\n{}", ref1, ref2, ref3, this.trace);
 		}
 	}
 
@@ -981,8 +1175,9 @@ public class UIEvent {
 
 		/**
 		 * Instantiates a new decision reset.
+		 *
 		 * @param origin the origin
-		 * @param fop originating field of play
+		 * @param fop    originating field of play
 		 */
 		public ResetOnNewClock(Athlete a, Object origin, FieldOfPlay fop) {
 			super(a, origin, fop);
@@ -1001,7 +1196,7 @@ public class UIEvent {
 		 *
 		 * @param timeRemaining the time remaining
 		 * @param origin        the origin
-		 * @param fop originating field of play
+		 * @param fop           originating field of play
 		 */
 		public SetTime(Integer timeRemaining, Object origin, String trace, FieldOfPlay fop) {
 			super(origin, fop);
@@ -1029,8 +1224,9 @@ public class UIEvent {
 
 		/**
 		 * Instantiates a new athlete announced.
+		 *
 		 * @param ui      the ui
-		 * @param fop originating field of play
+		 * @param fop     originating field of play
 		 * @param athlete the athlete
 		 */
 		public SnatchDone(Group group, UI ui, String stackTrace, FieldOfPlay fop) {
@@ -1087,7 +1283,7 @@ public class UIEvent {
 		 * @param timeRemaining the time remaining
 		 * @param origin        the origin
 		 * @param serverSound
-		 * @param fop originating field of play
+		 * @param fop           originating field of play
 		 */
 		public StartTime(Integer timeRemaining, Object origin, boolean serverSound, FieldOfPlay fop) {
 			super(origin, fop);
@@ -1147,7 +1343,7 @@ public class UIEvent {
 		 *
 		 * @param timeRemaining the time remaining
 		 * @param origin        the origin
-		 * @param fop originating field of play
+		 * @param fop           originating field of play
 		 */
 		public StopTime(int timeRemaining, Object origin, FieldOfPlay fop) {
 			super(origin, fop);
@@ -1221,7 +1417,7 @@ public class UIEvent {
 		 * Instantiates a new break done.
 		 *
 		 * @param origin    the origin
-		 * @param fop originating field of play
+		 * @param fop       originating field of play
 		 * @param breakType
 		 */
 		public TimeRemaining(Object origin, int timeRemaining, FieldOfPlay fop) {
@@ -1277,7 +1473,7 @@ public class UIEvent {
 		public int ref;
 
 		public WakeUpRef(int lastRef, boolean b, Object origin, FieldOfPlay fop) {
-			super(origin,fop);
+			super(origin, fop);
 			this.ref = lastRef;
 			this.on = b;
 			if (this.trace == null || this.trace.isBlank()) {
@@ -1312,6 +1508,10 @@ public class UIEvent {
 		return this.athlete;
 	}
 
+	public FieldOfPlay getFop() {
+		return this.fop;
+	}
+
 	/**
 	 * Gets the origin.
 	 *
@@ -1329,6 +1529,10 @@ public class UIEvent {
 		this.athlete = athlete;
 	}
 
+	public void setFop(FieldOfPlay fop) {
+		this.fop = fop;
+	}
+
 	public void setOrigin(Object origin) {
 		this.origin = origin;
 	}
@@ -1337,14 +1541,6 @@ public class UIEvent {
 		if (StartupUtils.isTraceSetting()) {
 			this.trace = stackTrace.get();
 		}
-	}
-
-	public FieldOfPlay getFop() {
-		return fop;
-	}
-
-	public void setFop(FieldOfPlay fop) {
-		this.fop = fop;
 	}
 
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -99,7 +99,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		// all this does is call init() -- which we override.
 		// when navigating to the page, Vaadin will call setParameter+readParameters
 		// these parameters will be applied
-		
+
 		setDefaultParameters(QueryParameters.simple(Map.of(
 		        SoundParameters.SILENT, "true",
 		        SoundParameters.DOWNSILENT, "true",
@@ -206,7 +206,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			this.decisionNotification.setDuration(5000);
 			this.decisionNotification.open();
 
-			swapRefereeLabel(e.getAthlete());
+			swapRefereeLabel(getAthleteUnderReview());
 		});
 	}
 
@@ -377,6 +377,14 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 			// Boolean goodBad = curRefDecisions[i];
 			// logger.debug("existing ref {} {}", i, goodBad);
 			// }
+			this.decisions.getStyle().set("background-color", "black");
+			if (fop.isSingleReferee()) {
+				// improbable situation, kludge to make it look ok when demonstrating
+				this.decisions.getStyle().set("font-size", "14vh");
+			} else {
+				this.decisions.getStyle().set("font-size", "100%");
+			}
+			
 			if (fop.isRefereeForcedDecision()) {
 				this.decisions.slaveRefereeUpdate(new UIEvent.RefereeUpdate(this.athleteUnderReview, null,
 				        curRefDecisions[1], null, null, curRefTimes[1], null, this, fop));
@@ -448,7 +456,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 	private void buildRefereeBox(VerticalLayout container) {
 		this.refereeLabelWrapper = createRefereeLabel(null);
 
-		this.decisions = new JuryDisplayDecisionElement(false);
+		this.decisions = new JuryDisplayDecisionElement();
 		this.decisions.getElement().setAttribute("theme", "dark");
 		Div decisionWrapper = new Div(this.decisions);
 		decisionWrapper.getStyle().set("width", "50%");
@@ -502,7 +510,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		                ? "&nbsp;&nbsp;&nbsp;" + athleteFullId(athlete) + "&nbsp;&nbsp;&nbsp;"
 		                        + (formatAttempt(athlete.getAttemptsDone() - 1))
 		                        + "&nbsp;&nbsp;&nbsp;" +
-		                        athlete.getRequestedWeightForAttempt(athlete.getAttemptsDone() - 1)
+		                        athlete.getRequestedWeightForAttempt(athlete.getAttemptsDone())
 		                        + Translator.translate("KgSymbol")
 		                : "")
 		        + "</span>");
@@ -567,16 +575,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		Button juryDeliberationButton = new Button(
 		        new Icon(VaadinIcon.TIMER),
 		        (e) -> {
-			        FieldOfPlay fop = OwlcmsSession.getFop();
-			        if (fop.getState() == FOPState.BREAK && fop.getBreakType().isCountdown()) {
-				        slaveNotification(
-				                new UIEvent.Notification(null, this,
-				                        UIEvent.Notification.Level.ERROR,
-				                        "BreakButton.cannotInterruptBreak",
-				                        3000, fop));
-			        } else {
-				        openJuryDialog(JuryDeliberationEventType.START_DELIBERATION);
-			        }
+			        openJuryDialog(JuryDeliberationEventType.START_DELIBERATION);
 		        });
 		juryDeliberationButton.getElement().setAttribute("theme", "primary");
 		juryDeliberationButton.setText(Translator.translate("BreakButton.JuryDeliberation"));
@@ -584,16 +583,7 @@ public class JuryContent extends AthleteGridContent implements HasDynamicTitle {
 		Button challengeButton = new Button(
 		        new Icon(VaadinIcon.TIMER),
 		        (e) -> {
-			        FieldOfPlay fop = OwlcmsSession.getFop();
-			        if (fop.getState() == FOPState.BREAK && fop.getBreakType().isCountdown()) {
-				        slaveNotification(
-				                new UIEvent.Notification(null, this,
-				                        UIEvent.Notification.Level.ERROR,
-				                        "BreakButton.cannotInterruptBreak",
-				                        3000, fop));
-			        } else {
-				        openJuryDialog(JuryDeliberationEventType.CHALLENGE);
-			        }
+			        openJuryDialog(JuryDeliberationEventType.CHALLENGE);
 		        });
 		challengeButton.getElement().setAttribute("theme", "primary");
 		challengeButton.setText(Translator.translate("BreakButton.CHALLENGE"));

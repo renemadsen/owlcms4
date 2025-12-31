@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-Fran�ois Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -25,7 +25,6 @@ import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.BreakTimerEvent;
 import app.owlcms.uievents.DecisionEvent;
 import app.owlcms.uievents.TimerEvent;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -38,12 +37,6 @@ public class DecisionElementPR extends LitTemplate
         implements IFopName, SafeEventBusRegistrationPR {
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(DecisionElementPR.class);
-    final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
-
-    static {
-        logger.setLevel(Level.DEBUG);
-        uiEventLogger.setLevel(Level.INFO);
-    }
 
     protected EventBus uiEventBus;
     protected EventBus fopEventBus;

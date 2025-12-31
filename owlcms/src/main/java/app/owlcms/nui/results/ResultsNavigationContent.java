@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -55,7 +55,7 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 	 * Instantiates a new wrapup navigation content.
 	 */
 	public ResultsNavigationContent() {
-		Button groupResults = openInNewTab(ResultsContent.class, Translator.translate("GroupResults"));
+		Button groupResults = openInNewTab(SessionResultsContent.class, Translator.translate("GroupResults"));
 		highlight(groupResults);
 		// Button medals = openInNewTab(ResultsContent.class,
 		// Translator.translate("Results.Medals"));
@@ -90,20 +90,16 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 		        // template name used only to generate the results file name. Localized template determined by
 		        // JXLSTimingStats
 		        Competition::getComputedMedalScheduleTemplateFileName,
-				Competition::setMedalScheduleTemplateFileName,
+		        Competition::setMedalScheduleTemplateFileName,
 		        Translator.translate("Results.MedalSchedule"),
-				Translator.translate("Download"));
+		        Translator.translate("Download"));
 		Div medalScheduleDiv = new Div();
 		medalScheduleDiv.add(dd2.createDownloadButton());
 		Optional<Component> medalScheduleButton = medalScheduleDiv.getChildren().findFirst();
 		medalScheduleButton.ifPresent(c -> ((Button) c).setWidth("100%"));
 		medalScheduleDiv.setWidthFull();
 
-		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
-		// Translator.translate("Results.NewRecords"), new JXLSExportRecords(UI.getCurrent(),false));
-		// ((Button) newRecords.getComponentAt(0)).setWidth("100%");
-
-		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false);
+		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false, false);
 		JXLSDownloader dd3 = new JXLSDownloader(
 		        () -> {
 			        return recordsWriter;
@@ -124,6 +120,11 @@ public class ResultsNavigationContent extends BaseNavigationContent implements N
 		doGroup(Translator.translate("ForEachCompetitionGroup"), grid1, this);
 		doGroup(Translator.translate("TeamResults.Title"), grid2, this);
 		doGroup(Translator.translate("Results.EndOfCompetition"), grid3, this);
+
+		Button importSessions = openInNewTabNoParam(SessionImportContent.class, Translator.translate("ImportSessions.PageTitle"));
+		doHiddenGroup(Translator.translate("ImportSessions.PageTitle"),
+		        new Div(Translator.translate("ImportSessions.Explanation")),
+		        HomeNavigationContent.navigationGrid(importSessions), this);
 
 		DebugUtils.gc();
 	}

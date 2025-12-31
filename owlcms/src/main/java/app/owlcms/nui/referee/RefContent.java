@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -46,7 +46,6 @@ import app.owlcms.apputils.SoundUtils;
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.apputils.queryparameters.FOPParametersReader;
 import app.owlcms.components.elements.BeepElement;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
@@ -55,6 +54,7 @@ import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.lifting.UIEventProcessor;
 import app.owlcms.nui.shared.RequireLogin;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
+import app.owlcms.simulation.CompetitionSimulator;
 import app.owlcms.uievents.UIEvent;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Level;
@@ -138,11 +138,9 @@ public class RefContent extends BaseContent implements FOPParametersReader, Safe
 	 * Note: because we have the @Route, the parameters are parsed *before* our parent layout is created.
 	 *
 	 * @param event     Vaadin navigation event
-	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query
-	 *                  parameters instead.
+	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query parameters instead.
 	 *
-	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
@@ -180,8 +178,8 @@ public class RefContent extends BaseContent implements FOPParametersReader, Safe
 	}
 
 	/**
-	 * This must come from a timer on FieldOfPlay, because if we are using mobile devices there will not be a master
-	 * decision reset coming from the keypad-hosting device
+	 * This must come from a timer on FieldOfPlay, because if we are using mobile devices there will not be a master decision reset coming from the
+	 * keypad-hosting device
 	 *
 	 * @param e
 	 */
@@ -200,7 +198,7 @@ public class RefContent extends BaseContent implements FOPParametersReader, Safe
 	@Subscribe
 	public void slaveRefereeUpdate(UIEvent.RefereeUpdate e) {
 		// only used during simulations to show what the fake referees pressed.
-		if (!Competition.getCurrent().isSimulation()) {
+		if (!CompetitionSimulator.isRunning()) {
 			return;
 		}
 		UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this, () -> {

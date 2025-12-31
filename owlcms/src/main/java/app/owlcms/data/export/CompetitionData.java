@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -22,13 +22,14 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.notification.Notification;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
-import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.config.Config;
@@ -40,8 +41,11 @@ import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordEvent;
 import app.owlcms.data.records.RecordRepository;
+import app.owlcms.data.technicalofficial.TechnicalOfficial;
+import app.owlcms.data.technicalofficial.TechnicalOfficialRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
+import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
 import ch.qos.logback.classic.Logger;
 
@@ -57,6 +61,7 @@ public class CompetitionData {
 	private List<Platform> platforms;
 	private List<RecordEvent> records;
 	private RecordConfig recordConfig;
+	private List<TechnicalOfficial> technicalOfficials;
 
 	public CompetitionData() {
 	}
@@ -75,7 +80,36 @@ public class CompetitionData {
 					out.flush();
 					out.close();
 				} catch (Throwable e) {
-					e.printStackTrace();
+					LoggerUtils.logError(logger, e);
+				}
+			}).start();
+			return in;
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public InputStream exportData(UI ui, Notification notification) {
+		if (ui != null) {
+			ui.access(() -> notification.open());
+		}
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.registerModule(new JavaTimeModule());
+		try {
+			ObjectWriter writerWithDefaultPrettyPrinter = mapper.writerWithDefaultPrettyPrinter();
+
+			PipedOutputStream out = new PipedOutputStream();
+			PipedInputStream in = new PipedInputStream(out);
+			new Thread(() -> {
+				try {
+					writerWithDefaultPrettyPrinter.writeValue(out, this.fromDatabase());
+					out.flush();
+					out.close();
+					if (ui != null) {
+						ui.access(() -> notification.close());
+					}
+				} catch (Throwable e) {
+					LoggerUtils.logError(logger, e);
 				}
 			}).start();
 			return in;
@@ -119,6 +153,7 @@ public class CompetitionData {
 		setCompetitionForExport(Competition.getCurrent());
 		setRecords(RecordRepository.findAll());
 		setRecordConfig(RecordConfig.getCurrent());
+		setTechnicalOfficials(TechnicalOfficialRepository.findAll());
 		return this;
 	}
 
@@ -171,7 +206,7 @@ public class CompetitionData {
 			logger.debug("after unmarshall {}", newData.getPlatforms());
 			return newData;
 		} catch (Exception e) {
-			e.printStackTrace();
+			LoggerUtils.logError(logger, e);
 			return null;
 		}
 	}
@@ -194,12 +229,17 @@ public class CompetitionData {
 
 				CompetitionData updated = this.importData(inputStream);
 				Config config = updated.getConfig();
-				byte[] blob = config.getLocalZipBlob();
 				
-				if ( blob != null) {
+				// all LocalDates and LocalDateTimes will be stored in the database as UTC Date.
+				config.setLocalDateTimeUtcNormalized(true);
+				
+				byte[] blob = config.getLocalZipBlob();
+				if (blob != null) {
 					logger.info("override zip found {} bytes", blob.length);
 				}
+				// this writes out the config as well.
 				Config.setCurrent(config);
+				
 				ResourceWalker.setInitializedLocalDir(false);
 				ResourceWalker.initLocalDir();
 
@@ -234,13 +274,19 @@ public class CompetitionData {
 				}
 
 				if (updated.getRecordConfig() != null) {
-						em.merge(updated.getRecordConfig());
+					em.merge(updated.getRecordConfig());
 				}
 
+				if (updated.getTechnicalOfficials() != null) {
+					for (TechnicalOfficial p : updated.getTechnicalOfficials()) {
+						em.merge(p);
+					}
+				}
+				
 				em.merge(competition);
 				em.flush();
 			} catch (Exception e) {
-				e.printStackTrace();
+				LoggerUtils.logError(logger, e);
 			} finally {
 				Athlete.setSkipValidationsDuringImport(false);
 
@@ -248,9 +294,9 @@ public class CompetitionData {
 			return null;
 		});
 		Championship.reset();
-		CategoryRepository.resetCodeMap();
-		// register the new FOPs for events and MQTT
-		OwlcmsFactory.initDefaultFOP();
+//		CategoryRepository.resetCodeMap();
+//		// register the new FOPs for events and MQTT
+//		OwlcmsFactory.initDefaultFOP();
 
 		// set the record order if empty (compensate for issue #766)
 		RecordConfig current = RecordConfig.getCurrent();
@@ -266,8 +312,8 @@ public class CompetitionData {
 	}
 
 	/**
-	 * When importing data, set the imported Competition instance as the current instance. This is required because it
-	 * affects how some objects are processed (e.g., birth dates).
+	 * When importing data, set the imported Competition instance as the current instance. This is required because it affects how some objects are processed
+	 * (e.g., birth dates).
 	 *
 	 * @param competition the competition to set
 	 */
@@ -279,8 +325,8 @@ public class CompetitionData {
 	}
 
 	/**
-	 * When importing data, set the imported Competition instance as the current instance. This is prudent in case the
-	 * configuration might affect further processing.
+	 * When importing data, set the imported Competition instance as the current instance. This is prudent in case the configuration might affect further
+	 * processing.
 	 *
 	 * @param config the config to set
 	 */
@@ -335,8 +381,14 @@ public class CompetitionData {
 						em.remove(pX);
 					}
 				}
+				for (TechnicalOfficial p : this.getTechnicalOfficials()) {
+					TechnicalOfficial pX = em.find(TechnicalOfficial.class, p.getId());
+					if (pX != null) {
+						em.remove(pX);
+					}
+				}
 			} catch (Exception e) {
-				e.printStackTrace();
+				LoggerUtils.logError(logger, e);
 			}
 			return null;
 		});
@@ -355,5 +407,14 @@ public class CompetitionData {
 	 */
 	private void setConfigForExport(Config config) {
 		this.config = config;
+	}
+
+	public List<TechnicalOfficial> getTechnicalOfficials() {
+		return technicalOfficials;
+	}
+
+	public void setTechnicalOfficials(List<TechnicalOfficial> technicalOfficials) {
+		logger.info("read {} technical officials",technicalOfficials.size());
+		this.technicalOfficials = technicalOfficials;
 	}
 }

@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.displays.scoreboards;
 
 import java.util.Map;
@@ -61,13 +67,13 @@ public class WarmupLiftingOrderPage extends AbstractResultsDisplayPage {
 		fullMap.putAll(additionalMap);
 		setDefaultParameters(QueryParameters.simple(fullMap));
 	}
-	
+
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		DisplayParameters board = (DisplayParameters) this.getBoard();
 		board.setFop(this.getFop());
-		board.setLeadersDisplay(true);
-		board.setRecordsDisplay(true);
+//		board.setLeadersDisplay(true);
+//		board.setRecordsDisplay(true);
 
 		this.addComponent((Component) board);
 	}

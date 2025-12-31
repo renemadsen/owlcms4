@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -20,7 +20,6 @@ import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.TimerEvent;
 import app.owlcms.uievents.UpdateEvent;
 import app.owlcms.utils.LoggerUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -30,9 +29,6 @@ public class AthleteTimerElementPR extends TimerElementPR {
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(AthleteTimerElementPR.class);
     final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
-    static {
-        uiEventLogger.setLevel(Level.INFO);
-    }
 
     private Object origin;
 
@@ -114,9 +110,8 @@ public class AthleteTimerElementPR extends TimerElementPR {
         this.origin = origin;
     }
 
-    // we do not listen to the bus for this event. Score with leaders forwards this
-    // event
-    // when appropriate
+    // we do not listen to the bus for this event. update servlet forwards this
+    // event when appropriate
     public void slaveOrderUpdated(UpdateEvent e) {
         if (getFopName() == null || e.getFopName() == null || !getFopName().contentEquals(e.getFopName())) {
             // event is not for us

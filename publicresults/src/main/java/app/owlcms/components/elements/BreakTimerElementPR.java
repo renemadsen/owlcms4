@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -20,7 +20,6 @@ import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.BreakTimerEvent;
 import app.owlcms.utils.IdUtils;
 import app.owlcms.utils.LoggerUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -33,11 +32,6 @@ public class BreakTimerElementPR extends TimerElementPR {
 
     private String parentName = "";
     final private Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
-
-    {
-        this.logger.setLevel(Level.INFO);
-        this.uiEventLogger.setLevel(Level.INFO);
-    }
 
     public BreakTimerElementPR() {
         this.id = IdUtils.getTimeBasedId();
@@ -141,6 +135,7 @@ public class BreakTimerElementPR extends TimerElementPR {
 
     @Subscribe
     public void slaveBreakStart(BreakTimerEvent.BreakStart e) {
+        //logger.debug("slaveBreakStart {} {} {} indefinite={}",e.getFopName(),getFopName(), e.getTimeRemaining(), e.isIndefinite());
         if (getFopName() == null || e.getFopName() == null || !getFopName().contentEquals(e.getFopName())) {
             // event is not for us
             return;

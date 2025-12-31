@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.shared;
 
 import java.util.ArrayList;
@@ -8,6 +14,7 @@ import java.util.Locale;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.Direction;
 import com.vaadin.flow.component.HasElement;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.applayout.AppLayout;
@@ -31,6 +38,7 @@ import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.RouterLink;
 
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.displays.DisplayNavigationContent;
 import app.owlcms.nui.displays.VideoNavigationContent;
@@ -60,6 +68,7 @@ public class OwlcmsLayout extends AppLayout {
 	private boolean margin;
 
 	public OwlcmsLayout() {
+		OwlcmsFactory.waitDBInitialized();
 		this.navBarComponents = new ArrayList<>();
 		// create default empty components. Content will fill them in.
 		populateHeader();
@@ -184,6 +193,9 @@ public class OwlcmsLayout extends AppLayout {
 	@Override
 	protected void afterNavigation() {
 		super.afterNavigation();
+		if (Translator.isRTL(OwlcmsSession.getLocale())) {
+			UI.getCurrent().setDirection(Direction.RIGHT_TO_LEFT);
+		}
 		setMenuTitle(getCurrentPageTitle());
 	}
 

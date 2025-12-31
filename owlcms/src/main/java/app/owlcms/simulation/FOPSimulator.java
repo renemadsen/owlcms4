@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -28,9 +28,9 @@ import ch.qos.logback.classic.Logger;
  *
  * Simulate the flow of a competition on a field of play.
  *
- * The actions of technical officials are simulated: the the events that the user interface would send (FOPEvents) are
- * posted The state automaton in the FieldOfPlay triggers the user interface updates as required. It is therefore
- * possible to create as many real browser windows as required to observe the updates taking place.
+ * The actions of technical officials are simulated: the the events that the user interface would send (FOPEvents) are posted The state automaton in the
+ * FieldOfPlay triggers the user interface updates as required. It is therefore possible to create as many real browser windows as required to observe the
+ * updates taking place.
  *
  * @author Jean-François Lamy
  *
@@ -160,7 +160,7 @@ public class FOPSimulator {
 		// do a lift in group g: start timer
 		if (USE_MQTT_TIMER && mm != null) {
 			try {
-				mm.publishStartAthleteTimer();
+				mm.simulateStartAthleteTimer();
 			} catch (MqttException e) {
 				LoggerUtils.logError(this.logger, e);
 			}
@@ -178,7 +178,7 @@ public class FOPSimulator {
 		// stop time and get decisions
 		if (USE_MQTT_TIMER && mm != null) {
 			try {
-				mm.publishStopAthleteTimer();
+				mm.simulateStopAthleteTimer();
 			} catch (MqttException e) {
 				LoggerUtils.logError(this.logger, e);
 			}
@@ -191,9 +191,22 @@ public class FOPSimulator {
 			Thread.sleep(1000);
 		} catch (InterruptedException e) {
 		}
-		this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 0, goodLift(r)));
-		this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 1, goodLift(r)));
-		this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 2, goodLift(r)));
+
+		// stop time and get decisions
+		if (USE_MQTT_TIMER && mm != null) {
+			try {
+				mm.publishRefDecision(0, goodLift(r));
+				mm.publishRefDecision(1, goodLift(r));
+				mm.publishRefDecision(2, goodLift(r));
+			} catch (MqttException e) {
+				LoggerUtils.logError(this.logger, e);
+			}
+		} else {
+			this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 0, goodLift(r)));
+			this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 1, goodLift(r)));
+			this.fop.fopEventPost(new FOPEvent.DecisionUpdate(this, 2, goodLift(r)));
+		}
+
 	}
 
 	Object getOrigin() {

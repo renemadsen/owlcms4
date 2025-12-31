@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -34,6 +34,7 @@ import app.owlcms.apputils.queryparameters.ResultsParameters;
 import app.owlcms.components.elements.AthleteTimerElement;
 import app.owlcms.components.elements.BreakTimerElement;
 import app.owlcms.components.elements.DecisionElement;
+import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.LiftDefinition.Changes;
 import app.owlcms.data.athlete.LiftInfo;
@@ -44,6 +45,7 @@ import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.team.Team;
 import app.owlcms.displays.video.StylesDirSelection;
@@ -86,44 +88,46 @@ public class Results extends LitTemplate
         implements DisplayParameters, SafeEventBusRegistration, UIEventProcessor, BreakDisplay,
         RequireDisplayLogin, HasBoardMode, StylesDirSelection {
 
-	@Id("timer")
-	private AthleteTimerElement timer; // WebComponent, injected by Vaadin
-	@Id("breakTimer")
-	private BreakTimerElement breakTimer; // WebComponent, injected by Vaadin
-	@Id("decisions")
-	private DecisionElement decisions; // WebComponent, injected by Vaadin
-	private final Logger logger = (Logger) LoggerFactory.getLogger(Results.class);
-	private final Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
-	private JsonArray cattempts;
-	private Group curGroup;
-	private JsonArray sattempts;
-	private List<Athlete> displayOrder;
-	private int liftsDone;
-	private boolean darkMode = true;
+	protected Group curGroup;
+	protected List<Athlete> displayOrder;
 	protected EventBus uiEventBus;
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
-	private boolean teamFlags;
+	private boolean abbreviatedName;
+	private HashMap<Athlete, String> athleteToFlag = new HashMap<>();
+	@Id("breakTimer")
+	private BreakTimerElement breakTimer; // WebComponent, injected by Vaadin
+	private JsonArray cattempts;
+	private boolean darkMode = true;
+	@Id("decisions")
+	private DecisionElement decisions; // WebComponent, injected by Vaadin
+	private boolean downSilenced;
+	private Double emFontSize;
 	private FieldOfPlay fop;
 	private Group group;
+	private boolean leadersDisplay;
+	private int liftsDone;
 	private Location location;
 	private UI locationUI;
-	private String routeParameter;
-	private boolean silenced;
-	private boolean abbreviatedName;
-	private Double emFontSize;
+	protected final Logger logger = (Logger) LoggerFactory.getLogger(Results.class);
 	private boolean publicDisplay;
-	private Double teamWidth;
-	private boolean leadersDisplay;
 	private boolean recordsDisplay;
-	private HashMap<Athlete, String> athleteToFlag = new HashMap<>();
+	private String routeParameter;
+	private JsonArray sattempts;
+	private boolean silenced;
+	private boolean teamFlags;
+	private Double teamWidth;
+	@Id("timer")
+	private AthleteTimerElement timer; // WebComponent, injected by Vaadin
+	private final Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
 	private boolean video;
-	private boolean downSilenced;
 
 	public Results() {
 		this.uiEventLogger.setLevel(Level.INFO);
 		OwlcmsFactory.waitDBInitialized();
 		this.getElement().setProperty("autoversion", StartupUtils.getAutoVersion());
 		this.getElement().setProperty("scoreboardType", this.getClass().getSimpleName());
+		
+		overrideColors(this.getElement());
 	}
 
 	/**
@@ -131,7 +135,7 @@ public class Results extends LitTemplate
 	 */
 	@Override
 	public void doBreak(UIEvent event) {
-		//this.logger.debug("Results doBreak {}", LoggerUtils.stackTrace());
+		// this.logger.debug("Results doBreak {}", LoggerUtils.stackTrace());
 		OwlcmsSession.withFop(fop -> UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), this.getElement());
 
@@ -231,6 +235,10 @@ public class Results extends LitTemplate
 	@Override
 	public final boolean isDownSilenced() {
 		return this.downSilenced;
+	}
+
+	public boolean isJury() {
+		return false;
 	}
 
 	@Override
@@ -342,6 +350,9 @@ public class Results extends LitTemplate
 		this.group = group;
 	}
 
+	/**
+	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#setLeadersDisplay(boolean)
+	 */
 	@Override
 	public void setLeadersDisplay(boolean b) {
 		this.leadersDisplay = b;
@@ -581,11 +592,67 @@ public class Results extends LitTemplate
 		});
 	}
 
+	protected String computedScore(Athlete a) {
+		AgeGroup ageGroup = a.getAgeGroup();
+		Ranking ageGroupScoringSystem = ageGroup != null ? ageGroup.getComputedScoringSystem() : null;
+
+		Competition current = Competition.getCurrent();
+		boolean sinclair = current.isSinclair();
+		Competition current2 = Competition.getCurrent();
+		boolean displayGlobal = current2.isDisplayScores();
+		Competition current3 = Competition.getCurrent();
+		Ranking scoringSystem = current3.getScoringSystem();
+
+		if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+			double value = Ranking.getRankingValue(a, Ranking.CATEGORY_SCORE);
+			String score;
+			if (ageGroupScoringSystem == Ranking.TOTAL) {
+				score = value > 0.001 ? String.format("%.0f", value) : "-";
+			} else {
+				score = value > 0.001 ? String.format("%.3f", value) : "+";
+			}
+			return score;
+		} else {
+			double value = Ranking.getRankingValue(a, scoringSystem);
+			String score = value > 0.001 ? String.format("%.3f", value) : "*";
+			return score;
+		}
+	}
+
+	protected String computedScoreRank(Athlete a) {
+		Ranking ageGroupScoringSystem = a.getAgeGroup().getComputedScoringSystem();
+
+		Competition current = Competition.getCurrent();
+		boolean sinclair = current.isSinclair();
+		Competition current2 = Competition.getCurrent();
+		boolean displayGlobal = current2.isDisplayScoreRanks();
+		Competition current3 = Competition.getCurrent();
+		Ranking bestLifterScoringSystem = current3.getScoringSystem();
+
+		if (a.isEligibleForIndividualRanking()) {
+			if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+				Integer value = Ranking.getRanking(a, Ranking.CATEGORY_SCORE);
+				return value != null && value > 0 ? "" + value : "-";
+			} else {
+				Integer value = Ranking.getRanking(a, bestLifterScoringSystem);
+				return value != null && value > 0 ? "" + value : "-";
+			}
+		} else {
+			return Translator.translate("Results.Extra/Invited");
+		}
+
+	}
+
 	protected void computeLeaders(boolean done) {
 		OwlcmsSession.withFop(fop -> {
 			Athlete curAthlete = fop.getCurAthlete();
-			if (curAthlete != null && curAthlete.getGender() != null) {
+			if (curAthlete == null) {
+				this.getElement().setPropertyJson("leaders", Json.createNull());
+				this.getElement().setProperty("leaderLines", 1); // must be > 0
+			}
+			if (curAthlete.getGender() != null) {
 				this.getElement().setProperty("categoryName", curAthlete.getCategory().getDisplayName());
+
 				if (Competition.getCurrent().isSinclair()) {
 					Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
 					List<Athlete> sortedAthletes = new ArrayList<>(
@@ -635,16 +702,26 @@ public class Results extends LitTemplate
 	 */
 	protected int countBWClasses(List<Athlete> displayOrder) {
 		int nbCats = 0;
-		String prevCat = null;
+		String prevBWCat = null;
+		Category prevCat = null;
 		List<Athlete> athletes = displayOrder != null ? Collections.unmodifiableList(displayOrder)
 		        : Collections.emptyList();
 		for (Athlete a : athletes) {
-			String curCat = a.getBWCategory();
-			if (curCat != null && (prevCat == null || !prevCat.contentEquals(curCat))) {
-				// changing categories, put marker before athlete
-				prevCat = curCat;
-				nbCats++;
+			Category curCat = a.getCategory();
+			String curBWCat = a.getBWCategory();
+			if (isAllBWCategory(a)) {
+				if (curCat != null && !curCat.sameAs(prevCat)) {
+					// changing categories, put marker before athlete
+					nbCats++;
+				}
+			} else {
+				if (curBWCat != null && (prevBWCat == null || !prevBWCat.contentEquals(curBWCat))) {
+					// changing categories, put marker before athlete
+					nbCats++;
+				}
 			}
+			prevBWCat = curBWCat;
+			prevCat = curCat;
 		}
 		return nbCats;
 	}
@@ -662,9 +739,10 @@ public class Results extends LitTemplate
 			Category curCat = a.getCategory();
 			if (curCat != null && !curCat.sameAs(prevCat)) {
 				// changing categories, put marker before athlete
-				prevCat = curCat;
 				nbCats++;
 			}
+
+			prevCat = curCat;
 		}
 		return nbCats;
 	}
@@ -722,23 +800,22 @@ public class Results extends LitTemplate
 		updateDisplay(computeLiftType(fop.getCurAthlete()), fop);
 	}
 
-	protected String formatInt(Integer total) {
-		if (total == null || total == 0) {
+	protected String formatInt(Integer value) {
+		if (value == null || value == 0) {
 			return "-";
-		} else if (total == -1) {
-			return "inv.";// invited lifter, not eligible.
-		} else if (total < 0) {
-			return "(" + Math.abs(total) + ")";
+		} else if (value < 0) {
+			return "(" + Math.abs(value) + ")";
 		} else {
-			return total.toString();
+			return value.toString();
 		}
 	}
 
 	protected String formatRank(Integer total) {
 		if (total == null || total == 0) {
-			return "&nbsp;";
+			return "-";
 		} else if (total == -1) {
-			return "inv.";// invited lifter, not eligible.
+			// invited lifter, not eligible.
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}
@@ -749,8 +826,10 @@ public class Results extends LitTemplate
 		return ageGroups;
 	}
 
-
 	protected void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank, FieldOfPlay fop) {
+		boolean bestScore = Config.getCurrent().featureSwitch("displayBestScore");
+		boolean bestScoreRank = Config.getCurrent().featureSwitch("displayBestScoreRank");
+		
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
 		String fullName;
@@ -758,6 +837,9 @@ public class Results extends LitTemplate
 			fullName = a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "";
 		} else {
 			fullName = a.getFullName() != null ? a.getFullName() : "";
+		}
+		if (!a.isEligibleForIndividualRanking() && !fullName.isBlank()) {
+			fullName = Translator.translate("Scoreboard.Extra/Invited", fullName);
 		}
 		ja.put("teamName", a.getTeam() != null ? a.getTeam() : "");
 		ja.put("yearOfBirth", a.getYearOfBirth() != null ? a.getYearOfBirth().toString() : "");
@@ -778,14 +860,17 @@ public class Results extends LitTemplate
 		} else {
 			this.logger.error("main rankings null for {}", a);
 		}
+		ja.put("attemptNumber", formatInt(a.getAttemptsDone() + 1));
 		ja.put("group", a.getGroup().getName());
 		ja.put("subCategory", a.getSubCategory());
 
 		ja.put("custom1", a.getCustom1() != null ? a.getCustom1() : "");
 		ja.put("custom2", a.getCustom2() != null ? a.getCustom2() : "");
 
-		ja.put("sinclair", computedScore(a));
-		ja.put("sinclairRank", computedScoreRank(a));
+		if (a.getComputedScoringSystem() != Ranking.TOTAL || bestScore || bestScoreRank) {
+			ja.put("sinclair", computedScore(a));
+			ja.put("sinclairRank", computedScoreRank(a));
+		}
 
 		boolean notDone = a.getAttemptsDone() < 6;
 		String blink = (notDone ? " blink" : "");
@@ -959,7 +1044,8 @@ public class Results extends LitTemplate
 		BiPredicate<Athlete, Athlete> separator = (cur, prev) -> {
 			if (prev == null) {
 				return true;
-			} else if (displayByAgeGroup) {
+			} else if (displayByAgeGroup || isAllBWCategory(cur)) {
+				// score-based all-bodyweight categories need separator in spite of same bounds
 				return (cur.getCategory() != null
 				        && !cur.getCategory().sameAs(prev.getCategory()));
 			} else {
@@ -1003,14 +1089,36 @@ public class Results extends LitTemplate
 		getElement().setProperty("showLiftRanks",
 		        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
 		getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showSinclair",
-		        Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
-		getElement().setProperty("showSinclairRank",
-		        Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
 
 		if (!isSilenced() || !isDownSilenced()) {
 			SoundUtils.enableAudioContextNotification(this.getElement());
 		}
+	}
+
+	protected void resultsInit() {
+		boolean scoring[] = { false };
+		OwlcmsSession.withFop(fop -> {
+			setId("scoreboard-" + fop.getName());
+			this.curGroup = fop.getGroup();
+			setWideTeamNames(false);
+			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
+
+			List<Athlete> athletes = fop.getDisplayOrder();
+			if (athletes != null && athletes.size() > 0) {
+				boolean any = athletes.stream().map(a -> a.getAgeGroup().getScoringSystem())
+				        .anyMatch(s -> s != null && s != Ranking.TOTAL);
+				scoring[0] = any;
+			}
+		});
+		setTranslationMap();
+		
+		boolean showScore = scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair();
+		this.getElement().setProperty("showSinclair", showScore);
+		
+		boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair();
+		this.getElement().setProperty("showSinclairRank", showScoreRank);
+		
+		this.displayOrder = ImmutableList.of();
 	}
 
 	protected void setTranslationMap() {
@@ -1022,10 +1130,12 @@ public class Results extends LitTemplate
 				translations.put(curKey.replace("Scoreboard.", ""), Translator.translate(curKey));
 			}
 		}
-
-		String scoringTitle = Ranking.getScoringTitle(Competition.getCurrent().getScoringSystem());
-		translations.put("ScoringTitle", scoringTitle != null ? scoringTitle : Translator.translate("Sinclair"));
+		translations.put("ScoringTitle", Translator.translate("Score"));
 		this.getElement().setPropertyJson("t", translations);
+	}
+
+	protected void setWideTeamNames(boolean wide) {
+		this.getElement().setProperty("teamWidthClass", (wide ? "wideTeams" : "narrowTeams"));
 	}
 
 	protected void uiLog(UIEvent e) {
@@ -1067,18 +1177,6 @@ public class Results extends LitTemplate
 		computeRecords(done);
 	}
 
-	private String computedScore(Athlete a) {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
-		double value = Ranking.getRankingValue(a, scoringSystem);
-		String score = value > 0.001 ? String.format("%.3f", value) : "-";
-		return score;
-	}
-
-	private String computedScoreRank(Athlete a) {
-		Integer value = Ranking.getRanking(a, Competition.getCurrent().getScoringSystem());
-		return value != null && value > 0 ? "" + value : "-";
-	}
-
 	private String computeLiftType(Athlete a) {
 		if (a == null || a.getAttemptsDone() > 6) {
 			return null;
@@ -1098,11 +1196,11 @@ public class Results extends LitTemplate
 	}
 
 	private void doDone(Group g) {
-		this.logger.debug("doDone {}", g == null ? null : g.getName());
 		if (g == null) {
 			doEmpty();
 		} else {
 			OwlcmsSession.withFop(fop -> {
+				computeLeaders(true);
 				this.getElement().setProperty("fullName", Translator.translate("Group_number_results", g.toString()));
 			});
 		}
@@ -1113,21 +1211,23 @@ public class Results extends LitTemplate
 		return translate;
 	}
 
+//	private String formatKg(String total) {
+//		return (total == null || total.trim().isEmpty()) ? "-"
+//		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+//	}
+
+	// Don't add the () around the number if it is negative
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
-	private void resultsInit() {
-		OwlcmsSession.withFop(fop -> {
-			this.logger.trace("{}Starting result board on FOP {}", FieldOfPlay.getLoggingName(fop));
-			setId("scoreboard-" + fop.getName());
-			this.curGroup = fop.getGroup();
-			setWideTeamNames(false);
-			this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
-		});
-		setTranslationMap();
-		this.displayOrder = ImmutableList.of();
+	private boolean isAllBWCategory(Athlete cur) {
+		// score-based all-bodyweight categories need to be identified
+		var cat = cur.getCategory();
+		var min = cat.getMinimumWeight();
+		var max = cat.getMaximumWeight();
+		return (min < 10 && max > 900);
 	}
 
 	private void setDisplay() {
@@ -1161,10 +1261,6 @@ public class Results extends LitTemplate
 
 	private void setLiftsDoneProperty(String value) {
 		this.getElement().setProperty("liftsDone", value);
-	}
-
-	private void setWideTeamNames(boolean wide) {
-		this.getElement().setProperty("teamWidthClass", (wide ? "wideTeams" : "narrowTeams"));
 	}
 
 	private boolean showCurrent(FieldOfPlay fop) {
@@ -1210,11 +1306,13 @@ public class Results extends LitTemplate
 				if (e.getGroup() == null) {
 					doEmpty();
 				} else {
+					resultsInit();
 					doUpdate(e.getAthlete(), e);
 					doBreak(e);
 				}
 				break;
 			default:
+				resultsInit();
 				setDisplay();
 				doUpdate(e.getAthlete(), e);
 		}
@@ -1243,10 +1341,6 @@ public class Results extends LitTemplate
 			}
 			setGroupNameProperty("");
 		}
-	}
-
-	public boolean isJury() {
-		return false;
 	}
 
 }

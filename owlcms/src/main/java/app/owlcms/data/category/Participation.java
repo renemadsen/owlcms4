@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -23,15 +23,17 @@ import com.fasterxml.jackson.annotation.JsonIdentityReference;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import app.owlcms.data.agegroup.AgeGroup;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athleteSort.AthleteSorter;
+import app.owlcms.data.athleteSort.Ranking;
 import ch.qos.logback.classic.Logger;
 
 /**
  * Association class between Athlete and Category. Holds rankings and points of athlete and category.
  *
- * An athlete participates in one or more category (when eligible according to age, gender and qualifying total). A
- * category contains zero or more athletes.
+ * An athlete participates in one or more category (when eligible according to age, gender and qualifying total). A category contains zero or more athletes.
  *
  * @author Jean-François Lamy
  */
@@ -53,6 +55,10 @@ public class Participation implements IRankHolder {
 	@Column(columnDefinition = "integer default 0")
 	private int cleanJerkRank;
 	@Column(columnDefinition = "integer default 0")
+	private int totalRank;
+	@Column(columnDefinition = "integer default 0")
+	private int categoryScoreRank;
+	@Column(columnDefinition = "integer default 0")
 	private int combinedRank;
 	@Column(columnDefinition = "integer default 0")
 	private int customRank;
@@ -65,8 +71,8 @@ public class Participation implements IRankHolder {
 	@Column(columnDefinition = "integer default 0")
 	private int teamCombinedRank;
 	/**
-	 * Athlete is member of team for the age group. Points will be scored according to ranks. An athlete can be
-	 * qualified for JR and SR, but only on the JR team for example.
+	 * Athlete is member of team for the age group. Points will be scored according to ranks. An athlete can be qualified for JR and SR, but only on the JR team
+	 * for example.
 	 */
 	@Column(columnDefinition = "boolean default true")
 	private boolean teamMember = true;
@@ -78,8 +84,6 @@ public class Participation implements IRankHolder {
 	private int teamSnatchRank;
 	@Column(columnDefinition = "integer default 0")
 	private int teamTotalRank;
-	@Column(columnDefinition = "integer default 0")
-	private int totalRank;
 
 	public Participation(Athlete athlete, Category category) {
 		this();
@@ -100,6 +104,7 @@ public class Participation implements IRankHolder {
 		this.snatchRank = p.snatchRank;
 		this.totalRank = p.totalRank;
 		this.combinedRank = p.combinedRank;
+		this.setCategoryScoreRank(p.getCategoryScoreRank());
 		this.setTeamMember(p.isTeamMember());
 	}
 
@@ -129,6 +134,15 @@ public class Participation implements IRankHolder {
 	@JsonIdentityReference(alwaysAsId = true)
 	public Category getCategory() {
 		return this.category;
+	}
+
+	public Double getCategoryScore() {
+		Double score = Ranking.getRankingValue(athlete, this.getCategory().getAgeGroup().getComputedScoringSystem());
+		return score;
+	}
+	
+	public int getCategoryScoreRank() {
+		return this.categoryScoreRank;
 	}
 
 	@Transient
@@ -237,6 +251,10 @@ public class Participation implements IRankHolder {
 		this.category = category;
 	}
 
+	public void setCategoryScoreRank(int scoreRank) {
+		this.categoryScoreRank = scoreRank;
+	}
+
 	public void setCleanJerkRank(int cleanJerkRank) {
 		this.cleanJerkRank = cleanJerkRank;
 		// logger.trace("cleanJerkRank {}", long_dump());
@@ -254,7 +272,6 @@ public class Participation implements IRankHolder {
 
 	public void setSnatchRank(int snatchRank) {
 		this.snatchRank = snatchRank;
-		// logger.debug("snatchRank {}", long_dump());
 	}
 
 	public void setTeamCJRank(int teamCJRank) {
@@ -304,5 +321,14 @@ public class Participation implements IRankHolder {
 
 	private boolean isTeamMember() {
 		return this.teamMember;
+	}
+
+	public ChampionshipType getChampionshipType() {
+		Category category2 = getCategory();
+		if (category2 == null) return null;
+		AgeGroup ag = category2.getAgeGroup();
+		if (ag == null) return null;
+		ChampionshipType ch = ag.getChampionshipType();
+		return ch;
 	}
 }

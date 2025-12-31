@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -57,40 +57,35 @@ public class ProdData {
 
 		Competition competition = new Competition();
 
-		competition.setCompetitionName(Translator.translate("Competition", getLocale()) + " ?");
-		competition.setCompetitionCity(Translator.translate("Competition.competitionCity", getLocale()) + " ?");
+		competition.setCompetitionName("");
+		competition.setCompetitionCity("");
 		competition.setCompetitionDate(LocalDate.now());
-		competition
-		        .setCompetitionOrganizer(Translator.translate("Competition.competitionOrganizer", getLocale()) + " ?");
-		competition.setCompetitionSite(Translator.translate("Competition.competitionSite", getLocale()) + " ?");
+		competition.setCompetitionOrganizer("");
+		competition.setCompetitionSite("");
 
-		String federationLabel = Translator.translate("Competition.federation", getLocale()) + " ?";
 		String defaultFederationKey = "Competition.defaultFederation";
 		String defaultFederation = Translator.translate(defaultFederationKey, getLocale());
 		// if string is not translated, we get its key back.
-		competition.setFederation(defaultFederation.equals(defaultFederationKey) ? federationLabel : defaultFederation);
+		competition.setFederation(defaultFederation.equals(defaultFederationKey) ? "" : defaultFederation);
 
-		String federationAddressLabel = Translator.translate("Competition.federationAddress", getLocale()) + " ?";
 		String defaultFederationAddressKey = "Competition.defaultFederationAddress";
 		String defaultFederationAddress = Translator.translate(defaultFederationAddressKey, getLocale());
 		// if string is not translated, we get its key back.
 		competition.setFederationAddress(
-		        defaultFederationAddress.equals(defaultFederationAddressKey) ? federationAddressLabel
+		        defaultFederationAddress.equals(defaultFederationAddressKey) ? ""
 		                : defaultFederationAddress);
 
-		String federationEMailLabel = Translator.translate("Competition.federationEMail", getLocale()) + " ?";
 		String defaultFederationEMailKey = "Competition.defaultFederationEMail";
 		String defaultFederationEMail = Translator.translate(defaultFederationEMailKey, getLocale());
 		// if string is not translated, we get its key back.
-		competition.setFederationEMail(defaultFederationEMail.equals(defaultFederationEMailKey) ? federationEMailLabel
+		competition.setFederationEMail(defaultFederationEMail.equals(defaultFederationEMailKey) ? ""
 		        : defaultFederationEMail);
 
-		String federationWebSiteLabel = Translator.translate("Competition.federationWebSite", getLocale()) + " ?";
 		String defaultFederationWebSiteKey = "Competition.defaultFederationWebSite";
 		String defaultFederationWebSite = Translator.translate(defaultFederationWebSiteKey, getLocale());
 		// if string is not translated, we get its key back.
 		competition.setFederationWebSite(
-		        defaultFederationWebSite.equals(defaultFederationWebSiteKey) ? federationWebSiteLabel
+		        defaultFederationWebSite.equals(defaultFederationWebSiteKey) ? ""
 		                : defaultFederationWebSite);
 
 		competition.setUseBirthYear(false);

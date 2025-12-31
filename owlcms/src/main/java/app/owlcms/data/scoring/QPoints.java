@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -24,17 +24,16 @@ import ch.qos.logback.classic.Logger;
 
 /**
  *
- * Compute Q Points according to https://osf.io/8x3nb/ (formulas in https://osf.io/download/r2gxa/ and
- * https://osf.io/download/bmctw/)
+ * Compute Q Points according to https://osf.io/8x3nb/ (formulas in https://osf.io/download/r2gxa/ and https://osf.io/download/bmctw/)
  *
- * This class keeps the code for applying an age factor like SMF/SMHF even though this has not been discussed.
+ * The age coefficients are the 2025 coefficients for QMasters
  */
 public class QPoints {
 
 	Logger logger = (Logger) LoggerFactory.getLogger(QPoints.class);
 	Properties props = null;
-	private HashMap<Integer, Float> smf = null;
-	private HashMap<Integer, Float> smhf = null;
+	private HashMap<Integer, Float> men = null;
+	private HashMap<Integer, Float> women = null;
 	private int qpointsYear;
 	private Double menTMax;
 	private Double menBeta0;
@@ -46,7 +45,7 @@ public class QPoints {
 	private Double womenBeta2;
 
 	public QPoints(int i) {
-		this.qpointsYear = 2023;
+		this.qpointsYear = 2025;
 		// don't load coefficients -- Athlete calls us too early and config not loaded.
 	}
 
@@ -61,27 +60,27 @@ public class QPoints {
 		}
 		switch (gender) {
 			case M:
-				if (this.smf == null) {
-					loadSMM();
+				if (this.men == null) {
+					loadMap();
+				}
+				if (age <= 30) {
+					return 1.0F;
+				}
+				if (age >= 95) {
+					return this.men.get(95);
+				}
+				return this.men.get(age);
+			case F:
+				if (this.women == null) {
+					loadMap();
 				}
 				if (age <= 30) {
 					return 1.0F;
 				}
 				if (age >= 90) {
-					return this.smf.get(90);
+					return this.women.get(90);
 				}
-				return this.smf.get(age);
-			case F:
-				if (this.smhf == null) {
-					loadSMM();
-				}
-				if (age <= 30) {
-					return 1.0F;
-				}
-				if (age >= 80) {
-					return this.smhf.get(80);
-				}
-				return this.smhf.get(age);
+				return this.women.get(age);
 			case I:
 				return 1.0F;
 			default:
@@ -120,6 +119,10 @@ public class QPoints {
 		}
 		Double bw = a.getBodyWeight();
 		if (bw == null) {
+			return 0.0D;
+		}
+		// outside of validity range
+		if ((gender == Gender.M && bw <= 45.0D) || (gender == Gender.F && bw <= 40.0D) || (gender == Gender.I)) {
 			return 0.0D;
 		}
 		Double qPointsFactor = qPointsFactor(gender, bw);
@@ -176,7 +179,7 @@ public class QPoints {
 		return qPointsFactor;
 	}
 
-	private void loadCoefficients() {
+	private synchronized void loadCoefficients() {
 		if (this.menTMax != null) {
 			return;
 		}
@@ -194,6 +197,30 @@ public class QPoints {
 	}
 
 	/**
+	 * @return
+	 * @throws IOException
+	 */
+	private HashMap<Integer, Float> loadMap() {
+
+		if (this.props == null) {
+			loadProps();
+		}
+
+		this.men = new HashMap<>((this.props.size()));
+		this.women = new HashMap<>((this.props.size()));
+
+		for (Entry<Object, Object> entry : this.props.entrySet()) {
+			String curKey = (String) entry.getKey();
+			if (curKey.startsWith("men.")) {
+				this.men.put(Integer.valueOf(curKey.replace("men.", "")), Float.valueOf((String) entry.getValue()));
+			} else if (curKey.startsWith("women.")) {
+				this.women.put(Integer.valueOf(curKey.replace("women.", "")), Float.valueOf((String) entry.getValue()));
+			}
+		}
+		return this.men;
+	}
+
+	/**
 	 * @throws IOException
 	 */
 	private void loadProps() {
@@ -202,33 +229,9 @@ public class QPoints {
 		try {
 			InputStream stream = ResourceWalker.getResourceAsStream(name);
 			this.props.load(stream);
-		} catch (IOException e) {
+		} catch (Exception e) {
 			this.logger.error("could not load {} because {}\n{}", name, e, LoggerUtils.stackTrace(e));
 		}
-	}
-
-	/**
-	 * @return
-	 * @throws IOException
-	 */
-	private HashMap<Integer, Float> loadSMM() {
-
-		if (this.props == null) {
-			loadProps();
-		}
-
-		this.smf = new HashMap<>((this.props.size()));
-		this.smhf = new HashMap<>((this.props.size()));
-
-		for (Entry<Object, Object> entry : this.props.entrySet()) {
-			String curKey = (String) entry.getKey();
-			if (curKey.startsWith("smf.")) {
-				this.smf.put(Integer.valueOf(curKey.replace("smf.", "")), Float.valueOf((String) entry.getValue()));
-			} else if (curKey.startsWith("smhf.")) {
-				this.smhf.put(Integer.valueOf(curKey.replace("smhf.", "")), Float.valueOf((String) entry.getValue()));
-			}
-		}
-		return this.smf;
 	}
 
 	private void setMenBeta0(Double menBeta0) {

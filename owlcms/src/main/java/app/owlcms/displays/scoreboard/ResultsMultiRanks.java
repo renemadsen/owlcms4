@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -19,9 +19,9 @@ import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.fieldofplay.FieldOfPlay;
+import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
@@ -55,7 +55,8 @@ public class ResultsMultiRanks extends Results {
 		} else if (total == 0) {
 			return "&ndash;";
 		} else if (total == -1) {
-			return "inv.";// invited lifter, not eligible.
+			// invited lifter, not eligible.
+			return Translator.translate("Results.Extra/Invited");
 		} else {
 			return total.toString();
 		}
@@ -77,12 +78,16 @@ public class ResultsMultiRanks extends Results {
 	protected void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank, FieldOfPlay fop) {
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
+		String fullName;
 		if (isAbbreviatedName()) {
-			ja.put("fullName", a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "");
+			fullName = a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "";
 		} else {
-			ja.put("fullName", a.getFullName() != null ? a.getFullName() : "");
+			fullName = a.getFullName() != null ? a.getFullName() : "";
 		}
-
+		if (!a.isEligibleForIndividualRanking() && !fullName.isBlank()) {
+			fullName = Translator.translate("Scoreboard.Extra/Invited", fullName);
+		}
+		ja.put("fullName", fullName);
 		ja.put("teamName", a.getTeam() != null ? a.getTeam() : "");
 		ja.put("yearOfBirth", a.getYearOfBirth() != null ? a.getYearOfBirth().toString() : "");
 		Integer startNumber = a.getStartNumber();
@@ -101,8 +106,10 @@ public class ResultsMultiRanks extends Results {
 		ja.put("group", a.getGroup().getName());
 		ja.put("subCategory", a.getSubCategory());
 
-		ja.put("sinclair", computedScore(a));
-		ja.put("sinclairRank", computedScoreRank(a));
+		if (a.getComputedScoringSystem() != Ranking.TOTAL) {
+			ja.put("sinclair", computedScore(a));
+			ja.put("sinclairRank", computedScoreRank(a));
+		}
 
 		ja.put("custom1", a.getCustom1() != null ? a.getCustom1() : "");
 		ja.put("custom2", a.getCustom2() != null ? a.getCustom2() : "");
@@ -128,17 +135,59 @@ public class ResultsMultiRanks extends Results {
 		setTeamFlag(a, ja);
 	}
 
-	private String computedScore(Athlete a) {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
-		double value = Ranking.getRankingValue(a, scoringSystem);
-		String score = value > 0.001 ? String.format("%.3f", value) : "-";
-		return score;
-	}
+	// @Override
+	// protected void resultsInit() {
+	// // Ranking ageGroupRanking[] = { null };
+	// // boolean scoring[] = { false };
+	// // OwlcmsSession.withFop(fop -> {
+	// // setId("scoreboard-" + fop.getName());
+	// // this.curGroup = fop.getGroup();
+	// // setWideTeamNames(false);
+	// // this.getElement().setProperty("competitionName", Competition.getCurrent().getCompetitionName());
+	// //
+	// // List<Athlete> athletes = fop.getDisplayOrder();
+	// // if (athletes != null && athletes.size() > 0) {
+	// // // Ranking scoringSystem = athletes.get(0).getAgeGroup().getScoringSystem();
+	// // // boolean unanimous = athletes.stream().allMatch(s -> {
+	// // // Ranking scoringSystem2 = s.getAgeGroup().getScoringSystem();
+	// // // return scoringSystem != null && scoringSystem.equals(scoringSystem2);
+	// // // });
+	// // // if (unanimous) {
+	// // // ageGroupRanking[0] = scoringSystem;
+	// // // }
+	// // boolean any = athletes.stream().map(a -> a.getAgeGroup().getScoringSystem())
+	// // .anyMatch(s -> s != null && s != Ranking.TOTAL);
+	// // scoring[0] = any;
+	// // }
+	// // });
+	// setTranslationMap();
+	// if (
+	// scoring[0] ||
+	// Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair()) {
+	// this.getElement().setProperty("showSinclair", true);
+	// }
+	// if (
+	// scoring[0] ||
+	// Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair()) {
+	// this.getElement().setProperty("showSinclairRank", true);
+	// }
+	// this.displayOrder = ImmutableList.of();
+	// }
 
-	private String computedScoreRank(Athlete a) {
-		Integer value = Ranking.getRanking(a, Competition.getCurrent().getScoringSystem());
-		return value != null && value > 0 ? "" + value : "-";
-	}
+	// private String computedScore(Athlete a) {
+	// Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+	// double value = Ranking.getRankingValue(a, scoringSystem);
+	// String score = value > 0.001 ? String.format("%.3f", value) : "-";
+	// return score;
+	// }
+	//
+	// private String computedScoreRank(Athlete a) {
+	// if (!a.isEligibleForIndividualRanking()) {
+	// return Translator.translate("Results.Extra/Invited");
+	// }
+	// Integer value = Ranking.getRanking(a, Competition.getCurrent().getScoringSystem());
+	// return value != null && value > 0 ? "" + value : "-";
+	// }
 
 	private JsonValue getRanksJson(Athlete a, Ranking r, LinkedHashMap<String, Participation> ageGroupMap2) {
 		JsonArray ranks = Json.createArray();

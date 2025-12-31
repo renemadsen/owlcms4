@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -43,6 +43,16 @@ public class CompetitionSimulator {
 
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(CompetitionSimulator.class);
 	private static List<FOPSimulator> registeredSimulators = new ArrayList<>();
+	private static boolean running;
+
+	public static boolean isRunning() {
+		return running;
+	}
+
+	public static void setRunning(boolean b) {
+		running = true;
+	}
+
 	private Random r = new Random(0);
 
 	public CompetitionSimulator() {
@@ -50,6 +60,7 @@ public class CompetitionSimulator {
 
 	public String runSimulation() throws InterruptedException {
 		Competition.getCurrent().setSimulation(true);
+		setRunning(true);
 		logger.setLevel(Level.DEBUG);
 
 		Map<Platform, List<Group>> groupsByPlatform = new TreeMap<>();
@@ -68,9 +79,9 @@ public class CompetitionSimulator {
 
 			List<Athlete> as = AthleteRepository.findAllByGroupAndWeighIn(g, true);
 
-			if (as.size() == 0) {
-				as = weighIn(g);
-			}
+			// if (as.size() == 0) {
+			as = weighIn(g);
+			// }
 			as = AthleteRepository.findAllByGroupAndWeighIn(g, true);
 			if (as.size() == 0) {
 				logger.info("skipping group {} size {}", g.getName(), as.size());
@@ -129,6 +140,7 @@ public class CompetitionSimulator {
 
 	private List<Athlete> weighIn(Group g) {
 		List<Athlete> as = AthleteRepository.findAllByGroupAndWeighIn(g, null);
+		Random r = new Random();
 		for (Athlete a : as) {
 			Category c = a.getCategory();
 			if (c == null) {
@@ -136,12 +148,22 @@ public class CompetitionSimulator {
 				AthleteRepository.save(a);
 				continue;
 			}
-			Double catLimit = c.getMaximumWeight();
-			if (catLimit > 998) {
-				catLimit = c.getMinimumWeight() * 1.1;
+			Double catUpper = c.getMaximumWeight();
+			Double catLower = c.getMinimumWeight();
+			if (catUpper > 998 && catLower <= 1.01) {
+				// logger.trace("open {} {} {} {}", a.getLastName(), a.getCategoryCode(), catLower, catUpper);
+				// open category
+				double nextGaussian = r.nextGaussian(85, 15);
+				a.setBodyWeight(nextGaussian);
+				catUpper = (double) Math.round(2.0 + nextGaussian + 2.0);
+			} else {
+				// logger.trace("!!! not open {} {} {} {}", a.getLastName(), a.getCategoryCode(), catLower, catUpper);
+				if (catUpper > 998) {
+					catUpper = catLower * 1.1;
+				}
+				double bodyWeight = catUpper - (this.r.nextDouble() * 2.0);
+				a.setBodyWeight(bodyWeight);
 			}
-			double bodyWeight = catLimit - (this.r.nextDouble() * 2.0);
-			a.setBodyWeight(bodyWeight);
 
 			Integer entryTotal = a.getEntryTotal();
 			if (entryTotal != null && entryTotal > 0) {
@@ -151,7 +173,7 @@ public class CompetitionSimulator {
 				a.setCleanJerk1Declaration(Long.toString(icjd));
 				AthleteRepository.save(a);
 			} else {
-				double sd = catLimit * (1 + (this.r.nextGaussian() / 10));
+				double sd = catUpper * (1 + (this.r.nextGaussian() / 10));
 				long isd = Math.round(sd);
 				a.setSnatch1Declaration(Long.toString(isd));
 				long icjd = Math.round(sd * 1.20D);

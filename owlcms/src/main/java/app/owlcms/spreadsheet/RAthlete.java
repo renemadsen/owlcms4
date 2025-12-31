@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -8,7 +8,6 @@ package app.owlcms.spreadsheet;
 
 import java.time.LocalDate;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,7 +40,7 @@ public class RAthlete {
 
 	public static final String NoTeamMarker = "/NoTeam";
 	private Pattern legacyPattern;
-	Athlete a = new Athlete();
+	Athlete a;
 	final Logger logger = (Logger) LoggerFactory.getLogger(RAthlete.class);
 
 	{
@@ -49,6 +48,8 @@ public class RAthlete {
 	}
 
 	public RAthlete() {
+		this.a = new Athlete();
+		this.a.setCategoryFinished(false);
 	}
 
 	public Athlete getAthlete() {
@@ -65,7 +66,7 @@ public class RAthlete {
 	/**
 	 * @param category
 	 * @throws Exception
-	 * @see app.owlcms.data.athlete.Athlete#setCategory(app.owlcms.data.category.Category)
+	 * @see app.owlcms.data.athlete.Athlete#computeCategory(app.owlcms.data.category.Category)
 	 */
 	public void setCategory(String s) throws Exception {
 		if (s != null) {
@@ -86,75 +87,6 @@ public class RAthlete {
 			doLegacyParts(s, parts);
 		} else {
 			getPartsWithSeparator(s);
-		}
-
-	}
-
-	private void doLegacyParts(String s, String[] parts) throws Exception {
-		if (parts.length >= 1) {
-			boolean teamMember = false;
-			String catName = parts[0].trim();
-			if (!Config.getCurrent().featureSwitch("explicitTeams")) {
-				// teams are implicitly selected, check for team exclusion marker.
-				teamMember = true;
-				if (catName.endsWith(NoTeamMarker)) {
-					catName = catName.substring(0, s.length() - NoTeamMarker.length());
-					teamMember = false;
-				} else if (catName.endsWith("/")) {
-					catName = catName.substring(0, s.length() - "/".length());
-					teamMember = false;
-				}
-			}
-
-			Category c;
-			String catCode = Category.codeFromName(catName);
-			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
-				// exact match for a category. This is the athlete's registration category.
-				processEligibilityAndTeams(parts, c, teamMember);
-			} else {
-				// we have a short form category. infer from age and category limit
-				setCategoryHeuristics(s);
-				final var tm = teamMember;
-				this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
-			}
-		}
-	}
-
-	private void getPartsWithSeparator(String s) throws Exception {
-		if (s == null || s.isBlank()) {
-			return;
-		}
-		// create a parts as in the legacy
-		if (Config.getCurrent().featureSwitch("usaw")) {
-			s = s.replaceAll("kg", "");
-			s = s.replaceAll("NAT ", "");
-			s = s.replaceAll("ADAPTIVE", "ADP");
-		}
-
-		String[] allParts = s.split(",|;|\\/");
-		List<String> partsList = Arrays.asList(allParts).stream().filter(s1 -> (s1 != null && !s1.isBlank()))
-		        .toList();
-		String[] parts;
-		if (partsList.size() == 1) {
-			parts = new String[1];
-			parts[0] = partsList.get(0);
-			doLegacyParts(s, parts);
-		} else if (partsList.size() >= 1) {
-			parts = new String[2];
-			parts[0] = allParts[0];
-			// brain-dead logic to reuse existing code. Should fix old to use new instead...
-			StringBuffer sb = new StringBuffer();
-			for (int i = 1; i < partsList.size(); i++) {
-				boolean notBlank = !partsList.get(i).isBlank();
-				if (i > 1 && notBlank) {
-					sb.append(";");
-				}
-				if (notBlank) {
-					sb.append(partsList.get(i).trim());
-				}
-			}
-			parts[1] = sb.toString();
-			doLegacyParts(s, parts);
 		}
 
 	}
@@ -200,12 +132,11 @@ public class RAthlete {
 	}
 
 	/**
-	 * Note the mapping file must process the birth date before the category, as it is a required input to determine the
-	 * category.
+	 * Note the mapping file must process the birth date before the category, as it is a required input to determine the category.
 	 *
 	 * @param category
 	 * @throws Exception
-	 * @see app.owlcms.data.athlete.Athlete#setCategory(app.owlcms.data.category.Category)
+	 * @see app.owlcms.data.athlete.Athlete#computeCategory(app.owlcms.data.category.Category)
 	 */
 	public void setFullBirthDate(String s) throws Exception {
 		if (s != null) {
@@ -374,24 +305,62 @@ public class RAthlete {
 		        && (athleteAge == null
 		                || (athleteAge >= minAge && athleteAge <= maxAge))) {
 			eligibleCategories.add(c2);
+			//logger.debug("eligible categories {}",c2);
 			added = true;
 			if (teamMember) {
+				//logger.debug("teams {}",c2);
 				teams.add(c2);
 			}
 		}
 		return added;
 	}
 
+	private void doLegacyParts(String s, String[] parts) throws Exception {
+		if (parts.length >= 1) {
+			boolean teamMember = false;
+			String catName = parts[0].trim();
+			if (!Config.getCurrent().featureSwitch("explicitTeams")) {
+				// teams are implicitly selected, check for team exclusion marker.
+				teamMember = true;
+				if (catName.endsWith(NoTeamMarker)) {
+					catName = catName.substring(0, s.length() - NoTeamMarker.length());
+					teamMember = false;
+				} else if (catName.endsWith("/")) {
+					catName = catName.substring(0, s.length() - "/".length());
+					teamMember = false;
+				}
+			}
+
+			Category c;
+			String catCode = Category.codeFromName(catName);
+			//logger.debug("------ catName {} catCode {} active {}",catName, catCode,RCompetition.getActiveCategories().keySet());
+			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
+				// exact match for a category. This is the athlete's registration category.
+				processEligibilityAndTeams(parts, c, teamMember);
+			} else {
+				if (parts.length == 1 && !parts[0].contains(" ")) {
+					// we have a short form category. infer from age and category limit
+					setCategoryHeuristics(catName);
+					final var tm = teamMember;
+					this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
+				} else {
+					throw new Exception(
+					        Translator.translate("Upload.CategoryNotFoundByName", catName.trim()));
+				}
+
+			}
+		}
+	}
+
 	private Category findByAgeBW(Matcher legacyResult, double searchBodyWeight, int age, int qualifyingTotal)
 	        throws Exception {
-		// List<Category> found = CategoryRepository.findByGenderAgeBW(a.getGender(), age, searchBodyWeight);
-		// Set<Category> eligibles = new LinkedHashSet<>();
-		// eligibles = found.stream().filter(c -> qualifyingTotal >= c.getQualifyingTotal())
-		// .collect(Collectors.toSet());
 		List<Category> eligibles = CategoryRepository.doFindEligibleCategories(this.a, this.a.getGender(), age,
 		        searchBodyWeight, qualifyingTotal);
-		this.a.setEligibleCategories(new HashSet<>(eligibles));
-		// logger.debug("eligibles {} {} {}", age, qualifyingTotal, eligibles);
+		
+		RCompetition.putEligibles(this.a.getId(), new LinkedHashSet<>(eligibles));
+		RCompetition.putTeams(this.a.getId(), new LinkedHashSet<>(eligibles));
+
+		logger.warn ("findByAgeBW {} {} {} {}", age, searchBodyWeight, qualifyingTotal, eligibles);
 		Category category = eligibles.size() > 0 ? eligibles.get(0) : null;
 		if (category == null) {
 			throw new Exception(
@@ -423,16 +392,54 @@ public class RAthlete {
 
 	private Pattern getLegacyPattern() {
 		if (this.legacyPattern == null) {
-			setLegacyPattern(Pattern
-			        .compile("([mMfF]?) *([>" + Pattern.quote("+") + "]?) *(\\d+) *(" + Pattern.quote("+") + "?)$"));
+			String regex = "([mMfFwW]?) *([>" + Pattern.quote("+") + "]?) *(\\d+) *(" + Pattern.quote("+") + "?)$";
+			setLegacyPattern(Pattern.compile(regex));
 		}
 		return this.legacyPattern;
 	}
 
+	private void getPartsWithSeparator(String s) throws Exception {
+		if (s == null || s.isBlank()) {
+			return;
+		}
+		// create a parts as in the legacy
+		boolean usaw = Config.getCurrent().featureSwitch("usawSessionBlocks");
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			s = s.replaceAll("(\\d+)\\s?kg", "$1");
+		}
+
+		String[] allParts = usaw ? s.split(",|;|\\/") : s.split(",|;");
+		List<String> partsList = Arrays.asList(allParts).stream()
+		        .filter(s1 -> (s1 != null && !s1.isBlank()))
+		        .map(s1 -> s1.trim())
+		        .toList();
+		// logger.debug("partsList {}",partsList);
+
+		String[] parts;
+		if (partsList.size() == 1) {
+			parts = new String[1];
+			parts[0] = partsList.get(0);
+			doLegacyParts(s, parts);
+		} else if (partsList.size() >= 1) {
+			parts = new String[2];
+			parts[0] = partsList.get(0);
+			// brain-dead logic to reuse existing code. Should fix old to use new instead...
+			StringBuffer sb = new StringBuffer();
+			for (int i = 1; i < partsList.size(); i++) {
+				if (i > 1) {
+					sb.append(";");
+				}
+				sb.append(partsList.get(i).trim());
+			}
+			parts[1] = sb.toString();
+			doLegacyParts(s, parts);
+		}
+	}
+
 	private void processEligibilityAndTeams(String[] parts, Category c, boolean mainCategoryTeamMember)
 	        throws Exception {
-		Set<Category> eligibleCategories = new LinkedHashSet<>();
-		Set<Category> teams = new LinkedHashSet<>();
+		LinkedHashSet<Category> eligibleCategories = new LinkedHashSet<>();
+		LinkedHashSet<Category> teams = new LinkedHashSet<>();
 		Integer athleteQTotal = this.getAthlete().getQualifyingTotal();
 		Integer athleteAge = null;
 		try {
@@ -444,10 +451,13 @@ public class RAthlete {
 		        mainCategoryTeamMember, c);
 		if (!addedToMainCat) {
 			throw new Exception(Translator.translate("Upload.AthleteRegistrationCategoryProblem"));
+		} else {
+			this.a.setCategory(c);
 		}
 
 		// process the other participations. They are ; separated.
 		if (parts.length > 1) {
+			//logger.debug("additional categories {}",parts[1]);
 			String[] eligibleNames = parts[1].split(";");
 			for (String eligibleName : eligibleNames) {
 				boolean teamMember = true;
@@ -458,23 +468,29 @@ public class RAthlete {
 				Category c2;
 				String catCode = Category.codeFromName(eligibleName.trim());
 				if ((c2 = RCompetition.getActiveCategories().get(catCode)) != null) {
-					addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
+					boolean addedToEligible = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
+					if (!addedToEligible) {
+						throw new Exception(Translator.translate("Upload.AthleteRegistrationCategoryProblem")+" "+eligibleName);
+					}
 				} else {
+					// logger.debug("{} {}\n{}",Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim(), LoggerUtils.stackTrace()));
 					throw new Exception(
 					        Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim()));
 				}
 			}
+		} else {
+			//logger.debug("no other part");
 		}
 
-		RCompetition.getAthleteToEligibles().put(this.a.getId(), eligibleCategories);
-		RCompetition.getAthleteToTeams().put(this.a.getId(), teams);
+		//logger.debug("*** {} this.a.getCategory {} {}",this.a.getId(), this.a.getCategory(), eligibleCategories);
+		RCompetition.putEligibles(this.a.getId(), eligibleCategories);
+		RCompetition.putTeams(this.a.getId(), teams);
 	}
 
 	private void setCategoryHeuristics(String categoryName) throws Exception {
 		Matcher legacyResult = getLegacyPattern().matcher(categoryName);
 		double searchBodyWeight;
 		if (!legacyResult.matches()) {
-
 			// try by explicit name
 			Category category = RCompetition.getActiveCategories().get(categoryName);
 			if (category == null) {
@@ -484,7 +500,7 @@ public class RAthlete {
 				throw new Exception(
 				        Translator.translate("Upload.GenderMismatch", categoryName, this.a.getGender()));
 			}
-			this.a.setCategory(category);
+			this.a.computeCategory(category);
 			return;
 		} else {
 			fixLegacyGender(legacyResult);
@@ -494,9 +510,6 @@ public class RAthlete {
 			} else {
 				searchBodyWeight = Integer.parseInt(legacyResult.group(3)) - 0.1D;
 			}
-			// logger.debug("gt 1:'{}' 2:'{}' 3:'{}' 4:'{}'", legacyResult.group(1),
-			// legacyResult.group(2),
-			// legacyResult.group(3), legacyResult.group(4));
 		}
 
 		int age;
@@ -511,12 +524,16 @@ public class RAthlete {
 		Category category = findByAgeBW(legacyResult, searchBodyWeight, age,
 		        qualifyingTotal != null ? qualifyingTotal : 999);
 
-		this.a.setCategory(category);
+		this.a.computeCategory(category);
 		// logger.debug("setting category to {} athlete {}",category.longDump(),
 		// a.longDump());
 	}
 
 	private void setLegacyPattern(Pattern legacyPattern) {
 		this.legacyPattern = legacyPattern;
+	}
+
+	public void setInvited(boolean b) {
+		this.a.setEligibleForIndividualRanking(!b);
 	}
 }

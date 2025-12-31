@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -43,9 +43,6 @@ public class StartupUtils {
      * -Dkey=true as a system property.
      *
      * Environment variables are upperCased, system properties are case-sensitive.
-     * <ul>
-     * <li>OWMCMS_PORT=80 is the same as -Dport=80
-     * </ul>
      *
      * @param key
      * @return true if value is found and exactly "true"
@@ -80,6 +77,16 @@ public class StartupUtils {
         return buildTimestamp;
     }
 
+    /**
+    *
+    * Environment variables are upperCased, system properties are case-sensitive.
+    * <ul>
+    * <li>OWLCMS_PORT=80 is the same as -Dport=80
+    * </ul>
+    *
+    * @param key
+    * @return true if value is found and exactly "true"
+    */
     public static Integer getIntegerParam(String key, Integer defaultValue) {
         String envVar = "OWLCMS_" + key.toUpperCase();
         String val = System.getenv(envVar);

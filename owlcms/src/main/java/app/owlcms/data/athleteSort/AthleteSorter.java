@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -19,9 +19,11 @@ import javax.persistence.EntityManager;
 
 import org.slf4j.LoggerFactory;
 
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
@@ -62,26 +64,30 @@ public class AthleteSorter implements Serializable {
 			// logger.debug("all athletes in all groups {}", impactedAthletes);
 		}
 
-		List<Athlete> sortedAthletes;
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.SNATCH, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.SNATCH);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CLEANJERK, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CLEANJERK);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.TOTAL, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.TOTAL);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CUSTOM, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CUSTOM);
+		// List<Athlete> sortedAthletes;
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.SNATCH, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.SNATCH);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CLEANJERK, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CLEANJERK);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.TOTAL, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.TOTAL);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CUSTOM, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CUSTOM);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CATEGORY_SCORE, false);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CATEGORY_SCORE);
 
-		// for (Athlete a : impactedAthletes) {
-		// Participation p = a.getMainRankings();
-		// if (p != null) logger.debug("** {} {}", a, p.long_dump());
+		// TreeMap<String, TreeSet<Athlete>> medals =
+		Competition.getCurrent().computeMedals(g);
+		// TreeSet<Athlete> athletes = medals.get("Open_M81");
+		//
+		// for (Athlete a : athletes) {
+		// logger.debug("---{} {} {} {}",a.getAbbreviatedName(), a.getCategory(), a.getCategoryScore(), a.getCategoryScoreRank());
 		// }
 		return impactedAthletes;
 	}
 
 	/**
-	 * Assign ranks within each category, for all athletes in categories present in group. Returns the list of these
-	 * athletes (i.e. not only these in group g)
+	 * Assign ranks within each category, for all athletes in categories present in group. Returns the list of these athletes (i.e. not only these in group g)
 	 *
 	 * @param g
 	 * @return
@@ -96,22 +102,19 @@ public class AthleteSorter implements Serializable {
 			// logger.debug("all athletes in all groups {}", impactedAthletes);
 		}
 
-		List<Athlete> sortedAthletes;
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.SNATCH, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.SNATCH);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CLEANJERK, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CLEANJERK);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.TOTAL, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.TOTAL);
-		sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CUSTOM, true);
-		AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CUSTOM);
+		// List<Athlete> sortedAthletes;
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.SNATCH, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.SNATCH);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CLEANJERK, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CLEANJERK);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.TOTAL, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.TOTAL);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CUSTOM, true);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CUSTOM);
+		// sortedAthletes = AthleteSorter.resultsOrderCopy(impactedAthletes, Ranking.CATEGORY_SCORE, false);
+		// AthleteSorter.assignEligibleCategoryRanks(sortedAthletes, Ranking.CATEGORY_SCORE);
 
-		// if (logger.isEnabledFor(Level.DEBUG)) {
-		// for (Athlete a : impactedAthletes) {
-		// Participation p = a.getMainRankings();
-		// if (p != null) logger.debug("** {} {}", a, p.long_dump());
-		// }
-		// }
+		Competition.getCurrent().computeMedals(g);
 		return impactedAthletes;
 	}
 
@@ -179,25 +182,6 @@ public class AthleteSorter implements Serializable {
 	}
 
 	/**
-	 * Assign start numbers to athletes.
-	 *
-	 * @param sortedList the sorted list
-	 */
-	public static void assignStartNumbers(List<Athlete> sortedList) {
-		int rank = 1;
-		for (Athlete curLifter : sortedList) {
-			Double bodyWeight = curLifter.getBodyWeight();
-			if (bodyWeight != null && bodyWeight > 0.0D) {
-				curLifter.setStartNumber(rank);
-				rank++;
-			} else {
-				curLifter.setStartNumber(0);
-			}
-
-		}
-	}
-
-	/**
 	 * Compute the number of lifts already done. During snatch, exclude cj
 	 *
 	 * @param lifters the athletes in the group
@@ -224,6 +208,20 @@ public class AthleteSorter implements Serializable {
 			return 0;
 		}
 	}
+	
+	static public int countAllLiftsDone(List<Athlete> lifters) {
+		if (lifters != null && !lifters.isEmpty()) {
+			int totalSnatch = 0;
+			int totalCJ = 0;
+			for (Athlete Athlete : lifters) {
+				totalSnatch += Athlete.getSnatchAttemptsDone();
+				totalCJ += Athlete.getCleanJerkAttemptsDone();
+			}
+			return totalSnatch + totalCJ;
+		} else {
+			return 0;
+		}
+	}
 
 	/**
 	 * Sort athletes according to official rules (in place) <tableToolbar>
@@ -233,7 +231,6 @@ public class AthleteSorter implements Serializable {
 	 * @param athletes the to be sorted
 	 */
 	static public void displayOrder(List<? extends Athlete> athletes) {
-		//Collections.sort(athletes, new DisplayOrderComparator());
 		Collections.sort(athletes, new RegistrationOrderComparator());
 	}
 
@@ -251,6 +248,24 @@ public class AthleteSorter implements Serializable {
 	}
 
 	/**
+	 * Assign start numbers to athletes.
+	 *
+	 * @param sortedList the sorted list
+	 */
+	public static void doAssignStartNumbers(List<Athlete> sortedList) {
+		int rank = 1;
+		for (Athlete curLifter : sortedList) {
+			Double bodyWeight = curLifter.getBodyWeight();
+			if (bodyWeight != null && bodyWeight > 0.0D) {
+				curLifter.setStartNumber(rank);
+				rank++;
+			} else {
+				curLifter.setStartNumber(0);
+			}
+		}
+	}
+
+	/**
 	 * Assign lot numbers at random.
 	 *
 	 * @param toBeShuffled the to be shuffled
@@ -261,6 +276,18 @@ public class AthleteSorter implements Serializable {
 		Collections.shuffle(shuffled, new Random());
 		assignLotNumbers(shuffled);
 		return shuffled;
+	}
+
+	public static List<Athlete> fetchForCategoryRanks(EntityManager em, Group g) {
+		List<Athlete> impactedAthletes;
+		if (g != null) {
+			impactedAthletes = AthleteRepository.findAthletesForGlobalRanking(em, g);
+			// logger.debug"all athletes in group's categories {}", impactedAthletes);
+		} else {
+			impactedAthletes = AthleteRepository.doFindAllByGroupAndWeighIn(em, null, true, null);
+			// logger.debug("all athletes in all groups {}", impactedAthletes);
+		}
+		return impactedAthletes;
 	}
 
 	/**
@@ -277,26 +304,37 @@ public class AthleteSorter implements Serializable {
 			case CLEANJERK:
 				return curLifter.getMainRankings().getCleanJerkRank();
 			case SMM:
-				return curLifter.getSmmRank();
+				return curLifter.getSmhfRank();
 			case BW_SINCLAIR:
 				return curLifter.getSinclairRank();
 			case CAT_SINCLAIR:
 				return curLifter.getCatSinclairRank();
+			case CAT_QPOINTS:
+				return curLifter.getCatQPointsRank();
 			case ROBI:
 				return curLifter.getRobiRank();
 			case TOTAL:
 				return curLifter.getMainRankings().getTotalRank();
 			case CUSTOM:
 				return curLifter.getMainRankings().getCustomRank();
-			default:
+			case AGEFACTORS:
+				return curLifter.getQYouthRank();
+			case GAMX:
+				return curLifter.getGamxRank();
+			case QAGE:
+				return curLifter.getQMastersRank();
+			case QPOINTS:
+				return curLifter.getqPointsRank();
+			case SNATCH_CJ_TOTAL:
 				break;
+			case CATEGORY_SCORE:
+				return curLifter.getCategoryScoreRank();
 		}
 		return 0;
 	}
 
 	/**
-	 * Check that Athlete is one of the howMany previous athletes. The list of athletes is assumed to have been sorted
-	 * with {@link #liftTimeOrderCopy}
+	 * Check that Athlete is one of the howMany previous athletes. The list of athletes is assumed to have been sorted with {@link #liftTimeOrderCopy}
 	 *
 	 * @param Athlete       the athlete
 	 * @param sortedLifters the sorted lifters
@@ -384,6 +422,40 @@ public class AthleteSorter implements Serializable {
 		}
 		return 26 - rank;
 	}
+	
+	/**
+	 * @param a
+	 * @return normal points, unless in a Masters championship or a Masters session and IMWA team scoring is enabled
+	 */
+	public static int imwaPointsFormula(Athlete a) {
+		Participation mr = a.getMainRankings();
+		int totalPoints = 0;
+		boolean imwa = Competition.getCurrent().isImwa();
+		ChampionshipType championshipType = mr.getChampionshipType();
+		Group session = a.getGroup();
+		if (imwa && (championshipType == ChampionshipType.MASTERS || (session != null &&session.isMasters()))) {
+			// IMWA lowers points for 1-person and two-person categories
+			Category category = a.getCategory();
+			int athleteCount = AthleteRepository.retrieveMastersAthleteCountForCategory(category);
+			int rank = a.getTotalRank();
+			if (rank <= 0) {
+				return 0;
+			}
+			//logger.debug("athlete {} category {} rank={} count={}", a.getAbbreviatedName(), category, rank, athleteCount);
+			if (athleteCount == 1) {
+				totalPoints = 23;
+			} else if (athleteCount == 2) {
+				totalPoints = (rank == 1) ? 25 : ((rank == 2) ? 23 : 0);
+			} else {
+				totalPoints = AthleteSorter.pointsFormula(rank);
+			}
+		} else {
+			//
+			totalPoints = (mr != null ? mr.getTotalPoints() : 0);
+		}
+		return totalPoints;
+	}
+	
 
 	/**
 	 * @param rank
@@ -491,11 +563,14 @@ public class AthleteSorter implements Serializable {
 		switch (rankingType) {
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SNATCH_CJ_TOTAL:
 			case ROBI:
 			case SMM:
 			case QPOINTS:
 			case GAMX:
+			case AGEFACTORS:
+			case QAGE:
 				// logger.debug("ranking type {}",rankingType);
 				resultsOrder(sorted, rankingType, true);
 				break;
@@ -503,6 +578,7 @@ public class AthleteSorter implements Serializable {
 			case TOTAL:
 			case CUSTOM:
 			case CLEANJERK:
+			case CATEGORY_SCORE:
 				resultsOrder(sorted, rankingType, false);
 				break;
 		}
@@ -523,17 +599,21 @@ public class AthleteSorter implements Serializable {
 		switch (rankingType) {
 			case BW_SINCLAIR:
 			case CAT_SINCLAIR:
+			case CAT_QPOINTS:
 			case SNATCH_CJ_TOTAL:
 			case ROBI:
 			case SMM:
 			case QPOINTS:
 			case GAMX:
+			case AGEFACTORS:
+			case QAGE:
 				resultsOrder(sorted, rankingType, true);
 				break;
 			case SNATCH:
 			case TOTAL:
 			case CUSTOM:
 			case CLEANJERK:
+			case CATEGORY_SCORE:
 				resultsOrder(sorted, rankingType, absoluteOrder);
 				break;
 		}
@@ -570,6 +650,7 @@ public class AthleteSorter implements Serializable {
 	 *
 	 * @param toBeSorted  the to be sorted
 	 * @param rankingType the ranking type
+	 * @return 
 	 */
 	public static void teamPointsOrder(List<Athlete> toBeSorted, Ranking rankingType) {
 		Collections.sort(toBeSorted, new TeamPointsComparator(rankingType));
@@ -619,6 +700,22 @@ public class AthleteSorter implements Serializable {
 		}
 	}
 
+	public static List<Athlete> updateEligibleCategoryRanks(List<Athlete> absoluteOrderList, Ranking rankingType, Category category) {
+		List<Athlete> newList = new ArrayList<>();
+		MultiCategoryRankSetter rt = new MultiCategoryRankSetter();
+		for (Athlete curLifter : absoluteOrderList) {
+			final double rankingValue = Ranking.getRankingValue(curLifter, rankingType);
+			// we must update the original participations attached to the original athlete, on all updates.
+			Athlete realAthlete = ((PAthlete) curLifter)._getAthlete();
+			Participation participation = rt.increment(realAthlete, rankingType, rankingValue, category);
+			PAthlete e = new PAthlete(participation);
+			// logger.debug("new PAthlete realAthlete={} _getAthlete={}", System.identityHashCode(realAthlete), System.identityHashCode(e._getAthlete()));
+			// Competition.dumpAthlete("realAthlete", realAthlete);
+			newList.add(e);
+		}
+		return newList;
+	}
+
 	/**
 	 * Assign ranks, sequentially.
 	 *
@@ -629,12 +726,11 @@ public class AthleteSorter implements Serializable {
 	private static void assignEligibleCategoryRanks(List<Athlete> absoluteOrderList, Ranking rankingType) {
 		MultiCategoryRankSetter rt = new MultiCategoryRankSetter();
 		for (Athlete curLifter : absoluteOrderList) {
-			if (curLifter.isEligibleForIndividualRanking()) {
-				final double rankingValue = Ranking.getRankingValue(curLifter, rankingType);
-				rt.increment(curLifter, rankingType, rankingValue);
-			}
+			// if (curLifter.isEligibleForIndividualRanking()) {
+			final double rankingValue = Ranking.getRankingValue(curLifter, rankingType);
+			rt.increment(curLifter, rankingType, rankingValue, null);
+			// }
 		}
-
 	}
 
 	/**

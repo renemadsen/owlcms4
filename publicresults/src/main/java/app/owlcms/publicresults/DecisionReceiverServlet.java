@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -62,7 +62,7 @@ public class DecisionReceiverServlet extends HttpServlet implements Traceable {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         if (StartupUtils.isDebugSetting()) {
             Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
-            this.getLogger()./**/warn("++++ decision update received from {}", ProxyUtils.getClientIp(req));
+            this.getLogger().debug("++++ decision update received from {}", ProxyUtils.getClientIp(req));
             tracePairs(pairs);
         }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -7,9 +7,11 @@
 package app.owlcms.data.athlete;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,6 +29,7 @@ import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.jpa.JPAService;
+import app.owlcms.spreadsheet.PAthlete;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -38,6 +41,28 @@ public class AthleteRepository {
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(AthleteRepository.class);
 	static {
 		logger.setLevel(Level.INFO);
+	}
+	public static Set<String> allUnfinishedCategories;
+	private static final ThreadLocal<Map<String, Integer>> categoryAthleteCount = ThreadLocal.withInitial(HashMap::new);
+
+	public static Set<String> allUnfinishedCategories() {
+		Set<String> unfinishedCategories = new HashSet<>();
+		List<Athlete> ranked = findAll();
+		if (ranked == null || ranked.isEmpty()) {
+			return Set.of();
+		}
+		for (Athlete a : ranked) {
+			// logger.debug("unfinishedCategories *** athlete {}",a);
+			if (!a.isDone()) {
+				// logger.debug("{}", a, a.getCleanJerk3ActualLift());
+				for (Participation p : a.getParticipations()) {
+					unfinishedCategories.add(p.getCategory().getCode());
+				}
+			}
+		}
+		logger.debug("unfinishedCategories2 {}", unfinishedCategories);
+		setAllUnfinishedCategories(unfinishedCategories);
+		return unfinishedCategories;
 	}
 
 	public static void assignCategoryRanks() {
@@ -57,8 +82,34 @@ public class AthleteRepository {
 			List<Athlete> currentGroupAthletes = AthleteRepository.doFindAllByGroupAndWeighIn(em, group, true,
 			        (Gender) null);
 			AthleteSorter.registrationOrder(currentGroupAthletes);
-			AthleteSorter.assignStartNumbers(currentGroupAthletes);
+			AthleteSorter.doAssignStartNumbers(currentGroupAthletes);
 			return currentGroupAthletes;
+		});
+	}
+
+	/**
+	 * Assign start numbers to the list of Athletes.
+	 * <p>
+	 * Ordering of the initial list is preserved.
+	 * <p>
+	 * Assumption: Athletes should come from a single session.
+	 *
+	 * @param athletes
+	 */
+	public static void assignStartNumbers(List<Athlete> athletes) {
+		JPAService.runInTransaction((em) -> {
+			List<Athlete> nList = AthleteSorter.registrationOrderCopy(athletes);
+			AthleteSorter.doAssignStartNumbers(nList);
+			for (Athlete a : athletes) {
+				if (a instanceof PAthlete) {
+					// defensive, not expected to happen.
+					Athlete realAthlete = ((PAthlete) a)._getAthlete();
+					em.merge(realAthlete);
+				} else {
+					em.merge(a);
+				}
+			}
+			return null;
 		});
 	}
 
@@ -148,7 +199,7 @@ public class AthleteRepository {
 		if (group != null && group.getName() == "*") {
 			group = null;
 		}
-		// FIXME this does not appear to work with ageDivision/Championship
+		// CODEREVIEW this does not appear to work with ageDivision/Championship
 		String qlString = "select a from Athlete a"
 		        + filteringSelection(lastName, group, category, ageGroup, ageDivision, gender, weighedIn, team)
 		        + " order by a.category";
@@ -206,6 +257,16 @@ public class AthleteRepository {
 		});
 	}
 
+	public static List<Athlete> findAthletesForAgeGroup(AgeGroup ag) {
+		return JPAService.runInTransaction((em) -> {
+			TypedQuery<Athlete> q = em.createQuery(
+			        "select distinct a from Athlete a join a.participations p join p.category c join c.ageGroup ag where ag.id = :agId",
+			        Athlete.class);
+			q.setParameter("agId", ag.getId());
+			return q.getResultList();
+		});
+	}
+
 	/**
 	 * Fetch all athletes needed for leader board
 	 *
@@ -222,22 +283,12 @@ public class AthleteRepository {
 		});
 	}
 
-	public static List<Athlete> findAthletesNoCategory() {
-		return JPAService.runInTransaction((em) -> {
-			TypedQuery<Athlete> q = em.createQuery(
-			        "select distinct a from Athlete a left outer join a.participations p where p is null",
-			        Athlete.class);
-			return q.getResultList();
-		});
-	}
-
 	public static List<Athlete> findAthletesForGlobalRanking(EntityManager emgr, Group g) {
 		return doFindAthletesForGlobalRanking(g, emgr, true);
 	}
 
 	/**
-	 * Fetch all athletes and participations for the categories present in the group. If group is null, all athletes and
-	 * their participations.
+	 * Fetch all athletes and participations for the categories present in the group. If group is null, all athletes and their participations.
 	 *
 	 * @param g
 	 * @param onlyWeighedIn
@@ -247,6 +298,15 @@ public class AthleteRepository {
 	public static List<Athlete> findAthletesForGlobalRanking(Group g, boolean onlyWeighedIn) {
 		return JPAService.runInTransaction((em) -> {
 			return doFindAthletesForGlobalRanking(g, em, onlyWeighedIn);
+		});
+	}
+
+	public static List<Athlete> findAthletesNoCategory() {
+		return JPAService.runInTransaction((em) -> {
+			TypedQuery<Athlete> q = em.createQuery(
+			        "select distinct a from Athlete a left outer join a.participations p where p is null",
+			        Athlete.class);
+			return q.getResultList();
 		});
 	}
 
@@ -275,6 +335,13 @@ public class AthleteRepository {
 		});
 	}
 
+	public static Set<String> getAllUnfinishedCategories() {
+		if (allUnfinishedCategories == null) {
+			allUnfinishedCategories();
+		}
+		return allUnfinishedCategories;
+	}
+
 	/**
 	 * Gets the by id.
 	 *
@@ -290,36 +357,88 @@ public class AthleteRepository {
 		return (Athlete) query.getResultList().stream().findFirst().orElse(null);
 	}
 
+	public static int retrieveMastersAthleteCountForCategory(Category category) {
+		Map<String, Integer> map = categoryAthleteCount.get();
+		if (map.isEmpty()) {
+			populateCategoryMastersAthleteCountMap();
+		}
+		return map.getOrDefault(category.getCode(), 0);
+	}
+
+	private static void populateCategoryMastersAthleteCountMap() {
+		JPAService.runInTransaction(em -> {
+			Query query = em.createQuery(
+			        "select p.category.code, count(a.id) from Athlete a join a.participations p join p.category c join c.ageGroup ag where ag.minAge >= 30 group by p.category.code");
+			@SuppressWarnings("unchecked")
+			List<Object[]> results = query.getResultList();
+			Map<String, Integer> map = categoryAthleteCount.get();
+			map.putAll(results.stream()
+			        // .peek(result -> {
+			        // Category cat = (Category) result[0];
+			        // int count = ((Long) result[1]).intValue();
+			        // logger.debug("*** cat {} count {}", cat.getCode(), count);
+			        // })
+			        .collect(Collectors.toMap(result -> ((String) result[0]), result -> ((Long) result[1]).intValue())));
+			return null;
+		});
+	}
+
+	public static Set<Athlete> keepOnlyFinishedCategoryAthletes(Collection<Athlete> athletes) {
+		Set<String> unfinishedCategories = new HashSet<>();
+		Set<Athlete> finishedCategoryAthletes = new HashSet<>();
+		for (Athlete a : athletes) {
+			if (a.getSnatch3AsInteger() == null || a.getSnatch3ActualLift().isBlank()
+			        || a.getCleanJerk3AsInteger() == null || a.getCleanJerk3ActualLift().isBlank()) {
+				for (Participation p : a.getParticipations()) {
+					unfinishedCategories.add(p.getCategory().getCode());
+				}
+			}
+		}
+		// logger.debug("unfinishedCategories1 {}",unfinishedCategories);
+		for (Athlete a : athletes) {
+			if (!unfinishedCategories.contains(a.getCategory().getCode())) {
+				finishedCategoryAthletes.add(a);
+			}
+		}
+		return finishedCategoryAthletes;
+	}
+
 	/**
 	 * Use the athlete bodyweight (or presumed body weight if weigh-in has not taken place) to determine category.
+	 * 
+	 * @param clearParticipations     if true, clear the partications (normally always done)
+	 * @param recomputeParticipations if true, reassign the categories.
 	 */
-	public static void resetParticipations() {
-		// logger.debug("recomputing eligibles");
-		JPAService.runInTransaction(em -> {
-			List<Athlete> athletes = AthleteRepository.doFindAll(em);
-			for (Athlete a : athletes) {
-				// do not clear category, required if no body weight
-				// a.setCategory(null);
-				a.setEligibleCategories(null);
-				em.merge(a);
-			}
-			em.flush();
-			Competition.getCurrent().setRankingsInvalid(true);
-			return null;
-		});
-		// logger.debug("recomputing main cat");
-		JPAService.runInTransaction(em -> {
-			List<Athlete> athletes = AthleteRepository.doFindAll(em);
-			for (Athlete a : athletes) {
-				a.computeMainAndEligibleCategories();
-				a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
-				em.merge(a);
-			}
-			em.flush();
-			Competition.getCurrent().setRankingsInvalid(true);
-			return null;
-		});
-		assignCategoryRanks();
+	public static void resetParticipations(boolean clearParticipations, boolean recomputeParticipations) {
+		if (recomputeParticipations || clearParticipations) {
+			JPAService.runInTransaction(em -> {
+				List<Athlete> athletes = AthleteRepository.doFindAll(em);
+				for (Athlete a : athletes) {
+					// do not clear category, required if no body weight
+					// a.setCategory(null);
+					a.setEligibleCategories(null);
+					em.merge(a);
+				}
+				em.flush();
+				Competition.getCurrent().setRankingsInvalid(true);
+				return null;
+			});
+		}
+		
+		if (recomputeParticipations) {
+			JPAService.runInTransaction(em -> {
+				List<Athlete> athletes = AthleteRepository.doFindAll(em);
+				for (Athlete a : athletes) {
+					a.computeMainAndEligibleCategories();
+					a.getParticipations().stream().forEach(p -> p.setTeamMember(true));
+					em.merge(a);
+				}
+
+				em.flush();
+				Competition.getCurrent().setRankingsInvalid(true);
+				return null;
+			});
+		}
 	}
 
 	/**
@@ -339,22 +458,44 @@ public class AthleteRepository {
 		});
 	}
 
+	public static void setAllUnfinishedCategories(Set<String> allUnfinishedCategories) {
+		AthleteRepository.allUnfinishedCategories = allUnfinishedCategories;
+	}
+
+	public static Set<String> unfinishedCategories(List<Athlete> ranked) {
+		Set<String> unfinishedCategories = new HashSet<>();
+		if (ranked == null || ranked.isEmpty()) {
+			return Set.of();
+		}
+		for (Athlete a : ranked) {
+			// logger.debug("unfinishedCategories *** athlete {}",a);
+			if (!a.isDone()) {
+				// logger.debug("{}", a, a.getCleanJerk3ActualLift());
+				for (Participation p : a.getParticipations()) {
+					unfinishedCategories.add(p.getCategory().getCode());
+				}
+			}
+		}
+		// logger.debug("unfinishedCategories2 {}",unfinishedCategories);
+		return unfinishedCategories;
+	}
+
 	private static List<Athlete> doFindAthletesForGlobalRanking(Group g, EntityManager em, boolean onlyWeighedIn) {
 		String onlyCategoriesFromCurrentGroup = "";
-		
+
 		// only consider weighed-in athletes from the current session.
-		// once we have the categories from that query, we will find other athetes in other sessions, and 
+		// once we have the categories from that query, we will find other athetes in other sessions, and
 		// we will use the onlyWeighedIn flag on that second result.
 		if (g != null) {
 			String categoriesFromCurrentGroup = "select distinct c2 from Athlete b join b.group g join b.participations p join p.category c2 where g.id = :groupId";
 			onlyCategoriesFromCurrentGroup = " join p.category c where exists (" + categoriesFromCurrentGroup
 			        + " and c2.code = c.code and b.bodyWeight > 0.01)";
 
-			 // following 4 lines are a trace, disable when confirmed.
-			 TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
-			 q2.setParameter("groupId", g.getId());
-			 List<Category> q2Results = q2.getResultList();
-			 logger.debug("categories for currentGroup {}",q2Results);
+			// // following 4 lines are a trace, disable when confirmed.
+			// TypedQuery<Category> q2 = em.createQuery(categoriesFromCurrentGroup, Category.class);
+			// q2.setParameter("groupId", g.getId());
+			// List<Category> q2Results = q2.getResultList();
+			// logger.info("categories for currentGroup {}",q2Results);
 		}
 		Query q = em.createQuery(
 		        "select distinct a, p from Athlete a join fetch a.participations p"
@@ -376,7 +517,7 @@ public class AthleteRepository {
 			List<Athlete> r = q.getResultList();
 			resultList = r;
 		}
-		logger.debug("athletes in categories from group {} {}", g, resultList);
+		logger.debug("athletes in categories from group {} {}", g, resultList.size());
 		return resultList;
 	}
 
@@ -468,41 +609,4 @@ public class AthleteRepository {
 		}
 	}
 
-	public static Set<Athlete> keepOnlyFinishedCategoryAthletes(Collection<Athlete> athletes) {
-		Set<String> unfinishedCategories = new HashSet<>();
-		Set<Athlete> finishedCategoryAthletes = new HashSet<>();
-		for (Athlete a : athletes) {
-			if (a.getSnatch3AsInteger() == null || a.getSnatch3ActualLift().isBlank()
-					|| a.getCleanJerk3AsInteger() == null || a.getCleanJerk3ActualLift().isBlank()) {
-				for (Participation p: a.getParticipations()) {
-					unfinishedCategories.add(p.getCategory().getCode());
-				}
-			}
-		}
-		//logger.debug("unfinishedCategories1 {}",unfinishedCategories);
-		for (Athlete a : athletes) {
-			if (!unfinishedCategories.contains(a.getCategory().getCode())) {
-				finishedCategoryAthletes.add(a);
-			}
-		}
-		return finishedCategoryAthletes;
-	}
-	
-	public static Set<String> unfinishedCategories(List<Athlete> ranked) {
-		Set<String> unfinishedCategories = new HashSet<>();
-		if (ranked == null || ranked.isEmpty()) {
-			return Set.of();
-		}
-		for (Athlete a : ranked) {
-			//logger.debug("unfinishedCategories *** athlete {}",a);
-			if (!a.isDone()) {
-				//logger.debug("{}", a, a.getCleanJerk3ActualLift());
-				for (Participation p: a.getParticipations()) {
-					unfinishedCategories.add(p.getCategory().getCode());
-				}
-			}
-		}
-		//logger.debug("unfinishedCategories2 {}",unfinishedCategories);
-		return unfinishedCategories;
-	}
 }

@@ -1,94 +1,66 @@
-## Windows Installation
+## Short Instructions
 
-- **Windows Installer** : Get the current [`owlcms_setup_50.0.0.exe`](https://github.com/owlcms/owlcms4/releases/download/50.0.0/owlcms_setup_50.0.0.exe) file (located in the `assets` section at the bottom of each release in the [release repository](https://github.com/owlcms/owlcms4/releases/latest) ).
-- Download and open the installer
-  > You may get false alarms about the software being potentially dangerous.  *Rest assured that it is absolutely not*.  Use the `...` and dropdown menu options to get and keep the downloaded files anyway.
-  >
-  > If you get a blue `Windows protected your PC` warning, use the `More Info` button and `Install Anyway`.  See this page for more information [Make Windows Defender Allow Installation](DefenderOff)
-  
--  The installer will prompt you for an installation location.  The default is usually correct.
+If you are familiar with Windows and downloading programs
 
-  ![020_installLocation](img\LocalInstall\020_installLocation.png)
+1. **Download [owlcms_controlpanel.exe](https://github.com/owlcms/owlcms-controlpanel/releases/latest/download/owlcms_controlpanel.exe)** from the [release repository](https://github.com/owlcms/owlcms-controlpanel/releases) and accept all the security warnings.
+2. **Drag** the downloaded file to your desktop
+3. **Double-click** on the file.  The first time, this will download the latest owlcms and the files required to run it.  To use the control panel, see [Local Control Panel Overview](LocalControlPanel)
 
--  Accept all the defaults.  Doing so will create a shortcut on your desktop.
+You're done.
 
-  ![030_desktop](img\LocalInstall\030_desktop.png)
+> An installer program is also available. See [these instructions](LocalWindowsInstaller)
+>
 
--  Double-clicking on the icon will start the server and a browser. See [Initial Startup](#initial-startup) for how to proceed.
+## Detailed Instructions
 
--  If you just want to use dummy data to practice (which will not touch the actual database), right-click on the icon, double-click on "Open File Location" and then double-click on the `demo-owlcms.exe` file.
+Downloading the file involves a sequence of warnings.  If you are using Firefox, you won't get any of this.  A little bit less if you are using Chrome.  Edge is the one with most warnings, and is illustrated below.
 
-## Initial Startup
+### Downloading
 
-> The following instructions assume that you are connected to a network.  If you are running a competition with several laptops, plug in your router, and *connect your laptop to the router prior to starting OWLCMS*. In that way OWLCMS will be able to tell you what network address it is getting from the router.
-
-When OWLCMS is started on a laptop, two windows are visible:  a command-line window, and an internet browser
-
-![040_starting](img\LocalInstall\040_starting.png)
-
-- The command-line window (typically with a black background) is where the OWLCMS primary web server shows its execution log.  
-
-  All the other displays and screens connect to the primary server.  <u>You can stop the program by clicking on the x</u> or clicking in the window and typing `Control-C`.  The various screens and displays will spin in wait mode until you restart the primary program -- there is normally no need to restart or refresh them.
-
-- The white window is a normal browser.  If you look at the top, you will see two or more lines that tell you how to open more browsers and connect them to the primary server.
-
-  ![060_urls](img\LocalInstall\060_urls.png)
-
-  In this example the other laptops on the network would use the address `http://192.168.4.1:8080/` to communicate with the primary server.  "(wired)" refers to the fact that the primary laptop is connected via an Ethernet wire to its router -- see [Local Access](EquipmentSetup#local-access-over-a-local-network) for discussion.  When available, a wired connection is preferred.
-
-  The address <u>depends on your own specific networking setup</u> and you must use one of the addresses displayed **on your setup.**  If none of the addresses listed work, you will need to refer to the persons that set up the networking at your site and on your laptop.  A "proxy" or a "firewall", or some other technical configuration may be blocking access, or requiring a different address that the server can't discover.
-
-  ## Accessing the Program Files and Configuration
-
-  In order to uninstall owlcms4, to report problems, or to change some program configurations, you may need to access the program directory. In order to do so, right-click on the desktop shortcut and select "Open File Location"
-
-  ![070_openLocation](img\LocalInstall\070_openLocation.png)
-
-  If you do so, you will see the installation directory content:
-
-  ![080_files](img\LocalInstall\080_files.png)
-
-- `owlcms.exe` starts the owlcms server.  `demo-owlcms.exe` does the same, but using fictitious data that is reset anew on every start; this makes it perfect for practicing.
-
-- `unins000.exe` is the unistaller.  It will cleanly uninstall everything (including the database and logs, so be careful)
-
-- `database` contains a file ending in `.db` which contains competition data and is managed using the [H2 database engine](https://www.h2database.com/html/main.html). 
-
-- `logs` contains the execution journal of the program where the full details of what happened are written. If you report bugs, you will be asked to send a copy of the files found in that directory (and possibly a copy of the files in the database folder as well).
-
-- `local` is a directory that is used for translating the screens and documents to other languages, or to add alternate formats for results documents.
-
-- `jre`  contains the Java Runtime Environment
-
-- the file ending in `.jar` is the OWLCMS application in executable format
-
-- the `owlcms.l4j.ini` file is used to override application settings (for example, to force the display language) or technical settings
-
-## Control Access to the Application
-
-Mischevious users can probably figure out your WiFi network password, and gain access to the application. To prevent this, you will need to start the application with an extra parameter.
-
-- `PIN` is an arbitrary strings of characters that will be requested when starting the first screen whenever you start a new session (typically, once per browser, or when the system is restarted). 
-
-- On Windows, go to the installation directory (see [Accessing the Program Files and Configuration](LocalSetup#control-access-to-the-application) for how) and right-click on the `owlcms.l4j.ini` file; select `Edit` and add a line that reads 
-
-  ```
-  -DPIN=5612
-  ```
-
-  to define the pin (use your own value instead of 5612, obviously).  You can then use `owlcms.exe` as usual
+- **Click on this link [owlcms_controlpanel.exe](https://github.com/owlcms/owlcms-controlpanel/releases/latest/download/owlcms_controlpanel.exe)** to start the download process.  You can also go to the [release downloads area](https://github.com/owlcms/owlcms-controlpanel/releases) and click on the file called owlcms-controlpanel.exe
+  - You will immediately get a warning that the file is not commonly downloaded.
 
 
-## Defining the language
+![edge20](nimg/1100WindowsExe/edge20.png)
 
-You can use the same technique as for the PIN to force a language to be used on all the screens.  By default, OWLCMS will respect the browser settings.  To force a locale (say Canadian French, whose code is `fr_CA`)-- a locale is a language with possible per-country variations --  you can
+- Move your cursor to the warning, until you see the ... appear at the right.  
 
--  define the Java system property `locale` (small letters) using the syntax 
-  `java -Dlocale=fr_CA` (on Windows, add `-Dlocale=fr_CA` to the `owlcms.l4j.ini` file).  
-- Alternately, define the environment variable `LOCALE` with the value `fr_CA` 
+![edge30](nimg/1100WindowsExe/edge30.png)
 
-If neither `-Dlocale` or `LOCALE` are defined, the [language setting](Preparation#display-language) from the competition information page is used.
+- CLick on the ... and select the option to keep
 
-## Configuration Parameters
+![edge40](nimg/1100WindowsExe/edge40.png)
 
-See the [Configuration Parameters](Configuration.md  ' :include') page to see additional configuration options in addition to the ones presented on this page.
+- You are now asked to confirm your confirmation again (!) Click the "Show" item at the bottom, and then click on "Keep Anyway"
+
+![edge50](nimg/1100WindowsExe/edge50.png)
+
+- The file will *finally* download.  
+- Locate the folder icon at the top of the box to open the Downloads folder
+
+![edge60](nimg/1100WindowsExe/edge60.png)
+
+You can also use the ... menu at the top right of the browser, and then scroll down to the "Downloads area". Once you select that you will see a list and you will also see options to open the Downloads folder.
+
+### Installing
+
+- Once you have opened the Downloads folder, locate the `owlcms_controlpanel` file (you may or may not see a `.exe` extension depending on your Windows settings.)
+- Drag the owlcms_controlpanel file to the Desktop (or if you prefer, copy and paste the file to your Desktop)
+  - You can rename it or place it anywhere you want.
+
+![edge70](nimg/1100WindowsExe/edge80.png)
+
+
+
+- To finish installing the program, double-click on the icon you created on the Desktop
+  - The first time you run the file, it is possible that Windows will complain with a blue Warning.  Should that be the case Click on **More Info** and then, at the bottom, click on **Run Anyway**
+
+- The first time you run the Control Panel, it will detect that no version is installed and download the current version of owlcms, and the Java runtime files necessary to execute it.
+
+![firefox80](nimg/1100WindowsExe/firefox80.png)
+
+- You will then see the Control Panel
+
+### Running owlcms
+
+- Once this is done, you can **follow the steps shown in the [Local Control Panel Overview](LocalControlPanel)**

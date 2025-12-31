@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.results;
 
 import java.util.ArrayList;
@@ -13,6 +19,7 @@ import com.vaadin.flow.component.combobox.ComboBox;
 
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
@@ -25,6 +32,14 @@ import ch.qos.logback.classic.Logger;
 public interface IFilterCascade {
 
 	final static Logger logger = (Logger) LoggerFactory.getLogger(IFilterCascade.class);
+
+	default public void clearFilters() {
+		this.getAgeGroupFilter().clear();
+		this.getChampionshipFilter().clear();
+		this.getCategoryFilter().clear();
+		this.getGenderFilter().clear();
+	}
+
 	default public void defineFilterCascade(GridCrud<Athlete> crud) {
 
 		if (this.getChampionshipFilter() == null) {
@@ -33,7 +48,7 @@ public interface IFilterCascade {
 		this.getChampionshipFilter().setPlaceholder(Translator.translate("Championship"));
 		this.getChampionshipFilter().setWidth("25ch");
 		this.setChampionshipItems(Championship.findAllUsed(true));
-		this.getChampionshipFilter().setItems(this.getChampionshipItems());
+		this.getChampionshipFilter().setItems(this.getChampionshipItems().stream().sorted((o1, o2) -> o1.getName().compareTo(o2.getName())).toList());
 		this.getChampionshipFilter().setItemLabelGenerator((ad) -> ad.translate());
 		this.getChampionshipFilter().setClearButtonVisible(true);
 		this.getChampionshipFilter().getStyle().set("margin-left", "1em");
@@ -42,7 +57,7 @@ public interface IFilterCascade {
 			this.setAgeGroupFilter(new ComboBox<>());
 		}
 		this.getAgeGroupFilter().setPlaceholder(Translator.translate("AgeGroup"));
-		//this.getAgeGroupFilter().setEnabled(false);
+		// this.getAgeGroupFilter().setEnabled(false);
 		this.getAgeGroupFilter().setVisible(false);
 		this.getAgeGroupFilter().setClearButtonVisible(true);
 		this.getAgeGroupFilter().setValue(null);
@@ -73,9 +88,10 @@ public interface IFilterCascade {
 			this.getGenderFilter().setPlaceholder(Translator.translate("Gender"));
 			this.getGenderFilter().setItems(Gender.M, Gender.F);
 			this.getGenderFilter().setItemLabelGenerator((i) -> {
-				return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
+				return i.asGenderName();
 			});
 			this.getGenderFilter().setClearButtonVisible(true);
+			this.getGenderFilter().setValue(getGender());
 			this.getGenderFilter().addValueChangeListener(e -> {
 				this.setGender(e.getValue());
 				crud.refreshGrid();
@@ -83,13 +99,6 @@ public interface IFilterCascade {
 			this.getGenderFilter().setWidth("10em");
 			getCrudLayout(crud).addFilterComponent(this.getGenderFilter());
 		}
-	}
-
-	default public void clearFilters() {
-		this.getAgeGroupFilter().clear();
-		this.getChampionshipFilter().clear();
-		this.getCategoryFilter().clear();
-		this.getGenderFilter().clear();
 	}
 
 	default public void defineSelectionListeners() {
@@ -203,11 +212,11 @@ public interface IFilterCascade {
 			this.setChampionshipAgeGroupPrefixes(AgeGroupRepository.findActiveAndUsedAgeGroupNames(championshipValue));
 			List<String> championshipAgeGroupPrefixes = this.getChampionshipAgeGroupPrefixes();
 			this.getAgeGroupFilter().setItems(championshipAgeGroupPrefixes);
-			
+
 			boolean notEmpty = championshipAgeGroupPrefixes.size() > 0;
-			//this.getAgeGroupFilter().setEnabled(notEmpty);
+			// this.getAgeGroupFilter().setEnabled(notEmpty);
 			this.getAgeGroupFilter().setVisible(championshipAgeGroupPrefixes.size() > 1);
-			String first = (notEmpty && championshipValue == Championship.of(Championship.IWF))
+			String first = (notEmpty && championshipValue.getType() == ChampionshipType.IWF)
 			        || (championshipAgeGroupPrefixes.size() == 1)
 			                ? championshipAgeGroupPrefixes.get(0)
 			                : null;

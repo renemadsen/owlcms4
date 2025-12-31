@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.IRankHolder;
@@ -31,8 +32,8 @@ import ch.qos.logback.classic.Logger;
 /**
  * Fake athlete that belongs to a single category.
  *
- * Used to produce results and team rankings for a given eligibility category. Use athlete as a basis, and a copy of the
- * participation to the eligible category to recover ranks and points.
+ * Used to produce results and team rankings for a given eligibility category. Use athlete as a basis, and a copy of the participation to the eligible category
+ * to recover ranks and points.
  *
  * @author Jean-François Lamy
  *
@@ -48,17 +49,17 @@ public class PAthlete extends Athlete implements IRankHolder {
 	private Participation originalParticipation;
 	private Participation p;
 
-	public PAthlete(Participation p) {
-		this.a = p.getAthlete();
-		this.c = p.getCategory();
-		this.p = new Participation(p, this.a, this.c);
-		this.originalParticipation = p;
-	}
-
 	public PAthlete(Athlete a2) {
 		this.a = a2;
 		this.c = a2.getCategory();
 		this.p = a2.getMainRankings();
+		this.originalParticipation = this.p;
+	}
+
+	public PAthlete(Participation p) {
+		this.a = p.getAthlete();
+		this.c = p.getCategory();
+		this.p = new Participation(p, this.a, this.c);
 		this.originalParticipation = p;
 	}
 
@@ -125,7 +126,8 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public AgeGroup getAgeGroup() {
-		return this.p.getCategory().getAgeGroup();
+		Category category = getCategory();
+		return category != null ? category.getAgeGroup() : null;
 	}
 
 	@Override
@@ -149,6 +151,21 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
+	public LocalDateTime getBestCleanJerkAttemptTime() {
+		return this.a.getBestCleanJerkAttemptTime();
+	}
+
+	@Override
+	public int getBestLifterRank() {
+		return this.a.getBestLifterRank();
+	}
+
+	@Override
+	public Double getBestLifterScore() {
+		return this.a.getBestLifterScore();
+	}
+
+	@Override
 	public int getBestResultAttemptNumber() {
 		return this.a.getBestResultAttemptNumber();
 	}
@@ -161,6 +178,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public int getBestSnatchAttemptNumber() {
 		return this.a.getBestSnatchAttemptNumber();
+	}
+
+	@Override
+	public LocalDateTime getBestSnatchAttemptTime() {
+		return this.a.getBestSnatchAttemptTime();
 	}
 
 	@Override
@@ -185,7 +207,53 @@ public class PAthlete extends Athlete implements IRankHolder {
 
 	@Override
 	public String getCategoryCode() {
-		return this.a.getCategoryCode();
+		Category category = getCategory();
+		return category != null ? category.getCode() : null;
+	}
+
+	@Override
+	public Boolean getCategoryFinished() {
+		var allUnfinished = AthleteRepository.getAllUnfinishedCategories();
+		String code = this.c.getCode();
+		boolean contains = allUnfinished.contains(code);
+		return !contains;
+	}
+	
+	@Override
+	public Double getCategoryScoreForDelta() {
+		return this.a.getCategoryScoreForDelta();
+	}
+	
+	@Override
+	@Transient
+	@JsonIgnore
+	public String getCategorySortCode() {
+		Category sortCategory = getMainRankings().getCategory();
+		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "-";
+		// logger.debug("a {} category {} sortCode {}", getAbbreviatedName(), getCategory(), sortCategory.getSortCode());
+		return sortCode;
+	}
+	
+	@Override
+	public void setCategoryScoreForDelta(Double ignored) {
+		// ignored, necessary for bean introspection
+	}
+	
+	@Override
+	public Double getCategoryScore() {
+		// use ranking calculation with the PAthlete category.
+		Double categoryScore = this.p.getCategoryScore();
+		return categoryScore;
+	}
+
+	@Override
+	public void setCategoryScore(Double ignored) {
+		// ignored, necessary for bean introspection
+	}
+
+	@Override
+	public int getCategoryScoreRank() {
+		return this.p.getCategoryScoreRank();
 	}
 
 	@Override
@@ -384,13 +452,9 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
-	public Double getCustomScoreComputed() {
-		return this.a.getCustomScoreComputed();
-	}
-
-	@Override
 	public String getDisplayCategory() {
-		return this.p.getCategory().getDisplayName();
+		Category category = this.getCategory();
+		return category != null ? category.getDisplayName() : null;
 	}
 
 	@Override
@@ -566,6 +630,21 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
+	public Double getQAge() {
+		return this.a.getQAge();
+	}
+	
+	@Override
+	public Double getQAgeForDelta() {
+		return this.a.getQAge();
+	}
+
+	@Override
+	public int getqAgeRank() {
+		return this.a.getqAgeRank();
+	}
+
+	@Override
 	public Integer getQualifyingTotal() {
 		return this.a.getQualifyingTotal();
 	}
@@ -603,11 +682,6 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public String getRoundedBodyWeight() {
 		return this.a.getRoundedBodyWeight();
-	}
-
-	@Override
-	public Double getScore() {
-		return this.a.getScore();
 	}
 
 	@Override
@@ -651,18 +725,18 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
-	public Double getSmfForDelta() {
-		return this.a.getSmfForDelta();
+	public Double getSmhf() {
+		return this.a.getSmhf();
 	}
 
 	@Override
-	public Double getSmm() {
-		return this.a.getSmm();
+	public Double getSmhfForDelta() {
+		return this.a.getSmhfForDelta();
 	}
 
 	@Override
-	public int getSmmRank() {
-		return this.a.getSmmRank();
+	public int getSmhfRank() {
+		return this.a.getSmhfRank();
 	}
 
 	@Override
@@ -851,10 +925,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 		return this.a.getTotal();
 	}
 
-	@Override
-	public int getTotalPoints() {
-		return this.p.getTotalPoints();
-	}
+	// use Athlete implementation on this.
+//	@Override
+//	public int getTotalPoints() {
+//		return this.p.getTotalPoints();
+//	}
 
 	@Override
 	public int getTotalRank() {
@@ -877,6 +952,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public boolean isATeamMember() {
 		return this.a.isATeamMember();
+	}
+
+	@Override
+	public Boolean isCategoryFinished() {
+		return getCategoryFinished();
 	}
 
 	@Override
@@ -920,8 +1000,18 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
+	public void setCategoryFinished(Boolean done) {
+		this.a.setCategoryFinished(done);
+	}
+
+	@Override
 	public void setCatSinclairRank(int i) {
 		this.a.setCatSinclairRank(i);
+	}
+	
+	@Override
+	public void setCatQPointsRank(int i) {
+		this.a.setCatQPointsRank(i);
 	}
 
 	@Override
@@ -955,6 +1045,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
+	public void setqAgeRank(int i) {
+		this.a.setqAgeRank(i);
+	}
+
+	@Override
 	public void setRobiRank(Integer robiRank) {
 		this.a.setRobiRank(robiRank);
 	}
@@ -970,8 +1065,8 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
-	public void setSmmRank(int i) {
-		this.a.setSmmRank(i);
+	public void setSmhfRank(int i) {
+		this.a.setSmhfRank(i);
 	}
 
 	@Override
@@ -1014,5 +1109,15 @@ public class PAthlete extends Athlete implements IRankHolder {
 		// super is used because we want the methods from PAthlete to be called
 		// and we don't want to copy the code.
 		return super.toStringRanks();
+	}
+	
+	@Override
+	public String getFederationCodes() {
+		return this.a.getFederationCodes();
+	}
+	
+	@Override
+	public void setFederationCodes(String federationCodes) {
+		this.a.setFederationCodes(federationCodes);
 	}
 }

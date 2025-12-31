@@ -16,6 +16,7 @@
 *.ear
 *.tar.gz
 *.rar
+*.tgz
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
@@ -34,3 +35,11 @@ database/owlcms.mv.db
 /.moquette_uuid
 /fly.toml
 /mqttData/
+/nohup.out
+.idea/
+*.mp4
+owlcms/.classpath
+/alpha.md
+/beta.md
+/rc.md
+/release.md

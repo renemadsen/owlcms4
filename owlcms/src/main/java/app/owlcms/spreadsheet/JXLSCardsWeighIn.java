@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -8,6 +8,7 @@ package app.owlcms.spreadsheet;
 
 import java.util.List;
 
+import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +35,13 @@ public class JXLSCardsWeighIn extends JXLSCardsDocs {
 			List<Athlete> registrationOrderCopy = AthleteSorter
 			        .registrationOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(null, null));
 			return registrationOrderCopy;
+		}
+	}
+
+	@Override
+	protected void postProcess(Workbook workbook) {
+		if (this.getPageLength() != null) {
+			setPageBreaks(workbook, 1, this.getPageLength());
 		}
 	}
 

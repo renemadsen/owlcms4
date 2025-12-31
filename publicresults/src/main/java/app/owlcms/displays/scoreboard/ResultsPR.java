@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-Fran�ois Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -39,13 +39,11 @@ import app.owlcms.publicresults.DecisionReceiverServlet;
 import app.owlcms.publicresults.TimerReceiverServlet;
 import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.uievents.BreakTimerEvent;
-import app.owlcms.uievents.BreakTimerEvent.BreakStart;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.DecisionEvent;
 import app.owlcms.uievents.DecisionEventType;
 import app.owlcms.uievents.UpdateEvent;
 import app.owlcms.utils.StartupUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import elemental.json.Json;
 import elemental.json.JsonArray;
@@ -67,12 +65,6 @@ public class ResultsPR extends LitTemplate
         implements DisplayParameters, HasDynamicTitle, SafeEventBusRegistrationPR {
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(ResultsPR.class);
-    final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
-
-    static {
-        logger.setLevel(Level.INFO);
-        uiEventLogger.setLevel(Level.INFO);
-    }
 
     @Id("timer-pr")
     private AthleteTimerElementPR timer; // Flow creates it
@@ -115,7 +107,7 @@ public class ResultsPR extends LitTemplate
         setDarkMode(true);
         setDefaultLeadersDisplay(true);
         setDefaultRecordsDisplay(true);
-        setDefaultLiftingOrderDisplay(false);
+        //setDefaultLiftingOrderDisplay(false);
         setShowInitialDialog(false);
         this.getElement().setProperty("autoversion", StartupUtils.getAutoVersion());
     }
@@ -480,14 +472,16 @@ public class ResultsPR extends LitTemplate
                 logger.debug("### not in a group");
                 doDone(e.getFullName());
                 this.needReset = true;
-            } else if ("BREAK".equals(fopState)) {
-                logger.debug("### in a break {}", e.getBreakType());
-                // also trigger a break timer event to make sure we are in sync with owlcms
-                BreakStart breakStart = new BreakStart(e.getBreakRemaining(), e.isIndefinite());
-                breakStart.setFopName(e.getFopName());
-                TimerReceiverServlet.getEventBus().post(breakStart);
-                this.needReset = true;
-            } else if (!this.needReset) {
+            } 
+//            else if ("BREAK".equals(fopState)) {
+//                logger.debug("### in a break {}", e.getBreakType());
+//                // also trigger a break timer event to make sure we are in sync with owlcms
+//                BreakStart breakStart = new BreakStart(e.getBreakRemaining(), e.isIndefinite());
+//                breakStart.setFopName(e.getFopName());
+//                TimerReceiverServlet.getEventBus().post(breakStart);
+//                this.needReset = true;
+//            } 
+            else if (!this.needReset) {
                 // logger.debug("no reset");
             } else {
                 logger.debug("### resetting becase of ranking update");
@@ -518,7 +512,6 @@ public class ResultsPR extends LitTemplate
         getEventObserver().setTitle(fopName2);
         
         UpdateEvent initEvent = UpdateReceiverServlet.sync(fopName2);
-        //FIXME: set timers based on last received timer event.
         if (initEvent != null) {
             slaveUpdateEvent(initEvent);
             this.timer.slaveOrderUpdated(initEvent);
@@ -526,6 +519,9 @@ public class ResultsPR extends LitTemplate
             getElement().setProperty("fulName", Translator.translate("WaitingForSite"));
             getElement().setProperty("groupInfo", "");
         }
+        
+       TimerReceiverServlet.syncAthleteTimer(fopName2, this.timer);
+       TimerReceiverServlet.syncBreakTimer(fopName2, this.breakTimer);
     }
 
     /**

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -24,6 +24,7 @@ public class OverallRankSetter {
 			case TOTAL:
 			case SNATCH_CJ_TOTAL:
 			case CUSTOM:
+			case CATEGORY_SCORE:
 				throw new RuntimeException("using OverallRankSetter on a category-specific ranking");
 			case BW_SINCLAIR:
 				a.setSinclairRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
@@ -31,25 +32,34 @@ public class OverallRankSetter {
 			case CAT_SINCLAIR:
 				a.setCatSinclairRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
+			case CAT_QPOINTS:
+				a.setCatQPointsRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				break;
 			case ROBI:
 				a.setRobiRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 			case SMM:
-				a.setSmmRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				a.setSmhfRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 			case QPOINTS:
 				a.setqPointsRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
+			case QAGE:
+				a.setQMastersRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				break;
 			case GAMX:
-				a.setGmaxRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				a.setGamxRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
+				break;
+			case AGEFACTORS:
+				a.setQYouthRank(eligible ? (zero ? 0 : incrementRank(r)) : -1);
 				break;
 		}
 	}
 
 	private int incrementRank(Ranking ranking) {
-		rank++;
-		//logger.debug("incrementing ranking {} to {}", ranking, rank);
-		return rank;
+		this.rank++;
+		// logger.debug("incrementing ranking {} to {}", ranking, rank);
+		return this.rank;
 	}
 
 }

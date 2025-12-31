@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -53,6 +53,7 @@ import com.vaadin.flow.server.StreamResource;
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
@@ -118,8 +119,7 @@ public class TeamSelectionContent extends BaseContent
 	private JXLSCompetitionBook xlsWriter;
 
 	/**
-	 * Instantiates a new announcer content. Does nothing. Content is created in
-	 * {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
+	 * Instantiates a new announcer content. Does nothing. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
 	 */
 	public TeamSelectionContent() {
 		OwlcmsFactory.waitDBInitialized();
@@ -155,15 +155,15 @@ public class TeamSelectionContent extends BaseContent
 
 		this.topBar.getStyle().set("flex", "100 1");
 		this.topBar.removeAll();
-		//this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
+		// this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 		return this.topBar;
 	}
 
 	/**
-	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a
-	 * TreeGrid and a LazyCrudListener<TeamTreeItem>()
+	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a TreeGrid and a
+	 * LazyCrudListener<TeamTreeItem>()
 	 *
 	 * @see TreeDataProvider
 	 * @see org.vaadin.crudui.crud.CrudListener#findAll()
@@ -245,11 +245,9 @@ public class TeamSelectionContent extends BaseContent
 	 * Note: because we have the @Route, the parameters are parsed *before* our parent layout is created.
 	 *
 	 * @param event     Vaadin navigation event
-	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query
-	 *                  parameters instead.
+	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query parameters instead.
 	 *
-	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
@@ -275,7 +273,7 @@ public class TeamSelectionContent extends BaseContent
 		params.remove("fop");
 
 		// change the URL to reflect group
-		event.getUI().getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
 		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -293,7 +291,7 @@ public class TeamSelectionContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(),null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -332,7 +330,6 @@ public class TeamSelectionContent extends BaseContent
 		})).setHeader(Translator.translate("Name")).setWidth("32ch");
 		grid.addColumn(TeamTreeItem::getCategory).setHeader(Translator.translate("Category"))
 		        .setTextAlign(ColumnTextAlign.CENTER);
-
 
 		ComponentRenderer<Component, TeamTreeItem> warningRenderer = new ComponentRenderer<>(p -> {
 			if (p.isWarning()) {
@@ -458,7 +455,7 @@ public class TeamSelectionContent extends BaseContent
 			this.genderFilter.setPlaceholder(Translator.translate("Gender"));
 			this.genderFilter.setItems(Gender.M, Gender.F);
 			this.genderFilter.setItemLabelGenerator((i) -> {
-				return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
+				return i.asGenderName();
 			});
 			this.genderFilter.setClearButtonVisible(true);
 			this.genderFilter.addValueChangeListener(e -> {
@@ -542,7 +539,7 @@ public class TeamSelectionContent extends BaseContent
 			this.topBarAgeGroupPrefixSelect.setItems(ageDivisionAgeGroupPrefixes);
 			boolean notEmpty = ageDivisionAgeGroupPrefixes.size() > 0;
 			this.topBarAgeGroupPrefixSelect.setEnabled(notEmpty);
-			String first = (notEmpty && ageDivisionValue == Championship.of(Championship.IWF)) ? ageDivisionAgeGroupPrefixes.get(0)
+			String first = (notEmpty && ageDivisionValue.getType() == ChampionshipType.IWF) ? ageDivisionAgeGroupPrefixes.get(0)
 			        : null;
 			// logger.debug("ad {} ag {} first {} select {}", ageDivisionValue,
 			// ageDivisionAgeGroupPrefixes, first,

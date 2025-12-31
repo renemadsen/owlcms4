@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -82,6 +82,7 @@ public class Config {
 			if (ConfigRepository.findAll().isEmpty()) {
 				Config config = new Config();
 				config.setMqttInternal(true);
+				config.setLocalDateTimeUtcNormalized(true);
 				Config.setCurrent(config);
 			}
 			return null;
@@ -140,13 +141,20 @@ public class Config {
 	private Boolean useCompetitionDate;
 	@Column(columnDefinition = "boolean default true")
 	private Boolean mqttInternal = true;
-	@Column(columnDefinition = "varchar(255) default 'css/nogrid'")
+	@Column(columnDefinition = "varchar(255) default 'css/transparent'")
 	private String stylesDirectory;
-	@Column(name = "videoStylesDirectory", columnDefinition = "varchar(255) default 'css/nogrid'")
+	@Column(name = "videoStylesDirectory", columnDefinition = "varchar(255) default 'css/transparent'")
 	private String videoStylesDirectory;
 	@Transient
 	@JsonIgnore
 	private IConfig mqttConfig;
+	private String videoColorOverrides;
+	private Boolean enableColorOverrides;
+	/**
+	 * Indicates if LocalDateTime fields have been normalized to UTC timestamps
+	 */
+	@Column(columnDefinition = "boolean default false")
+	private boolean localDateTimeUtcNormalized = false;
 
 	public String computeSalt() {
 		this.setSalt(null);
@@ -181,7 +189,6 @@ public class Config {
 			return !trueIfPresent;
 		}
 		String[] switches = paramFeatureSwitches.toLowerCase().split("[,; ]");
-		//logger.debug("featureSwitches {}",Arrays.asList(switches));
 		boolean present = Arrays.asList(switches).contains(string.toLowerCase());
 		return trueIfPresent ? present : !present;
 	}
@@ -673,7 +680,7 @@ public class Config {
 			// get from database
 			param = Config.getCurrent().getVideoStylesDirectory();
 			if (param == null || param.isBlank()) {
-				param = "css/nogrid";
+				param = "css/transparent";
 			}
 		}
 		Path ldpd = ResourceWalker.getLocalDirPath();
@@ -685,7 +692,7 @@ public class Config {
 			Path ldp = ldpd.resolve("css/" + param);
 			boolean predefinedStyleName = isPredefinedStyle(param);
 			if (!Files.exists(ldp) && !predefinedStyleName) {
-				param = "css/nogrid";
+				param = "css/transparent";
 				String message = "{} does not exist, using default css/nogrid as default video styles";
 				Main.getStartupLogger().error(message, ldp.toAbsolutePath());
 				logger./**/error(message, ldp.toAbsolutePath());
@@ -809,9 +816,10 @@ public class Config {
 	@JsonIgnore
 	public boolean isUseCompetitionDate() {
 		if (this.useCompetitionDate == null) {
-			this.useCompetitionDate = StartupUtils.getBooleanParam("useCompetitionDate");
+			this.useCompetitionDate = StartupUtils.getBooleanParamOrElseNull("useCompetitionDate");
 		}
-		return this.useCompetitionDate;
+		// if not defined, use the competition date as stored in the database
+		return this.useCompetitionDate != null ? this.useCompetitionDate : true;
 	}
 
 	public void setClearZip(boolean clearZipRequested) {
@@ -932,7 +940,11 @@ public class Config {
 	}
 
 	public void setPublicResultsURL(String publicResultsURL) {
-		this.publicResultsURL = publicResultsURL;
+		if (publicResultsURL != null && !publicResultsURL.startsWith("http")) {
+			this.publicResultsURL = "https://"+publicResultsURL;
+		} else {
+			this.publicResultsURL = publicResultsURL;
+		}
 	}
 
 	public void setSkipReading(boolean b) {
@@ -988,6 +1000,30 @@ public class Config {
 	private void setSalt(String salt) {
 		this.salt = salt;
 		logger.debug("setting salt to {}", this.salt);
+	}
+
+	public String getVideoColorOverrides() {
+		return videoColorOverrides;
+	}
+
+	public void setVideoColorOverrides(String videoColorOverrides) {
+		this.videoColorOverrides = videoColorOverrides;
+	}
+
+	public Boolean getEnableColorOverrides() {
+		return Boolean.TRUE.equals(this.enableColorOverrides);
+	}
+
+	public void setEnableColorOverrides(Boolean enableColorOverrides) {
+		this.enableColorOverrides = enableColorOverrides;
+	}
+
+	public boolean isLocalDateTimeUtcNormalized() {
+		return localDateTimeUtcNormalized;
+	}
+
+	public void setLocalDateTimeUtcNormalized(boolean normalized) {
+		this.localDateTimeUtcNormalized = normalized;
 	}
 
 }

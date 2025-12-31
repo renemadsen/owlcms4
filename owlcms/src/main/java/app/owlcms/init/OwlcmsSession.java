@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -44,6 +44,64 @@ public class OwlcmsSession {
 		logger.setLevel(Level.INFO);
 	}
 
+	public static Locale computeLocale() {
+		Locale locale = (Locale) getAttribute(LOCALE);
+		if (locale != null) {
+			return locale;
+		}
+		locale = Translator.getForcedLocale();
+		if (locale != null) {
+			// logger.debug("forced locale {}",locale);
+		}
+
+		UI currentUi = UI.getCurrent();
+		if (locale == null && currentUi != null) {
+			locale = currentUi.getLocale();
+
+			final var loc = locale;
+			// is Browser language supported
+			List<Locale> locales = Translator.getAvailableLocales();
+			boolean supported = locales.stream().anyMatch(l -> l.getLanguage().equals(loc.getLanguage()));
+			if (!supported) {
+				locale = null;
+				logger.debug("browser locale = {}", locale);
+			} else {
+				logger.debug("using browser locale = {}", locale);
+			}
+		}
+
+		// get first defined locale from translation file, else default
+		if (locale == null) {
+			List<Locale> locales = Translator.getAvailableLocales();
+			if (locales != null && !locales.isEmpty()) {
+				locale = locales.get(0);
+			} else {
+				// defensive, can't happen
+				locale = Locale.ENGLISH;
+			}
+		}
+
+		if (locale.getCountry() == "") {
+			// add the country from Locale.getDefault -- probably the country we're running
+			// in.
+			// this may result in strange things for cloud -- such as es_US but the locale
+			// logic will not
+			// find es_US and will fall back to using es
+			// this will however work for en_US and en_UK and en_CA when running on a
+			// laptop, for date formats.
+			String country = Locale.getDefault().getCountry();
+			String variant = locale.getVariant();
+			String language = locale.getLanguage();
+			locale = new Locale(language, country, variant);
+		}
+		if (currentUi != null) {
+			currentUi.setLocale(locale);
+			setAttribute(LOCALE, locale);
+		}
+
+		return locale;
+	}
+
 	/**
 	 * Gets the attribute.
 	 *
@@ -59,7 +117,7 @@ public class OwlcmsSession {
 		if (currentVaadinSession != null) {
 			OwlcmsSession owlcmsSession = (OwlcmsSession) currentVaadinSession.getAttribute("owlcmsSession");
 			if (owlcmsSession == null) {
-				//logger.trace("creating new OwlcmsSession {}", LoggerUtils.whereFrom());
+				// logger.trace("creating new OwlcmsSession {}", LoggerUtils.whereFrom());
 				owlcmsSession = new OwlcmsSession();
 				currentVaadinSession.setAttribute("owlcmsSession", owlcmsSession);
 			}
@@ -75,10 +133,10 @@ public class OwlcmsSession {
 
 	public static FieldOfPlay getFop() {
 		FieldOfPlay fop = (FieldOfPlay) getAttribute(FOP);
-//		if (fop == null) {
-//			//fop = OwlcmsFactory.getDefaultFOP();
-//			throw new RuntimeException("no fop set");
-//		}
+		// if (fop == null) {
+		// //fop = OwlcmsFactory.getDefaultFOP();
+		// throw new RuntimeException("no fop set");
+		// }
 		return fop;
 	}
 
@@ -116,6 +174,11 @@ public class OwlcmsSession {
 		return (String) getAttribute(REQUESTED_URL);
 	}
 
+	public static void invalidate() {
+		VaadinSession currentVaadinSession = VaadinSession.getCurrent();
+		currentVaadinSession.getSession().invalidate();
+	}
+
 	public static boolean isAuthenticated() {
 		return Boolean.TRUE.equals(getAttribute(AUTHENTICATED));
 	}
@@ -147,7 +210,7 @@ public class OwlcmsSession {
 	}
 
 	public static void setFop(FieldOfPlay fop) {
-		//logger.debug("setFop {} from {}", (fop != null ? fop.getName() : null), LoggerUtils.whereFrom());
+		// logger.debug("setFop {} from {}", (fop != null ? fop.getName() : null), LoggerUtils.whereFrom());
 		setAttribute(FOP, fop);
 	}
 
@@ -169,49 +232,6 @@ public class OwlcmsSession {
 		}
 	}
 
-	public static Locale computeLocale() {
-		Locale locale = (Locale) getAttribute(LOCALE);
-		if (locale != null) {
-			return locale;
-		}
-		locale = Translator.getForcedLocale();
-		
-		UI currentUi = UI.getCurrent();
-		if (locale == null && currentUi != null) {
-			locale = currentUi.getLocale();
-			logger.trace("browser locale = {}", locale);
-		}
-
-		// get first defined locale from translation file, else default
-		if (locale == null) {
-			List<Locale> locales = Translator.getAvailableLocales();
-			if (locales != null && !locales.isEmpty()) {
-				locale = locales.get(0);
-			} else {
-				// defensive, can't happen
-				locale = Locale.ENGLISH;
-			}
-		}
-
-		if (locale.getCountry() == "") {
-			// add the country from Locale.getDefault -- probably the country we're running
-			// in.
-			// this may result in strange things for cloud -- such as es_US but the locale
-			// logic will not
-			// find es_US and will fall back to using es
-			// this will however work for en_US and en_UK and en_CA when running on a
-			// laptop, for date formats.
-			String country = Locale.getDefault().getCountry();
-			String variant = locale.getVariant();
-			String language = locale.getLanguage();
-			locale = new Locale(language, country, variant);
-		}
-		if (currentUi != null) {
-			currentUi.setLocale(locale);
-		}
-		return locale;
-	}
-
 	private Properties attributes = new Properties();
 
 	public OwlcmsSession() {
@@ -227,11 +247,6 @@ public class OwlcmsSession {
 		} else {
 			setAttribute(LOCALE, locale);
 		}
-	}
-
-	public static void invalidate() {
-		VaadinSession currentVaadinSession = VaadinSession.getCurrent();
-		currentVaadinSession.getSession().invalidate();
 	}
 
 }

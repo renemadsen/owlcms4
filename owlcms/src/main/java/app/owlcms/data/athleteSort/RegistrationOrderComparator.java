@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -16,6 +16,7 @@ import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
+import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -27,10 +28,7 @@ import ch.qos.logback.classic.Logger;
 public class RegistrationOrderComparator extends AbstractLifterComparator implements Comparator<Athlete> {
 
 	static Logger logger = (Logger) LoggerFactory.getLogger(RegistrationOrderComparator.class);
-	
-
 	public static Comparator<AgeGroup> ageGroupRegistrationComparator = AgeGroup.registrationComparator;
-	
 	public static Comparator<Category> categoryRegistrationComparator = (category1, category2) -> {
 		if (category1 == null && category2 == null) {
 			return 0;
@@ -39,15 +37,15 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		} else if (category1 == null) {
 			return 1; // category1 is null, goes to the end
 		}
-		
+
 		int compare;
-		
+
 		compare = ObjectUtils.compare(category1.getCode(), category2.getCode());
 		if (compare == 0) {
-			// shortcut.  identical codes are identical
+			// shortcut. identical codes are identical
 			return compare;
 		}
-		
+
 		compare = ObjectUtils.compare(category1.getGender(), category2.getGender());
 		if (compare != 0) {
 			traceComparison("categoryRegistrationComparator gender", category1, category1.getGender(), category2, category2.getGender(), compare);
@@ -59,30 +57,113 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		Double value2 = category2.getMaximumWeight();
 		compare = ObjectUtils.compare(value1, value2);
 		if (compare != 0) {
-			traceComparison("categoryRegistrationComparator maximum weight", category1, category1.getMaximumWeight(), category2, category2.getMaximumWeight(), compare);		
+			traceComparison("categoryRegistrationComparator maximum weight", category1, category1.getMaximumWeight(), category2, category2.getMaximumWeight(),
+			        compare);
 			return compare;
 		}
-		
+
 		if (!Competition.getCurrent().isDisplayByAgeGroup() && Config.getCurrent().featureSwitch("bwClassThenAgeGroup")) {
 			// for scoreboard readability, we group by age group within the bodyweight category.
 			// (used in South America)
 			compare = AgeGroup.registrationComparator.compare(category1.getAgeGroup(), category2.getAgeGroup());
 			if (compare != 0) {
-				traceComparison("categoryRegistrationComparator agegroup", category1, category1.getAgeGroup(), category2, category2.getAgeGroup(), compare);		
+				traceComparison("categoryRegistrationComparator agegroup", category1, category1.getAgeGroup(), category2, category2.getAgeGroup(), compare);
 				return compare;
 			}
 		}
+
+		if (Competition.getCurrent().isDisplayByAgeGroup()) {
+			// multiple age groups with same boundaries
+			return ObjectUtils.compare(category1.getAgeGroup().getCode(), category2.getAgeGroup().getCode());
+		}
 		return compare;
 	};
-	
+	public static Comparator<Category> categoryReportOrderComparator = (category1, category2) -> {
+		if (category1 == null && category2 == null) {
+			return 0;
+		} else if (category2 == null) {
+			return -1; // category1 is smaller than null -- category2 goes to the end;
+		} else if (category1 == null) {
+			return 1; // category1 is null, goes to the end
+		}
+
+		int compare;
+
+		compare = ObjectUtils.compare(category1.getCode(), category2.getCode());
+		if (compare == 0) {
+			// shortcut. identical codes are identical
+			return compare;
+		}
+
+		compare = ObjectUtils.compare(category1.getGender(), category2.getGender());
+		if (compare != 0) {
+			traceComparison("categoryDisplayComparator gender", category1, category1.getGender(), category2, category2.getGender(), compare);
+			return compare;
+		}
+
+		compare = AgeGroup.registrationComparator.compare(category1.getAgeGroup(), category2.getAgeGroup());
+		if (compare != 0) {
+			traceComparison("categoryDisplayComparator agegroup", category1, category1.getAgeGroup(), category2, category2.getAgeGroup(), compare);
+			return compare;
+		}
+
+		// same division, same gender, rank according to maximumWeight.
+		Double value1 = category1.getMaximumWeight();
+		Double value2 = category2.getMaximumWeight();
+		compare = ObjectUtils.compare(value1, value2);
+		if (compare != 0) {
+			traceComparison("categoryDisplayComparator maximum weight", category1, category1.getMaximumWeight(), category2, category2.getMaximumWeight(),
+			        compare);
+			return compare;
+		}
+
+		// multiple age groups with same boundaries
+		return ObjectUtils.compare(category1.getAgeGroup().getCode(), category2.getAgeGroup().getCode());
+	};
+	public static Comparator<Athlete> athleteReportOrderComparator = (lifter1, lifter2) -> {
+		int compare;
+
+		Category a = lifter1.getCategory();
+		Category b = lifter2.getCategory();
+		compare = categoryReportOrderComparator.compare(a, b);
+		if (compare != 0) {
+			traceComparison("RegistrationOrderComparator category", lifter1, a, lifter2, b, compare);
+			return compare;
+		}
+
+		compare = compareLotNumber(lifter1, lifter2);
+		if (compare != 0) {
+			return compare;
+		}
+
+		compare = compareLastName(lifter1, lifter2);
+		if (compare != 0) {
+			return compare;
+		}
+
+		compare = compareFirstName(lifter1, lifter2);
+		if (compare != 0) {
+			return compare;
+		}
+
+		return compare;
+	};
 	public static Comparator<Athlete> athleteRegistrationOrderComparator = (lifter1, lifter2) -> {
 		int compare;
-		if (Competition.getCurrent().isDisplayByAgeGroup() || Competition.getCurrent().isMasters()) {
+		// normally part of the same group when this is called, but never too careful.
+		// both athletes are lifting in Masters sessions
+		Group group1 = lifter1.getGroup();
+		boolean lifter1Masters = group1 != null ? group1.isMasters() : false;
+		Group group2 = lifter2.getGroup();
+		boolean lifter2Masters = group2 != null ? group2.isMasters() : false;
+		boolean bothMasters = lifter1Masters && lifter2Masters;
+		
+		if (Competition.getCurrent().isDisplayByAgeGroup() || bothMasters) {
 			compare = ageGroupRegistrationComparator.compare(lifter1.getAgeGroup(), lifter2.getAgeGroup());
 			if (compare != 0) {
 				traceComparison("RegistrationOrderComparator ageGroup", lifter1, lifter1.getAgeGroup(), lifter2,
 				        lifter2.getAgeGroup(), compare);
-				return Competition.getCurrent().isMasters() ? -compare : compare;
+				return bothMasters ? -compare : compare;
 			}
 		} else {
 			compare = ObjectUtils.compare(lifter1.getGender(), lifter2.getGender());
@@ -118,7 +199,6 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 
 		return compare;
 	};
-	
 	public static Comparator<Athlete> athleteSessionRegistrationOrderComparator = (lifter1, lifter2) -> {
 		return AbstractLifterComparator.athleteSessionComparator.thenComparing(athleteRegistrationOrderComparator).compare(lifter1, lifter2);
 	};

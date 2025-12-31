@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -12,12 +12,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.LoggerFactory;
 
 import com.google.common.eventbus.AsyncEventBus;
 import com.google.common.eventbus.EventBus;
-import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.UpdateEvent;
@@ -32,6 +33,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 
 @WebServlet("/update")
 public class UpdateReceiverServlet extends HttpServlet implements Traceable {
@@ -41,6 +43,8 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
             Executors.newCachedThreadPool());
     private static Map<String, UpdateEvent> updateCache = new HashMap<>();
     static long lastUpdate = 0;
+    private static final int WAIT_FOR_CONFIG = 5 * 1000; // 5 seconds
+    private static final Lock configLock = new ReentrantLock();
 
     public static EventBus getEventBus() {
         return eventBus;
@@ -70,7 +74,6 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
     private String secret = StartupUtils.getStringParam("updateKey");
 
     public UpdateReceiverServlet() {
-        this.getLogger().setLevel(Level.DEBUG);
     }
 
     /**
@@ -91,8 +94,11 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
      */
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
-        logger.debug("updatereceiverservlet vaadin session {}",VaadinSession.getCurrent());
         try {
+            HttpSession session = req.getSession(false);
+            if (session != null) {
+                session.invalidate();
+            }
             String updateKey = req.getParameter("updateKey");
             if (updateKey == null || !updateKey.equals(this.secret)) {
                 this.getLogger().error("denying access from {} expected {} got {} ", req.getRemoteHost(), this.secret,
@@ -101,19 +107,15 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
                 return;
             }
 
-            if (ResourceWalker.getLocalDirPath() == null) {
-                String message = "Local override directory not present: requesting remote configuration files.";
-                this.getLogger().info(message);
-                this.getLogger().info("requesting customization");
-                resp.sendError(412, "Missing configuration files.");
+            if (requestConfigIfMissing(resp)) {
                 return;
             }
 
             if (StartupUtils.isDebugSetting()) {
-                this.getLogger().setLevel(Level.DEBUG);
+                this.getLogger().setLevel/**/(Level.DEBUG);
                 Set<Entry<String, String[]>> pairs = req.getParameterMap().entrySet();
                 if (StartupUtils.isTraceSetting()) {
-                    this.getLogger()./**/trace("update received from {}", ProxyUtils.getClientIp(req));
+                    this.getLogger().trace("update received from {}", ProxyUtils.getClientIp(req));
                     tracePairs(pairs);
                 }
             }
@@ -161,7 +163,12 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
             String mode = req.getParameter("mode");
             updateEvent.setMode(mode);
             
-            TimerReceiverServlet.processTimerReq(req, null, getLogger());
+            String breakTimerEventTypeString = req.getParameter("breakTimerEventType");
+            // we only process the break timer events. athlete timers wait until next FOP events.
+            if (breakTimerEventTypeString != null) {
+                logger.debug("processing break keepalive");
+                TimerReceiverServlet.processTimerReq(req, null, getLogger());
+            }
 
             String breakTypeString = req.getParameter("breakType");
             updateEvent.setBreak("true".equalsIgnoreCase(req.getParameter("break")));
@@ -189,7 +196,7 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
                 // short time range, is this a duplicate?
                 UpdateEvent prevUpdate = updateCache.get(fopName);
                 if (prevUpdate != null && updateEvent.getHashCode() == prevUpdate.getHashCode()) {
-                    this.getLogger()./**/warn("duplicate event ignored");
+                    this.getLogger().debug("duplicate event ignored");
                 } else {
                     updateCache.put(fopName, updateEvent);
                     eventBus.post(updateEvent);
@@ -207,6 +214,30 @@ public class UpdateReceiverServlet extends HttpServlet implements Traceable {
         } catch (Exception e) {
             this.getLogger().error(LoggerUtils.stackTrace(e));
         }
+    }
+
+    public boolean requestConfigIfMissing(HttpServletResponse resp) throws IOException {
+        boolean doReturn = false;
+        if (ResourceWalker.getLocalDirPath() == null) {
+            if (configLock.tryLock()) {
+                try {
+                    String message = "Local override directory not present: requesting remote configuration files.";
+                    this.getLogger().info(message);
+                    this.getLogger().info("requesting customization");
+                    resp.sendError(412, "Missing configuration files.");
+                    doReturn = true;
+                    Thread.sleep(WAIT_FOR_CONFIG);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    configLock.unlock();
+                }
+            } else {
+                this.getLogger().info("configuration has already been requested, exiting");
+                doReturn = true;
+            }
+        }
+        return doReturn;
     }
 
     @Override

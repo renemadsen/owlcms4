@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -17,6 +17,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.LoggerFactory;
 
 import app.owlcms.Main;
 import app.owlcms.apputils.DebugUtils;
@@ -31,13 +32,16 @@ import app.owlcms.data.jpa.JPAService;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 
 public class AthleteSorterTest {
 
     private static final Level LOGGER_LEVEL = Level.OFF;
+    Logger logger = (Logger) LoggerFactory.getLogger(AthleteSorterTest.class);
 
     @BeforeClass
     public static void setupTests() {
+        JPAService.close(); // We need to close the database connection so that we can reload the database.
         Main.injectSuppliers();
         JPAService.init(true, true);
         Config.initConfig();
@@ -55,7 +59,7 @@ public class AthleteSorterTest {
     public void initialCheck() {
         final String resName = "/initialCheck.txt";
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.assignStartNumbers(athletes);
+        AthleteSorter.doAssignStartNumbers(athletes);
 
         // Collections.shuffle(athletes);
 
@@ -73,7 +77,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.assignStartNumbers(athletes);
+        AthleteSorter.doAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -114,7 +118,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.assignStartNumbers(athletes);
+        AthleteSorter.doAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -158,7 +162,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.assignStartNumbers(athletes);
+        AthleteSorter.doAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -515,7 +519,6 @@ public class AthleteSorterTest {
     /**
      * Current lifter fails.
      *
-     * @param lifter
      * @param lifters1
      */
     private void failedLift(List<Athlete> lifters1) {
@@ -533,7 +536,7 @@ public class AthleteSorterTest {
     /**
      * Current lifter has successul lift
      *
-     * @param lifter
+     * @param lifters1
      */
     private void successfulLift(List<Athlete> lifters1) {
         final Athlete lifter = lifters1.get(0);

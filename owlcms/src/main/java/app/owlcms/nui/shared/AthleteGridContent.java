@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -277,6 +277,13 @@ public abstract class AthleteGridContent extends BaseContent
 	private long previousToggleMillis;
 	private HorizontalLayout decisionLights;
 	private String stopButtonVariant;
+	ArrayList<Notification> recordNotifications;
+	protected Notification stoppageAckNotification;
+	protected UI currentUI;
+
+	private void addRecordNotification(Notification n) {
+		recordNotifications.add(n);
+	}
 
 	/**
 	 * Instantiates a new announcer content. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
@@ -285,6 +292,7 @@ public abstract class AthleteGridContent extends BaseContent
 		init();
 		this.stopButtonVariant = Config.getCurrent().featureSwitch("blackStopButton") ? "contrast" : "error";
 		this.breakTimerElement = new BreakTimerElement();
+		this.recordNotifications = new ArrayList<>();
 	}
 
 	/**
@@ -308,29 +316,29 @@ public abstract class AthleteGridContent extends BaseContent
 		this.breakButton.getStyle().set("color", "white");
 		this.breakButton.getStyle().set("background-color", "var(--lumo-error-color)");
 		// breakButton.setText(Translator.translate("BreakButton.Paused"));
-		fop = this.getFop();
-		//OwlcmsSession.withFop(fop -> {
-			IBreakTimer breakTimer = fop.getBreakTimer();
-			if (!breakTimer.isIndefinite()) {
-				BreakTimerElement bte = (BreakTimerElement) getBreakTimerElement();
-				bte.syncWithFopTimer(fop);
-				bte.setParent(this.getClass().getSimpleName() + "_" + this.id);
-				this.breakButton.setIcon(bte);
-				this.breakButton.setIconAfterText(true);
-			}
+		this.fop = this.getFop();
+		// OwlcmsSession.withFop(fop -> {
+		IBreakTimer breakTimer = this.fop.getBreakTimer();
+		if (!breakTimer.isIndefinite()) {
+			BreakTimerElement bte = (BreakTimerElement) getBreakTimerElement();
+			bte.syncWithFopTimer(this.fop);
+			bte.setParent(this.getClass().getSimpleName() + "_" + this.id);
+			this.breakButton.setIcon(bte);
+			this.breakButton.setIconAfterText(true);
+		}
 
-			if (fop.getCeremonyType() != null) {
-				this.breakButton.setText(Translator.translate("CeremonyType." + fop.getCeremonyType()));
+		if (this.fop.getCeremonyType() != null) {
+			this.breakButton.setText(Translator.translate("CeremonyType." + this.fop.getCeremonyType()));
+		} else {
+			BreakType breakType = this.fop.getBreakType();
+			if (breakType != null) {
+				this.breakButton.setText(Translator.translate("BreakType." + breakType) + "\u00a0\u00a0");
 			} else {
-				BreakType breakType = fop.getBreakType();
-				if (breakType != null) {
-					this.breakButton.setText(Translator.translate("BreakType." + breakType) + "\u00a0\u00a0");
-				} else {
-					logger.error("null break type {}", LoggerUtils.stackTrace());
-					this.breakButton.setText(Translator.translate("BreakButton.Paused") + "\u00a0\u00a0");
-				}
+				// break done. the button will be hidden in a subsequent step.
+				this.breakButton.setText(Translator.translate("BreakButton.Paused") + "\u00a0\u00a0");
 			}
-		//});
+		}
+		// });
 
 	}
 
@@ -631,7 +639,9 @@ public abstract class AthleteGridContent extends BaseContent
 
 			// logger.debug("%%%%%%% starting break {}", LoggerUtils./**/stackTrace());
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 		});
+
 	}
 
 	@Subscribe
@@ -663,8 +673,25 @@ public abstract class AthleteGridContent extends BaseContent
 	@Subscribe
 	public void slaveCeremonyStarted(UIEvent.CeremonyStarted e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
 			doCeremony(e);
 		});
+	}
+
+	@Subscribe
+	public void slaveDecision(UIEvent.Decision e) {
+		Athlete athlete = e.getAthlete();
+		UIEventProcessor.uiAccess(this.topBar, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
+			warnOthersIfCurrent(e, athlete, e.getFop());
+		});
+	}
+
+	private synchronized void clearRecordNotifications() {
+		for (Notification n : recordNotifications) {
+			n.close();
+		}
+		recordNotifications.clear();
 	}
 
 	@Subscribe
@@ -675,15 +702,15 @@ public abstract class AthleteGridContent extends BaseContent
 			// doUpdateTopBar(fop.getCurAthlete(), 0);
 			getRouterLayout().setMenuArea(createInitialBar());
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 		});
-
 	}
 
 	@Subscribe
 	public void slaveJuryNotification(UIEvent.JuryNotification e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			JuryDeliberationEventType et = e.getDeliberationEventType();
-			if (e.isRequestForAnnounce()) {
+			if (e.isWaitForAnnouncer()) {
 				return;
 			}
 			String text = "";
@@ -775,6 +802,19 @@ public abstract class AthleteGridContent extends BaseContent
 	}
 
 	@Subscribe
+	public void slaveRecordNotification(UIEvent.RecordNotification e) {
+		if (this instanceof MarshallContent) {
+			return;
+		}
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
+			Notification n = e.doNotification();
+			if (!e.isNewRecord()) {
+				addRecordNotification(n);
+			}
+		});
+	}
+
+	@Subscribe
 	public void slaveSetTimer(UIEvent.SetTime e) {
 		// we use stop because it is present on most screens; either button ok for
 		// locking
@@ -787,9 +827,11 @@ public abstract class AthleteGridContent extends BaseContent
 
 	@Subscribe
 	public void slaveStartLifting(UIEvent.StartLifting e) {
+		notifications.clear();
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			logger.trace("starting lifting");
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 			this.summonNotificationSent = false;
 			this.deliberationNotificationSent = false;
 		});
@@ -799,6 +841,7 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveStartTimer(UIEvent.StartTime e) {
 		// we use stop because it is present on most screens; either button ok for
 		// locking
+		notifications.clear();
 		if (this.stopTimeButton == null) {
 			return;
 		}
@@ -808,6 +851,7 @@ public abstract class AthleteGridContent extends BaseContent
 
 	@Subscribe
 	public void slaveStopTimer(UIEvent.StopTime e) {
+		notifications.clear();
 		// we use stop because it is present on most screens; either button ok for
 		// locking
 		if (this.stopTimeButton == null) {
@@ -821,6 +865,7 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			syncWithFop(true, e.getFop());
+			clearRecordNotifications();
 			updateURLLocation(getLocationUI(), getLocation(), e.getGroup());
 		});
 	}
@@ -831,17 +876,20 @@ public abstract class AthleteGridContent extends BaseContent
 		var fop = e.getFop();
 		// logger.debug("athletegrid slaveUpdateAnnouncerBar {}", fop.getName());
 		UIEventProcessor.uiAccess(this.topBar, this.uiEventBus, e, () -> {
+			clearRecordNotifications();
 			warnOthersIfCurrent(e, athlete, fop);
 			doUpdateTopBar(athlete, e.getTimeAllowed());
 		});
 	}
 
 	@Subscribe
-	public void slaveDecision(UIEvent.Decision e) {
-		Athlete athlete = e.getAthlete();
-		// logger.debug("athletegrid slaveDecision");
-		UIEventProcessor.uiAccess(this.topBar, this.uiEventBus, e, () -> {
-			warnOthersIfCurrent(e, athlete, e.getFop());
+	public void slaveUpdateGrid(UIEvent.Decision e) {
+		if (this.getCrudGrid() == null) {
+			return;
+		}
+		logger.debug("{} {}", e.getOrigin(), LoggerUtils.whereFrom());
+		UIEventProcessor.uiAccess(this.getCrudGrid(), this.uiEventBus, e, () -> {
+			this.getCrudGrid().refreshGrid();
 		});
 	}
 
@@ -852,17 +900,6 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	@Subscribe
 	public void slaveUpdateGrid(UIEvent.LiftingOrderUpdated e) {
-		if (this.getCrudGrid() == null) {
-			return;
-		}
-		logger.debug("{} {}", e.getOrigin(), LoggerUtils.whereFrom());
-		UIEventProcessor.uiAccess(this.getCrudGrid(), this.uiEventBus, e, () -> {
-			this.getCrudGrid().refreshGrid();
-		});
-	}
-
-	@Subscribe
-	public void slaveUpdateGrid(UIEvent.Decision e) {
 		if (this.getCrudGrid() == null) {
 			return;
 		}
@@ -1271,14 +1308,15 @@ public abstract class AthleteGridContent extends BaseContent
 
 	/**
 	 * Notifications for FOP events. Good/bad lifts are done in AnnouncerContent.
-	 * 
+	 *
 	 * Notification theme styling is done in META-INF/resources/frontend/styles/shared-styles.html
-	 * 
+	 *
 	 * @param text
 	 * @param theme
 	 */
+	
+	protected List<Notification> notifications = new ArrayList<>();
 	protected void doNotification(String text, String theme) {
-
 		Notification n = new Notification();
 		n.getElement().getThemeList().add(theme);
 		n.setDuration(6000);
@@ -1294,7 +1332,7 @@ public abstract class AthleteGridContent extends BaseContent
 			n.setPosition(Position.TOP_START);
 		}
 		n.add(label);
-		n.open();
+		notifications.add(n);
 		n.open();
 	}
 
@@ -1414,6 +1452,18 @@ public abstract class AthleteGridContent extends BaseContent
 		getTopBarLeft().setId("topBarLeft");
 	}
 
+	protected OwlcmsCrudGrid<Athlete> getCrudGrid() {
+		return this.crudGrid;
+	}
+
+	protected HorizontalLayout getDecisionLights() {
+		return this.decisionLights;
+	}
+
+	protected ComboBox<Gender> getGenderFilter() {
+		return this.genderFilter;
+	}
+
 	protected Object getOrigin() {
 		return this;
 	}
@@ -1440,6 +1490,7 @@ public abstract class AthleteGridContent extends BaseContent
 		this.setCrudGrid(createCrudGrid(crudFormFactory));
 		this.crudLayout = (OwlcmsGridLayout) this.getCrudGrid().getCrudLayout();
 		defineFilters(this.getCrudGrid());
+		this.getGroupFilter().setValue(getGroup());
 		fillHW(this.getCrudGrid(), this);
 		setDownSilenced(true);
 	}
@@ -1462,13 +1513,29 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-		// logger.debug("attaching {} initial={} \\n{}",
-		// this.getClass().getSimpleName(), attachEvent.isInitialAttach(),
-		// LoggerUtils. stackTrace());
+		currentUI = attachEvent.getUI();;
 		// create the top bar.
 		syncWithFop(true, getFop());
 		// we listen on uiEventBus.
 		this.uiEventBus = uiEventBusRegister(this, getFop());
+	}
+
+	// protected void syncWithFOP(boolean refreshGrid) {
+	// OwlcmsSession.withFop((fop) -> {
+	// syncWithFop(refreshGrid, fop);
+	// });
+	// }
+
+	protected void setCrudGrid(OwlcmsCrudGrid<Athlete> crudGrid) {
+		this.crudGrid = crudGrid;
+	}
+
+	protected void setDecisionLights(HorizontalLayout decisionLights) {
+		this.decisionLights = decisionLights;
+	}
+
+	protected void setGenderFilter(ComboBox<Gender> genderFilter) {
+		this.genderFilter = genderFilter;
 	}
 
 	protected void setGroupFilter(ComboBox<Group> groupFilter) {
@@ -1486,12 +1553,6 @@ public abstract class AthleteGridContent extends BaseContent
 		this.topBarTitle = title;
 	}
 
-	// protected void syncWithFOP(boolean refreshGrid) {
-	// OwlcmsSession.withFop((fop) -> {
-	// syncWithFop(refreshGrid, fop);
-	// });
-	// }
-
 	protected void syncWithFop(boolean refreshGrid, FieldOfPlay fop) {
 		createTopBarGroupSelect();
 
@@ -1502,9 +1563,9 @@ public abstract class AthleteGridContent extends BaseContent
 					// sort by start number by default.
 					// underlying source is lift order, so clearing the sort arrow gives back lift order.
 					List<GridSortOrder<Athlete>> sortOrder = new ArrayList<>();
-					Grid<Athlete> grid = crudGrid.getGrid();
+					Grid<Athlete> grid = this.crudGrid.getGrid();
 					Column<Athlete> col = grid.getColumnByKey("startNumber");
-					sortOrder.add(new GridSortOrder<Athlete>(col, SortDirection.ASCENDING));
+					sortOrder.add(new GridSortOrder<>(col, SortDirection.ASCENDING));
 					grid.sort(sortOrder);
 				} else {
 					// underlying order (lift order)
@@ -1624,7 +1685,7 @@ public abstract class AthleteGridContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(), null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -1698,7 +1759,7 @@ public abstract class AthleteGridContent extends BaseContent
 			} else {
 				text = Translator.translate("Weight_change_current_athlete", curDisplayAthlete.getFullName());
 			}
-			if (text != null) {
+			if (text != null && !ackDialogIsOpened()) {
 				doNotification(text, "warning");
 			}
 		}
@@ -1715,40 +1776,25 @@ public abstract class AthleteGridContent extends BaseContent
 			        && newWeight != null && newWeight > 0
 			        && Integer.compare(this.prevWeight, newWeight) != 0) {
 				// logger.debug("warnOthersIfCurrent {} {} {} -- {}", curAthlete, this.prevWeight, newWeight, LoggerUtils.whereFrom());
-				doNotification(Translator.translate("Notification.WeightToBeLoaded", newWeight), "info");
+				if (!ackDialogIsOpened()) {
+					doNotification(Translator.translate("Notification.WeightToBeLoaded", newWeight), "info");
+				}
 				this.prevWeight = newWeight;
 			}
 
 			if (e instanceof UIEvent.LiftingOrderUpdated && curDisplayAthlete != null && !curDisplayAthlete.equals(curAthlete)) {
 				String text = Translator.translate("ChangeOfAthlete", curAthlete.getFullName());
-				doNotification(text, "warning");
+				if (text != null && !ackDialogIsOpened()) {
+					doNotification(text, "warning");
+				}
 			}
+				
 		}
 
 	}
 
-	protected OwlcmsCrudGrid<Athlete> getCrudGrid() {
-		return crudGrid;
-	}
-
-	protected void setCrudGrid(OwlcmsCrudGrid<Athlete> crudGrid) {
-		this.crudGrid = crudGrid;
-	}
-
-	protected ComboBox<Gender> getGenderFilter() {
-		return genderFilter;
-	}
-
-	protected void setGenderFilter(ComboBox<Gender> genderFilter) {
-		this.genderFilter = genderFilter;
-	}
-
-	protected HorizontalLayout getDecisionLights() {
-		return decisionLights;
-	}
-
-	protected void setDecisionLights(HorizontalLayout decisionLights) {
-		this.decisionLights = decisionLights;
+	public boolean ackDialogIsOpened() {
+		return this.stoppageAckNotification != null && this.stoppageAckNotification.isOpened();
 	}
 
 }

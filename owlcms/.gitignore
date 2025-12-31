@@ -13,7 +13,8 @@
 /local-ru/
 /*.mjs
 /mqttData/
-/local__/
-/local_USAW
-/local_JFL/
-/local
+/local*
+/_local*
+/*.bak
+/.vaadin-node-tasks.lock
+/bin/

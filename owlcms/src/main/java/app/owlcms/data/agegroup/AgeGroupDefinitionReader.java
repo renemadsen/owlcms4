@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.text.MessageFormat;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
@@ -23,9 +24,12 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.LoggerFactory;
 
+import com.vaadin.flow.component.UI;
+
 import app.owlcms.Main;
 import app.owlcms.apputils.NotificationUtils;
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.category.RobiCategories;
@@ -37,24 +41,33 @@ import ch.qos.logback.classic.Logger;
 
 public class AgeGroupDefinitionReader {
 
+	private static final String AGE_GROUP_SCORING_HEADER = "agegroupscoring";
+	private static final String AGE_GROUP_BEST_ATHLETE = "agegroupbestathlete";
 	private static Logger logger = (Logger) LoggerFactory.getLogger(AgeGroupDefinitionReader.class);
+	static DataFormatter formatter = new DataFormatter();
+	private static int[] countDefaults = new int[Gender.values().length];
+	private static Map<String, AgeGroup> ageGroupByCode = new HashMap<>();
 
 	public static void doInsertRobiAndAgeGroups(InputStream ageGroupStream) {
 		Logger mainLogger = Main.getStartupLogger();
 		Map<String, Category> templates = loadRobi(mainLogger);
 		loadAgeGroupStream(null, "custom upload", mainLogger, templates, ageGroupStream);
-
 	}
 
 	static void createAgeGroups(Workbook workbook, Map<String, Category> templates,
 	        EnumSet<ChampionshipType> forcedInsertion,
 	        String localizedName) {
 
+		for (int i = 0; i < Gender.values().length; i++) {
+			countDefaults[i] = 0;
+		}
 		JPAService.runInTransaction(em -> {
 			// backward compatibility
 			Sheet sheet = workbook.getSheetAt(workbook.getNumberOfSheets() - 1);
 			Iterator<Row> rowIterator = sheet.rowIterator();
 			int iRow;
+			boolean ageGroupScoring = false;
+			boolean ageGroupBestAthlete = false;
 			rows: while (rowIterator.hasNext()) {
 				int iColumn;
 				Row row;
@@ -62,12 +75,29 @@ public class AgeGroupDefinitionReader {
 				iRow = row.getRowNum();
 				if (iRow == 0) {
 					// process header
-					row = rowIterator.next();
 					iRow = row.getRowNum();
+					Cell scoring = row.getCell(7);
+					if (scoring != null) {
+						try {
+							String lowerCase = scoring.getStringCellValue().toLowerCase();
+							ageGroupScoring = lowerCase.equals(AGE_GROUP_SCORING_HEADER);
+						} catch (Exception e) {
+						}
+					}
+					Cell bestAthlete = row.getCell(8);
+					if (bestAthlete != null) {
+						try {
+							String lowerCase = bestAthlete.getStringCellValue().toLowerCase();
+							ageGroupBestAthlete = lowerCase.equals(AGE_GROUP_BEST_ATHLETE);
+						} catch (Exception e) {
+						}
+					}
+					continue;
 				}
 
 				AgeGroup ag = null;
 				double curMin = 0.0D;
+				boolean skip = false;
 
 				Iterator<Cell> cellIterator = row.cellIterator();
 				String championshipName = null;
@@ -100,7 +130,18 @@ public class AgeGroupDefinitionReader {
 							break;
 						case 2: {
 							String cellValue = safeGetTextValue(cell);
-							ag.setAgeDivision(cellValue);
+							if (!cellValue.isBlank()) {
+								try {
+									ag.setAgeDivision(cellValue);
+									ag.setChampionshipType(ChampionshipType.valueOf(cellValue));
+								} catch (Exception e) {
+									reportError(iRow, iColumn, cellValue, new IllegalArgumentException("Unknown Championship Type " + cellValue));
+								}
+							} else {
+								ag.setAgeDivision(cellValue);
+								ag.setChampionshipType(ChampionshipType.U);
+							}
+
 							if (ag.getChampionshipType() == ChampionshipType.MASTERS) {
 								ag.setAlreadyGendered(true);
 							}
@@ -113,6 +154,25 @@ public class AgeGroupDefinitionReader {
 									ag.setGender(Gender.valueOf(cellValue));
 								} catch (IllegalArgumentException e) {
 									ag.setGender(cellValue.contentEquals("W") ? Gender.F : Gender.M);
+								}
+							}
+							if (ag.getGender() == null) {
+								reportError(iRow, iColumn, cellValue, new IllegalArgumentException("You must indicate a Gender M or F"));
+							} else if (ag.getChampionshipType() == ChampionshipType.DEFAULT) {
+								countDefaults[ag.getGender().ordinal()] = countDefaults[ag.getGender().ordinal()] + 1;
+								int nbDefaults = countDefaults[ag.getGender().ordinal()];
+								if (nbDefaults > 1) {
+									reportError(iRow, 0, safeGetTextValue(row.getCell(0)),
+									        new IllegalArgumentException("You can only have one DEFAULT for Men and one DEFAULT for Women"));
+								}
+							} else {
+								String code = ag.getKey();
+								if (code != null && (ageGroupByCode.get(code) != null)) {
+									reportError(iRow, iColumn, null, new IllegalArgumentException("Duplicate Age Group " + ag.getDisplayName() + " Ignored"));
+									skip = true;
+									ag = null;
+								} else {
+									ageGroupByCode.put(code, ag);
 								}
 							}
 						}
@@ -142,53 +202,85 @@ public class AgeGroupDefinitionReader {
 							}
 						}
 							break;
-						default: {
-							String cellValue = null;
-							try {
+						default:
+							if (skip) {
+								break;
+							}
+							if (ageGroupScoring && iColumn == 7) {
+								String cellValue = null;
 								cellValue = safeGetTextValue(cell);
-							} catch (IllegalStateException e) {
-								Double doubleValue = cell.getNumericCellValue();
-								if (doubleValue != null) {
-									cellValue = Integer.toString(doubleValue.intValue());
-								}
-							}
-							if (cellValue != null && !cellValue.trim().isEmpty()) {
-								String[] parts = cellValue.split("[-_. /]");
-								String catCode = parts.length > 0 ? parts[0] : cellValue;
-								String qualTotal = parts.length > 1 ? parts[1] : "0";
-								Category cat;
-								try {
-									Gender gender;
-									String upper;
-									if (catCode.matches("^[A-Za-z]\\d+$")) {
-										gender = Gender.valueOf(catCode.substring(0, 1));
-										upper = catCode.substring(1);
-									} else {
-										gender = ag.getGender();
-										upper = catCode;
+								if (cellValue != null && !cellValue.isBlank()) {
+									try {
+										String lowerCase = cellValue.toLowerCase();
+										Ranking rv = Ranking.rankingByReportingName.get(lowerCase);
+										if (rv == null) {
+											reportError(iRow, iColumn, cellValue, new IllegalArgumentException(lowerCase));
+										} else {
+											ag.setScoringSystem(rv);
+										}
+									} catch (Exception e) {
+										reportError(iRow, iColumn, cellValue, e);
 									}
-									cat = new Category(curMin, Double.parseDouble(upper),
-									        gender, ag.isActive(), 0, 0, 0,
-									        ag, Integer.parseInt(qualTotal));
-									em.persist(cat);
-									// logger.debug(cat.longDump());
-									curMin = cat.getMaximumWeight();
-								} catch (Exception e) {
-									String msg = MessageFormat.format(
-									        "cannot process cell {0} (content = \"{1}\") {2}",
-									        cellName(iColumn, iRow), cellValue, e);
-									logger.error(msg);
-									NotificationUtils.errorNotification(msg);
-									throw new RuntimeException(msg);
 								}
+							} else if (ageGroupBestAthlete && iColumn == 8) {
+								String cellValue = null;
+								cellValue = safeGetTextValue(cell);
+								if (cellValue != null && !cellValue.isBlank()) {
+									try {
+										String lowerCase = cellValue.toLowerCase();
+										Ranking rv = Ranking.rankingByReportingName.get(lowerCase);
+										if (rv == null) {
+											reportError(iRow, iColumn, cellValue, new IllegalArgumentException(lowerCase));
+										} else {
+											ag.setBestAthleteScoringSystem(rv);
+										}
+									} catch (Exception e) {
+										reportError(iRow, iColumn, cellValue, e);
+									}
+								}
+							} else {
+								String cellValue = null;
+								try {
+									cellValue = safeGetTextValue(cell);
+								} catch (IllegalStateException e) {
+									Double doubleValue = cell.getNumericCellValue();
+									if (doubleValue != null) {
+										cellValue = Integer.toString(doubleValue.intValue());
+									}
+								}
+								if (cellValue != null && !cellValue.trim().isEmpty()) {
+									String[] parts = cellValue.split("[-_. /]");
+									String catCode = parts.length > 0 ? parts[0] : cellValue;
+									String qualTotal = parts.length > 1 ? parts[1] : "0";
+									Category cat;
+									try {
+										Gender gender;
+										String upper;
+										if (catCode.matches("^[A-Za-z]\\d+$")) {
+											gender = Gender.valueOf(catCode.substring(0, 1));
+											upper = catCode.substring(1);
+										} else {
+											gender = ag.getGender();
+											upper = catCode;
+										}
+										cat = new Category(curMin, Double.parseDouble(upper),
+										        gender, ag.isActive(), 0, 0, 0,
+										        ag, Integer.parseInt(qualTotal));
+										em.persist(cat);
+										// logger.debug(cat.longDump());
+										curMin = cat.getMaximumWeight();
+									} catch (Exception e) {
+										reportError(iRow, iColumn, cellValue, e);
+									}
 
+								}
 							}
-						}
 							break;
 					}
 					iColumn++;
 				}
-				if (ag != null) {
+
+				if (ag != null && !skip) {
 					em.persist(ag);
 				}
 				iRow++;
@@ -199,36 +291,6 @@ public class AgeGroupDefinitionReader {
 
 			return null;
 		});
-	}
-
-	static DataFormatter formatter = new DataFormatter();
-
-	private static boolean getSafeBooleanValue(Cell cell) {
-		try {
-			return cell.getBooleanCellValue();
-		} catch (IllegalStateException e) {
-			if (cell.getCellType() == CellType.NUMERIC) {
-				String strValue = formatter.formatCellValue(cell);
-				return strValue.equalsIgnoreCase("true");
-			} else {
-				logger.error("cannot extract string from cell {}", cell.getAddress());
-				throw new IllegalStateException("cannot extract boolean from cell " + cell.getAddress());
-			}
-		}
-	}
-
-	private static String safeGetTextValue(Cell cell) {
-		try {
-			return cell.getStringCellValue();
-		} catch (IllegalStateException e) {
-			if (cell.getCellType() == CellType.NUMERIC) {
-				String strValue = formatter.formatCellValue(cell);
-				return strValue;
-			} else {
-				logger.error("cannot extract string from cell {}", cell.getAddress());
-				throw new IllegalStateException("cannot extract string from cell " + cell.getAddress());
-			}
-		}
 	}
 
 	static void doInsertRobiAndAgeGroups(EnumSet<ChampionshipType> forcedInsertion, String localizedFileName) {
@@ -253,6 +315,20 @@ public class AgeGroupDefinitionReader {
 		return ageGroupStream;
 	}
 
+	private static boolean getSafeBooleanValue(Cell cell) {
+		try {
+			return cell.getBooleanCellValue();
+		} catch (IllegalStateException e) {
+			if (cell.getCellType() == CellType.NUMERIC) {
+				String strValue = formatter.formatCellValue(cell);
+				return strValue.equalsIgnoreCase("true");
+			} else {
+				logger.error("cannot extract string from cell {}", cell.getAddress());
+				throw new IllegalStateException("cannot extract boolean from cell " + cell.getAddress());
+			}
+		}
+	}
+
 	private static void loadAgeGroupStream(EnumSet<ChampionshipType> forcedInsertion, String localizedName,
 	        Logger mainLogger,
 	        Map<String, Category> templates, InputStream localizedResourceAsStream1) {
@@ -260,6 +336,7 @@ public class AgeGroupDefinitionReader {
 		        .create(localizedResourceAsStream1)) {
 			logger.info("loading age group configuration file {}", localizedName);
 			mainLogger.info("loading age group definitions {}", localizedName);
+			ageGroupByCode.clear();
 			createAgeGroups(workbook, templates, forcedInsertion, localizedName);
 			Championship.reset();
 			CategoryRepository.resetCodeMap();
@@ -282,6 +359,39 @@ public class AgeGroupDefinitionReader {
 			mainLogger.error("could not process RobiCategories configuration. See logs for details");
 		}
 		return templates;
+	}
+
+	private static void reportError(int iRow, int iColumn, String cellValue, Exception e) {
+		String msg;
+		if (cellValue != null) {
+			msg = MessageFormat.format(
+			        "Cannot process cell {0} (content = \"{1}\") -- {2}",
+			        cellName(iColumn, iRow), cellValue, e.getMessage());
+			logger.error(msg);
+		} else {
+			msg = MessageFormat.format(
+			        "Cannot process cell {0} -- {1}",
+			        cellName(iColumn, iRow), e.getMessage());
+			logger.error(msg);
+		}
+
+		if (UI.getCurrent() != null) {
+			NotificationUtils.errorNotification(msg);
+		}
+	}
+
+	private static String safeGetTextValue(Cell cell) {
+		try {
+			return cell.getStringCellValue();
+		} catch (IllegalStateException e) {
+			if (cell.getCellType() == CellType.NUMERIC) {
+				String strValue = formatter.formatCellValue(cell);
+				return strValue;
+			} else {
+				logger.error("cannot extract string from cell {}", cell.getAddress());
+				throw new IllegalStateException("cannot extract string from cell " + cell.getAddress());
+			}
+		}
 	}
 
 }

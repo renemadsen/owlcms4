@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 import org.vaadin.crudui.crud.CrudOperation;
 import org.vaadin.crudui.crud.CrudOperationException;
@@ -45,6 +46,7 @@ import com.vaadin.flow.server.StreamResource;
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
@@ -104,8 +106,7 @@ public class TeamResultsContent extends BaseContent
 	private JXLSCompetitionBook xlsWriter;
 
 	/**
-	 * Instantiates a new announcer content. Does nothing. Content is created in
-	 * {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
+	 * Instantiates a new announcer content. Does nothing. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
 	 */
 	public TeamResultsContent() {
 		OwlcmsFactory.waitDBInitialized();
@@ -135,42 +136,21 @@ public class TeamResultsContent extends BaseContent
 		this.finalPackage.getStyle().set("margin-left", "1em");
 		this.download = new Button(Translator.translate(TITLE + ".Report"), new Icon(VaadinIcon.DOWNLOAD_ALT));
 
-		this.topBarAgeGroupPrefixSelect = new ComboBox<>();
-		this.topBarAgeGroupPrefixSelect.setPlaceholder(Translator.translate("AgeGroup"));
-
-		this.topBarAgeGroupPrefixSelect.setEnabled(false);
-		this.topBarAgeGroupPrefixSelect.setClearButtonVisible(true);
-		this.topBarAgeGroupPrefixSelect.setValue(null);
-		this.topBarAgeGroupPrefixSelect.setWidth("8em");
-		this.topBarAgeGroupPrefixSelect.setClearButtonVisible(true);
-		this.topBarAgeGroupPrefixSelect.getStyle().set("margin-left", "1em");
-		setAgeGroupPrefixSelectionListener();
-
-		this.topBarAgeDivisionSelect = new ComboBox<>();
-		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
-		this.adItems = Championship.findAll();
-		this.topBarAgeDivisionSelect.setItems(this.adItems);
-		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> Translator.translate("Division." + ad.getName()));
-		this.topBarAgeDivisionSelect.setClearButtonVisible(true);
-		this.topBarAgeDivisionSelect.setWidth("8em");
-		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
-		setAgeDivisionSelectionListener();
-
 		this.finalPackage.add(this.download);
 		HorizontalLayout buttons = new HorizontalLayout(this.finalPackage);
 		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
 
 		this.topBar.getStyle().set("flex", "100 1");
 		this.topBar.removeAll();
-		this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
+		// this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 		return this.topBar;
 	}
 
 	/**
-	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a
-	 * TreeGrid and a LazyCrudListener<TeamTreeItem>()
+	 * Get the content of the crudGrid. Invoked by refreshGrid. Not currently used because we are using instead a TreeGrid and a
+	 * LazyCrudListener<TeamTreeItem>()
 	 *
 	 * @see TreeDataProvider
 	 * @see org.vaadin.crudui.crud.CrudListener#findAll()
@@ -252,11 +232,9 @@ public class TeamResultsContent extends BaseContent
 	 * Note: because we have the @Route, the parameters are parsed *before* our parent layout is created.
 	 *
 	 * @param event     Vaadin navigation event
-	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query
-	 *                  parameters instead.
+	 * @param parameter null in this case -- we don't want a vaadin "/" parameter. This allows us to add query parameters instead.
 	 *
-	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.FOPParameters#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
@@ -282,7 +260,7 @@ public class TeamResultsContent extends BaseContent
 		params.remove("fop");
 
 		// change the URL to reflect group
-		event.getUI().getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
 		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -300,7 +278,7 @@ public class TeamResultsContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		ui.getPage().getHistory().replaceState(null,
+		URLUtils.replaceState(ui.getPage().getHistory(),null,
 		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
 	}
 
@@ -317,18 +295,40 @@ public class TeamResultsContent extends BaseContent
 	 */
 	protected OwlcmsCrudGrid<TeamTreeItem> createCrudGrid(OwlcmsCrudFormFactory<TeamTreeItem> crudFormFactory) {
 		TreeGrid<TeamTreeItem> grid = new TreeGrid<>();
-		grid.addHierarchyColumn(TeamTreeItem::formatName).setHeader(Translator.translate("Name"));
-		grid.addColumn(TeamTreeItem::getGender).setHeader(Translator.translate("Gender"))
-		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(TeamTreeItem::getCategory).setHeader(Translator.translate("Category"))
+		grid.addHierarchyColumn(TeamTreeItem::formatName)
+				.setHeader(Translator.translate("Name"))
+				.setWidth("32ch");
+		grid.addColumn(TeamTreeItem::getGender)
+				.setHeader(Translator.translate("Gender"))
+		        .setTextAlign(ColumnTextAlign.END)
+		        .setAutoWidth(true);
+		grid.addColumn(TeamTreeItem::getCategory)
+				.setHeader(Translator.translate("Category"))
+				.setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.CENTER);
-		grid.addColumn(TeamTreeItem::getPoints, "points").setHeader(Translator.translate("TeamResults.Points"))
+		grid.addColumn(TeamTreeItem::getPoints, "points")
+				.setHeader(Translator.translate("TeamResults.Points"))
+		        .setComparator((a, b) -> ObjectUtils.compare(a.getPoints(), b.getPoints(), false))
+				.setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getSinclairScore(), 3), "sinclairScore")
+		grid.addColumn(t -> formatDouble(t.getQPointsScore(), 3))
+		        .setHeader(Translator.translate("Ranking.QPOINTS"))
+		        .setComparator((a, b) -> ObjectUtils.compare(a.getSinclairScore(), b.getSinclairScore(), false))
+				.setAutoWidth(true)
+		        .setTextAlign(ColumnTextAlign.END);
+		grid.addColumn(t -> formatDouble(t.getQMastersScore(), 3))
+		        .setHeader(Translator.translate("Ranking.QAGE"))
+		        .setComparator((a, b) -> ObjectUtils.compare(a.getQMastersScore(), b.getQMastersScore(), false))
+				.setAutoWidth(true)
+		        .setTextAlign(ColumnTextAlign.END);
+		grid.addColumn(t -> formatDouble(t.getSinclairScore(), 3))
 		        .setHeader(Translator.translate("Scoreboard.Sinclair"))
+		        .setComparator((a, b) -> ObjectUtils.compare(a.getSinclairScore(), b.getSinclairScore(), false))
 		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getSmfScore(), 3), "smfScore")
-		        .setHeader(Translator.translate("smm"))
+		grid.addColumn(t -> formatDouble(t.getSmfScore(), 3))
+		        .setHeader(Translator.translate("smhf"))
+				.setAutoWidth(true)
+		        .setComparator((a, b) -> ObjectUtils.compare(a.getSmfScore(), b.getSmfScore(), false))
 		        .setTextAlign(ColumnTextAlign.END);
 		grid.addColumn(TeamTreeItem::formatProgress).setHeader(Translator.translate("TeamResults.Status"))
 		        .setTextAlign(ColumnTextAlign.END);
@@ -389,50 +389,43 @@ public class TeamResultsContent extends BaseContent
 		return crudGrid;
 	}
 
-	/**
-	 * We do not control the groups on other screens/displays
-	 *
-	 * @param crudGrid the crudGrid that will be filtered.
-	 */
 	protected void defineFilters(OwlcmsCrudGrid<TeamTreeItem> crudGrid2) {
-		// if (teamFilter == null) {
-		// teamFilter = new ComboBox<>();
-		// teamFilter.setPlaceholder(Translator.translate("Team"));
-		// teamFilter.setClearButtonVisible(true);
-		// teamFilter.addValueChangeListener(e -> {
-		// if (!teamFilterRecusion) return;
-		// crudGrid2.refreshGrid();
-		// });
-		// teamFilter.setWidth("10em");
-		// }
-		// crudGrid2.getCrudLayout().addFilterComponent(teamFilter);
+
+		this.topBarAgeGroupPrefixSelect = new ComboBox<>();
+		this.topBarAgeGroupPrefixSelect.setPlaceholder(Translator.translate("AgeGroup"));
+		this.topBarAgeGroupPrefixSelect.setEnabled(false);
+		this.topBarAgeGroupPrefixSelect.setClearButtonVisible(true);
+		this.topBarAgeGroupPrefixSelect.setValue(null);
+		this.topBarAgeGroupPrefixSelect.setWidth("15em");
+		this.topBarAgeGroupPrefixSelect.setClearButtonVisible(true);
+		this.topBarAgeGroupPrefixSelect.getStyle().set("margin-left", "1em");
+		setAgeGroupPrefixSelectionListener();
+
+		this.topBarAgeDivisionSelect = new ComboBox<>();
+		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
+		this.adItems = Championship.findAllUsed(true);
+		this.topBarAgeDivisionSelect.setItems(this.adItems);
+		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> ad.getName());
+		this.topBarAgeDivisionSelect.setClearButtonVisible(true);
+		this.topBarAgeDivisionSelect.setWidth("15em");
+		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
+		setAgeDivisionSelectionListener();
 
 		if (this.genderFilter == null) {
 			this.genderFilter = new ComboBox<>();
 			this.genderFilter.setPlaceholder(Translator.translate("Gender"));
-			this.genderFilter.setItems(Gender.M, Gender.F);
-			this.genderFilter.setItemLabelGenerator((i) -> {
-				return i == Gender.M ? Translator.translate("Gender.Men") : Translator.translate("Gender.Women");
-			});
+			this.genderFilter.setItems(Gender.M, Gender.F, Gender.MF);
+			this.genderFilter.setItemLabelGenerator((i) -> i.asGenderName());
 			this.genderFilter.setClearButtonVisible(true);
 			this.genderFilter.addValueChangeListener(e -> {
 				crudGrid2.refreshGrid();
 			});
-			this.genderFilter.setWidth("10em");
+			this.genderFilter.setWidth("15em");
 		}
-		crudGrid2.getCrudLayout().addFilterComponent(this.genderFilter);
 
-		// if (categoryFilter == null) {
-		// categoryFilter = new ComboBox<>();
-		// categoryFilter.setClearButtonVisible(true);
-		// categoryFilter.setPlaceholder(Translator.translate("Category"));
-		// categoryFilter.setClearButtonVisible(true);
-		// categoryFilter.addValueChangeListener(e -> {
-		// crudGrid2.refreshGrid();
-		// });
-		// categoryFilter.setWidth("10em");
-		// }
-		// crudGrid2.getCrudLayout().addFilterComponent(categoryFilter);
+		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeDivisionSelect);
+		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeGroupPrefixSelect);
+		crudGrid2.getCrudLayout().addFilterComponent(this.genderFilter);
 	}
 
 	/**
@@ -511,7 +504,7 @@ public class TeamResultsContent extends BaseContent
 			this.topBarAgeGroupPrefixSelect.setItems(ageDivisionAgeGroupPrefixes);
 			boolean notEmpty = ageDivisionAgeGroupPrefixes.size() > 0;
 			this.topBarAgeGroupPrefixSelect.setEnabled(notEmpty);
-			String first = (notEmpty && ageDivisionValue == Championship.of(Championship.IWF)) ? ageDivisionAgeGroupPrefixes.get(0)
+			String first = (notEmpty && ageDivisionValue.getType() == ChampionshipType.IWF) ? ageDivisionAgeGroupPrefixes.get(0)
 			        : null;
 			// logger.debug("ad {} ag {} first {} select {}", ageDivisionValue,
 			// ageDivisionAgeGroupPrefixes, first,

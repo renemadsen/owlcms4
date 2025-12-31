@@ -1,17 +1,32 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms;
+
+import org.eclipse.jetty.io.EofException;
+import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.page.AppShellConfigurator;
 import com.vaadin.flow.component.page.LoadingIndicatorConfiguration;
 import com.vaadin.flow.component.page.Push;
 import com.vaadin.flow.server.AppShellSettings;
+import com.vaadin.flow.server.ErrorEvent;
+import com.vaadin.flow.server.ErrorHandler;
 import com.vaadin.flow.server.ServiceInitEvent;
 import com.vaadin.flow.server.VaadinServiceInitListener;
 import com.vaadin.flow.server.VaadinServletResponse;
+import com.vaadin.flow.server.VaadinSession;
 import com.vaadin.flow.server.communication.IndexHtmlRequestListener;
 import com.vaadin.flow.server.communication.IndexHtmlResponse;
 import com.vaadin.flow.theme.Theme;
 
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
+import app.owlcms.servlet.StopProcessingException;
+import app.owlcms.utils.LoggerUtils;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
@@ -28,6 +43,7 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 	 */
 	@Override
 	public void configurePage(AppShellSettings settings) {
+		OwlcmsFactory.waitDBInitialized();
 		HttpServletResponse response = VaadinServletResponse.getCurrent().getHttpServletResponse();
 		response.addHeader("Content-Language", getCurrentUserLanguage());
 		// not a recommended practice
@@ -68,6 +84,21 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 			conf.setThirdDelay(5000); // 5000ms is the default
 		});
 		serviceInitEvent.addIndexHtmlRequestListener(this);
+
+		serviceInitEvent.getSource().addSessionInitListener(sessionInitEvent -> {
+			VaadinSession session = sessionInitEvent.getSession();
+			ErrorHandler handler = new ErrorHandler() {
+				@Override
+				public void error(ErrorEvent errorEvent) {
+					Throwable t = errorEvent.getThrowable();
+					if (!(t instanceof StopProcessingException) && !(t instanceof EofException)) {
+						LoggerFactory.getLogger("app.owlcms.errorHandler").warn("{}\n{}", t.toString(),
+						        LoggerUtils.shortStackTrace(t));
+					}
+				}
+			};
+			session.setErrorHandler(handler);
+		});
 	}
 
 	private String getCurrentUserLanguage() {

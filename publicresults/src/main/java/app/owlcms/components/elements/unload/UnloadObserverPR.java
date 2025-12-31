@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -28,7 +28,7 @@ import app.owlcms.displays.scoreboard.ResultsPR;
 import app.owlcms.prutils.SafeEventBusRegistrationPR;
 import app.owlcms.prutils.SessionCleanup;
 import app.owlcms.publicresults.MainView;
-import ch.qos.logback.classic.Level;
+import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -96,7 +96,6 @@ public final class UnloadObserverPR extends LitTemplate {
         this.component = c;
         ui.getPage().fetchCurrentURL(u -> setUrl(u));
         this.title = "";
-        logger.setLevel(Level.DEBUG);
 //        logger.debug("UnloadObserverPR={} (getElement()={}) component={} {}",
 //                System.identityHashCode(this), System.identityHashCode(this.getElement()),
 //                c.getClass().getSimpleName(), System.identityHashCode(c));
@@ -129,7 +128,10 @@ public final class UnloadObserverPR extends LitTemplate {
         if (!okClass()) {
             return;
         }
-        logger.debug("{} active {} {}", title, component.getClass().getSimpleName(), System.identityHashCode(component));
+        if (logger.isDebugEnabled()) {
+            logger.debug("{} active {} {} from {}", title, component.getClass().getSimpleName(),
+                    System.identityHashCode(component), LoggerUtils.whereFrom());
+        }
         VaadinSession vs = VaadinSession.getCurrent();
         vs.access(() -> {
             var im = getInactivityMap(vs);
@@ -321,7 +323,7 @@ public final class UnloadObserverPR extends LitTemplate {
     }
 
     public void setTitle(String title) {
-        //logger.trace("----------------- setTitle {} {}", title, LoggerUtils.whereFrom());
+        // logger.trace("----------------- setTitle {} {}", title, LoggerUtils.whereFrom());
         this.title = title;
     }
 }

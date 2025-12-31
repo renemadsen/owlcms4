@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-Fran�ois Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -53,7 +53,7 @@ import ch.qos.logback.classic.Logger;
  * This shows an overlay when competition events such as a record attempt or jury deliberation take place.
  *
  */
-// TODO: show record attempt and new record for a limited duration.
+// CODEREVIEW: show record attempt and new record for a limited duration.
 
 @SuppressWarnings({ "serial", "deprecation" })
 @Tag("eventmonitor-template")

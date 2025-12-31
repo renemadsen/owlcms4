@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -42,6 +42,7 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 		LocalDateTime minTime = LocalDateTime.MAX; // long time in the future
 		int nbAthletes;
 		int nbAttemptedLifts;
+		private int cJBreakSeconds;
 
 		public SessionStats() {
 		}
@@ -169,6 +170,15 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 			double hours = delta.getSeconds() / 3600.0D;
 			return hours;
 		}
+
+
+		public int getCJBreakSeconds() {
+			return cJBreakSeconds;
+		}
+
+		public void setCJBreakSeconds(int cJBreakSeconds) {
+			this.cJBreakSeconds = cJBreakSeconds;
+		}
 	}
 
 	public static String formatDuration(Duration duration) {
@@ -195,14 +205,14 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 
 		List<Athlete> athletes = AthleteRepository.findAllByGroupAndWeighIn(null, isExcludeNotWeighed());
 		athletes = AthleteSorter.registrationExportCopy(athletes);
-		
+
 		if (athletes.isEmpty()) {
 			// prevent outputting silliness.
 			throw new RuntimeException("");
 		} else {
 			this.logger.debug("{} athletes", athletes.size());
 		}
-		
+
 		List<Group> groups = GroupRepository.findAll();
 		groups.sort(Group.groupWeighinTimeComparator);
 
@@ -213,20 +223,23 @@ public class JXLSTimingStats extends JXLSWorkbookStreamSource {
 		for (Group curGroup : groups) {
 			String groupName = curGroup.getName();
 			curStat = new SessionStats(groupName);
+			curStat.setCJBreakSeconds(curGroup.getCleanJerkBreakMinutes()*60);
 			for (Athlete curAthlete : curGroup.getAthletes()) {
+
 				curGroup = curAthlete.getGroup();
 				if (curGroup == null) {
 					continue; // we simply skip over athletes with no groups
 				}
-	
+
 				// update stats, min, max.
 				curStat.setNbAthletes(curStat.getNbAthletes() + 1);
 				LocalDateTime minTime = curAthlete.getFirstAttemptedLiftTime();
+				//logger.debug("minTime {} {}",curAthlete.getAbbreviatedName(), minTime);
 				curStat.updateMinTime(minTime);
-	
+
 				LocalDateTime maxTime = curAthlete.getLastAttemptedLiftTime();
 				curStat.updateMaxTime(maxTime);
-	
+
 				int nbAttemptedLifts = curAthlete.getActuallyAttemptedLifts();
 				curStat.setNbAttemptedLifts(curStat.getNbAttemptedLifts() + nbAttemptedLifts);
 				this.logger.debug(curStat.toString());

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -24,28 +24,16 @@ import app.owlcms.utils.URLUtils;
 public class Team {
 
 	public static String[] flagExtensions = {
-		".svg",
-		".png",
-		".jpg",
-		".jpeg",
-		".webp"
+	        ".svg",
+	        ".png",
+	        ".jpg",
+	        ".jpeg",
+	        ".webp"
 	};
 	public static Comparator<Team> pointsComparator = ((a,
 	        b) -> -ObjectUtils.compare(a.getPoints(), b.getPoints(), true));
 	public static Comparator<Team> scoreComparator = ((a,
 	        b) -> -ObjectUtils.compare(a.getScore(), b.getScore(), true));
-	private int counted;
-	private Gender gender;
-	private String name;
-	private int points = 0;
-	private double sinclairScore = 0.0D;
-	private double catSinclairScore = 0.0D;
-	private long size;
-	private double smfScore = 0.0D;
-	private double robi = 0.0D;
-	private double gamx;
-	private double qPoints = 0.0D;
-	private Ranking scoringSystem;
 
 	public static String[] getFlagExtensions() {
 		return flagExtensions;
@@ -55,11 +43,26 @@ public class Team {
 		String teamFileName = URLUtils.sanitizeFilename(teamName);
 
 		return Arrays.stream(getFlagExtensions())
-			.map(ext -> URLUtils.getImgTag("flags/", teamFileName, ext, style))
-			.filter(img -> img != null)
-			.findFirst()
-			.orElse(null);
+		        .map(ext -> URLUtils.getImgTag("flags/", teamFileName, ext, style))
+		        .filter(img -> img != null)
+		        .findFirst()
+		        .orElse(null);
 	}
+
+	private int counted;
+	private Gender gender;
+	private String name;
+	private int points = 0;
+	private double sinclairScore = 0.0D;
+	private double catSinclairScore = 0.0D;
+	private double catQPointsScore = 0.0D;
+	private long size;
+	private double smfScore = 0.0D;
+	private double robi = 0.0D;
+	private double gamx;
+	private double qPoints = 0.0D;
+	private Ranking scoringSystem;
+	private double qMasters = 0.0D;
 
 	public Team(String curTeamName, Gender gender) {
 		this.name = curTeamName;
@@ -69,6 +72,10 @@ public class Team {
 
 	public double getCatSinclairScore() {
 		return this.catSinclairScore;
+	}
+	
+	public double getCatQPointsScore() {
+		return this.catQPointsScore;
 	}
 
 	public int getCounted() {
@@ -105,8 +112,12 @@ public class Team {
 				return getSinclairScore();
 			case CAT_SINCLAIR:
 				return getCatSinclairScore();
+			case CAT_QPOINTS:
+				return getCatQPointsScore();
 			case QPOINTS:
 				return getQPoints();
+			case QAGE:
+				return getQMasters();
 			case ROBI:
 				return getRobi();
 			case SMM:
@@ -116,6 +127,10 @@ public class Team {
 			default:
 				return 0D;
 		}
+	}
+
+	public Double getQMasters() {
+		return this.qMasters;
 	}
 
 	public double getSinclairScore() {
@@ -137,6 +152,10 @@ public class Team {
 		this.catSinclairScore = catSinclairScore;
 	}
 
+	public void setCatQPointsScore(double score) {
+		this.catQPointsScore = score;
+	}
+	
 	public void setCounted(int counted) {
 		this.counted = counted;
 	}
@@ -157,9 +176,14 @@ public class Team {
 		this.points = points;
 	}
 
-	public void setQPoints(double qPoints) {
-		this.qPoints = qPoints;
+	public void setQPoints(double q) {
+		this.qPoints = q;
 	}
+	
+	public void setQMasters(double q) {
+		this.qMasters = q;
+	}
+
 
 	public void setRobi(double robi) {
 		this.robi = robi;

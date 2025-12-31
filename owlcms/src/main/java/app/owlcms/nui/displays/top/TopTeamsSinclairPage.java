@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.displays.top;
 
 import java.util.HashMap;
@@ -23,6 +29,8 @@ import app.owlcms.apputils.queryparameters.TopParametersReader;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipType;
+import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
@@ -45,6 +53,7 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	private String ageGroupPrefix;
 	private Category category;
 	private AgeGroup ageGroup;
+	private Gender gender;
 
 	public TopTeamsSinclairPage() {
 		// intentionally empty. superclass will call init() as required.
@@ -56,25 +65,29 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	 */
 	@Override
 	public void addDialogContent(Component target, VerticalLayout vl) {
-		// logger.debug("addDialogContent ad={} ag={} darkMode={}", getAgeDivision(),
-		// getAgeGroupPrefix(),
-		// isDarkMode());
+		 logger.debug("addDialogContent ad={} ag={} darkMode={}", getChampionship(),
+		 getAgeGroupPrefix(),
+		 isDarkMode());
 
 		DisplayOptions.addLightingEntries(vl, target, this);
-		ComboBox<Championship> ageDivisionComboBox = new ComboBox<>();
+		
+		ComboBox<Championship> championshipComboBox = new ComboBox<>();
 		ComboBox<String> ageGroupPrefixComboBox = new ComboBox<>();
-		List<Championship> ageDivisions = Championship.findAll();
-		ageDivisionComboBox.setItems(ageDivisions);
-		ageDivisionComboBox.setPlaceholder(Translator.translate("Championship"));
-		ageDivisionComboBox.setClearButtonVisible(true);
-		ageDivisionComboBox.addValueChangeListener(e -> {
-			Championship ageDivision = e.getValue();
-			setChampionship(ageDivision);
+		// TODO check which one to
+		List<Championship> championships = Championship.findAllUsed(true);
+		// List<Championship> championships = Championship.findAll();
+		championshipComboBox.setItems(championships);
+		championshipComboBox.setItemLabelGenerator(c -> c.getName());
+		championshipComboBox.setPlaceholder(Translator.translate("Championship"));
+		championshipComboBox.setClearButtonVisible(true);
+		championshipComboBox.addValueChangeListener(e -> {
+			Championship championship = e.getValue();
+			setChampionship(championship);
 			String existingAgeGroupPrefix = getAgeGroupPrefix();
-			List<String> activeAgeGroups = setAgeGroupPrefixItems(ageGroupPrefixComboBox, ageDivision);
+			List<String> activeAgeGroups = setAgeGroupPrefixItems(ageGroupPrefixComboBox, championship);
 			if (existingAgeGroupPrefix != null) {
 				ageGroupPrefixComboBox.setValue(existingAgeGroupPrefix);
-			} else if (activeAgeGroups != null && !activeAgeGroups.isEmpty() && ageDivision != Championship.of(Championship.MASTERS)) {
+			} else if (activeAgeGroups != null && !activeAgeGroups.isEmpty() && championship.getType() != ChampionshipType.MASTERS) {
 				ageGroupPrefixComboBox.setValue(activeAgeGroups.get(0));
 			}
 		});
@@ -86,15 +99,27 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		});
 		setAgeGroupPrefixItems(ageGroupPrefixComboBox, getChampionship());
 		ageGroupPrefixComboBox.setValue(getAgeGroupPrefix());
-		ageDivisionComboBox.setValue(getChampionship());
-
+		championshipComboBox.setValue(getChampionship());
 		vl.add(new NativeLabel(Translator.translate("SelectAgeGroup")),
-		        new HorizontalLayout(ageDivisionComboBox, ageGroupPrefixComboBox));
-	}
-
-	@Override
-	public final Championship getChampionship() {
-		return this.ageDivision;
+		        new HorizontalLayout(championshipComboBox, ageGroupPrefixComboBox));
+		
+		ComboBox<Gender> genderComboBox = new ComboBox<>();
+		genderComboBox.setItems(Gender.values());
+		genderComboBox.setClearButtonVisible(true);
+		genderComboBox.setItemLabelGenerator(g -> {
+		    return switch (g) {
+		        case M -> Translator.translate("Gender.Men");
+		        case F -> Translator.translate("Gender.Women");
+		        case I -> Translator.translate("Gender.Women") + ", " + Translator.translate("Gender.Men");
+		        case MF -> Translator.translate("Gender.Mixed");
+		    };
+		});
+		genderComboBox.addValueChangeListener(event -> {
+			setGender(event.getValue());
+			updateURLLocations();
+		});
+		vl.add(new NativeLabel(Translator.translate("Scoreboard.SelectGenders")),
+		        new HorizontalLayout(genderComboBox));
 	}
 
 	@Override
@@ -112,6 +137,11 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		return this.category;
 	}
 
+	@Override
+	public final Championship getChampionship() {
+		return this.ageDivision;
+	}
+
 	/**
 	 * @see com.vaadin.flow.router.HasDynamicTitle#getPageTitle()
 	 */
@@ -123,12 +153,16 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	}
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location,
-	 *      java.util.Map)
+	 * @see app.owlcms.apputils.queryparameters.DisplayParameters#readParams(com.vaadin.flow.router.Location, java.util.Map)
 	 */
 	@Override
 	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
 		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
+
+		List<String> videoParams = params1.get(VIDEO);
+		boolean videoMode = videoParams == null || videoParams.isEmpty() || videoParams.get(0).toLowerCase().equals("true");
+		setVideo(videoMode);
+		updateParam(params1, VIDEO, isVideo() ? "true" : "false");
 
 		List<String> darkParams = params1.get(DARK);
 		// dark is the default. dark=false or dark=no or ... will turn off dark mode.
@@ -147,6 +181,10 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		// no age division
 		String ageDivisionName = (ageDivisionParams != null && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0)
 		        : null);
+		if (ageDivisionName == null) {
+			var allChampionships = Championship.findAllUsed(true);
+			ageDivisionName = allChampionships.stream().findFirst().get().getName();
+		}
 		try {
 			setChampionship(Championship.of(ageDivisionName));
 		} catch (Exception e) {
@@ -164,11 +202,23 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		String value2 = getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null;
 		updateParam(params1, "ag", value2);
 
+		List<String> genderParams = params1.get("gender");
+		// no age group is the default
+		String genderString = (genderParams != null && !genderParams.isEmpty() ? genderParams.get(0) : null);
+		Gender gValue = null;
+		try {
+			gValue = Gender.valueOf(genderString);
+			setGender(gValue);
+		} catch (Exception e) {
+		}
+		updateParam(params1, "gender", gValue == null ? null : gValue.toString());
+
 		switchLightingMode(darkMode, false);
 		updateURLLocations();
-		setShowInitialDialog(
-		        darkParams == null && ageDivisionParams == null && ageGroupParams == null && silentParams == null);
-
+		if (!videoMode) {
+			setShowInitialDialog(
+					darkParams == null && ageDivisionParams == null && ageGroupParams == null && silentParams == null);
+		}
 		if (getDialog() == null) {
 			buildDialog(this);
 		}
@@ -177,9 +227,9 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	}
 
 	@Override
-	public void setChampionship(Championship ageDivision) {
-		this.ageDivision = ageDivision;
-		((TopTeamsSinclair) this.getBoard()).setChampionship(ageDivision);
+	public void setGender(Gender gender) {
+		this.gender = gender;
+		((TopTeamsSinclair) this.getBoard()).setGender(gender);
 		((TopTeamsSinclair) this.getBoard()).doUpdate(Competition.getCurrent());
 	}
 
@@ -201,6 +251,13 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	public final void setCategory(Category cat) {
 		this.category = cat;
 		((TopTeamsSinclair) this.getBoard()).setCategory(cat);
+		((TopTeamsSinclair) this.getBoard()).doUpdate(Competition.getCurrent());
+	}
+
+	@Override
+	public void setChampionship(Championship ageDivision) {
+		this.ageDivision = ageDivision;
+		((TopTeamsSinclair) this.getBoard()).setChampionship(ageDivision);
 		((TopTeamsSinclair) this.getBoard()).doUpdate(Competition.getCurrent());
 	}
 
@@ -251,6 +308,13 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		        getAgeGroupPrefix() != null ? getAgeGroupPrefix() : null);
 		updateURLLocation(UI.getCurrent(), getLocation(), "ad",
 		        getChampionship() != null ? getChampionship().getName() : null);
+		updateURLLocation(UI.getCurrent(), getLocation(), "gender",
+		        getGender() != null ? getGender().name(): null);
+	}
+
+	@Override
+	public Gender getGender() {
+		return gender;
 	}
 
 }

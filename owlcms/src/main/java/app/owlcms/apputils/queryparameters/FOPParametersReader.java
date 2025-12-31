@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -36,8 +36,8 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	final Logger logger = (Logger) LoggerFactory.getLogger(FOPParametersReader.class);
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#doUpdateUrlLocation(com.vaadin.flow.component.UI,
-	 *      com.vaadin.flow.router.Location, java.util.Map)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#doUpdateUrlLocation(com.vaadin.flow.component.UI, com.vaadin.flow.router.Location,
+	 *      java.util.Map)
 	 */
 	@Override
 	public default void doUpdateUrlLocation(UI ui, Location location, Map<String, List<String>> queryParameterMap) {
@@ -46,7 +46,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 
 		setUrlParameterMap(nq);
 		Location location2 = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(nq)));
-		ui.getPage().getHistory().replaceState(null, location2.getPathWithQueryParameters());
+		URLUtils.replaceState(ui.getPage().getHistory(),null, location2);
 		setLocation(location2);
 		if (logger.isDebugEnabled()) {
 			logger.debug("**** updatingLocation {} {}", location2.getPathWithQueryParameters(),
@@ -64,12 +64,12 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	}
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#readParams(com.vaadin.flow.router.Location,
-	 *      java.util.Map)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#readParams(com.vaadin.flow.router.Location, java.util.Map)
 	 */
 	@Override
 	@SuppressWarnings("null")
 	public default Map<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
+		OwlcmsFactory.waitDBInitialized();
 		// logger.debug("FopParameter readParams \n{}", LoggerUtils.stackTrace());
 		HashMap<String, List<String>> newParameterMap = new HashMap<>(parametersMap);
 
@@ -85,11 +85,10 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 		if (!isIgnoreFopFromURL()) {
 			if (fopFound) {
 				String decoded = URLDecoder.decode(fopNames.get(0), StandardCharsets.UTF_8);
-				//logger.debug("URL fop = {} decoded = {}",fopNames.get(0), decoded);
+				// logger.debug("URL fop = {} decoded = {}",fopNames.get(0), decoded);
 				tFop = OwlcmsFactory.getFOPByName(decoded);
 				this.setFop(tFop);
-			} 
-			else if (OwlcmsSession.getFop() != null) {
+			} else if (OwlcmsSession.getFop() != null) {
 				// logger.trace("OwlcmsSession.getFop() {}", OwlcmsSession.getFop());
 				tFop = OwlcmsSession.getFop();
 				this.setFop(tFop);
@@ -139,14 +138,12 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	 *
 	 * The values are stored in the URL in order to allow bookmarking and easy reloading.
 	 *
-	 * Note: what Vaadin calls a parameter is in the REST style, actually part of the URL path. We use the old-style
-	 * Query parameters for our purposes.
+	 * Note: what Vaadin calls a parameter is in the REST style, actually part of the URL path. We use the old-style Query parameters for our purposes.
 	 *
 	 * @see com.vaadin.flow.router.HasUrlParameter#setParameter(com.vaadin.flow.router. BeforeEvent, java.lang.Object)
 	 */
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public default void setParameter(BeforeEvent event, @OptionalParameter String routeParameter) {
@@ -165,8 +162,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	}
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#storeInSessionStorage(java.lang.String,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#storeInSessionStorage(java.lang.String, java.lang.String)
 	 */
 	@Override
 	public default void storeInSessionStorage(String key, String value) {
@@ -181,8 +177,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	}
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#updateParam(java.util.Map, java.lang.String,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#updateParam(java.util.Map, java.lang.String, java.lang.String)
 	 */
 	@Override
 	public default void updateParam(Map<String, List<String>> parameters, String parameter, String value) {
@@ -194,14 +189,14 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	}
 
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#updateURLLocation(com.vaadin.flow.component.UI,
-	 *      com.vaadin.flow.router.Location, java.lang.String, java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#updateURLLocation(com.vaadin.flow.component.UI, com.vaadin.flow.router.Location,
+	 *      java.lang.String, java.lang.String)
 	 */
 	@Override
 	public default void updateURLLocation(UI ui, Location location, String parameter, String value) {
-		if (logger.isDebugEnabled()) {
+		//if (logger.isDebugEnabled()) {
 			logger.debug("**** updating {} to {} from {}", parameter, value, LoggerUtils.whereFrom());
-		}
+		//}
 		Map<String, List<String>> parametersMap = new TreeMap<>(location.getQueryParameters().getParameters());
 
 		// get current values

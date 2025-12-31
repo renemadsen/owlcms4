@@ -1,12 +1,13 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
  *******************************************************************************/
 package app.owlcms.data.group;
 
-import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
@@ -14,10 +15,14 @@ import java.time.format.FormatStyle;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.persistence.Cacheable;
 import javax.persistence.CascadeType;
@@ -28,7 +33,6 @@ import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.Transient;
 
-import org.apache.commons.beanutils.BeanUtils;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 
@@ -40,11 +44,19 @@ import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 
+import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AbstractLifterComparator;
+import app.owlcms.data.athleteSort.AthleteSorter;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.platform.Platform;
+import app.owlcms.data.records.RecordEvent;
+import app.owlcms.data.records.RecordRepository;
+import app.owlcms.data.technicalofficial.TechnicalOfficial;
+import app.owlcms.data.technicalofficial.TechnicalOfficialRepository;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.utils.DateTimeUtils;
 import app.owlcms.utils.IdUtils;
@@ -63,12 +75,27 @@ import ch.qos.logback.classic.Logger;
 @JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger", "athletes" })
 public class Group implements Comparable<Group> {
 
+	public record Range(Integer min, Integer max) {
+		public String getFormattedRange() {
+			if (this.min == Integer.MAX_VALUE && this.max == 0) {
+				return "";
+			} else if (this.min == this.max) {
+				return this.min.toString();
+			} else {
+				return this.min.toString() + " - " + this.max.toString();
+			}
+		}
+	}
+
+	private enum USAFlagOrder {
+		RED, WHITE, BLUE, STARS, STRIPES, GOLD, ROGUE
+	}
+
 	private final static Logger logger = (Logger) LoggerFactory.getLogger(Group.class);
 	private final static NaturalOrderComparator<String> c = new NaturalOrderComparator<>();
 	private static final String DATE_FORMAT = "yyyy-MM-dd HH:mm";
 	private final static DateTimeFormatter DATE_TIME_FORMATTER = new DateTimeFormatterBuilder().parseLenient()
 	        .appendPattern(DATE_FORMAT).toFormatter();
-	
 	public static Comparator<Athlete> weighinTimeComparator = (lifter1, lifter2) -> {
 		Group lifter1Group = lifter1.getGroup();
 		Group lifter2Group = lifter2.getGroup();
@@ -118,11 +145,6 @@ public class Group implements Comparable<Group> {
 
 		return 0;
 	};
-
-	private enum USAFlagOrder {
-		RED, WHITE, BLUE, STARS, STRIPES, GOLD, ROGUE
-	}
-
 	public static Comparator<Group> groupWeighinTimeComparator = (lifter1Group, lifter2Group) -> {
 
 		int compare;
@@ -134,7 +156,7 @@ public class Group implements Comparable<Group> {
 			return compare;
 		}
 
-		if (Config.getCurrent().featureSwitch("usaw")) {
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
 			var lifter1SessionBlock = lifter1Group.getSessionBlock();
 			var lifter2SessionBlock = lifter2Group.getSessionBlock();
 			// null sessionBlocks go last.
@@ -269,8 +291,8 @@ public class Group implements Comparable<Group> {
 	private String description;
 	@Column(columnDefinition = "boolean default false")
 	private boolean done;
+	private Boolean masters;
 	@Id
-	// @GeneratedValue(strategy = GenerationType.AUTO)
 	private Long id;
 	private String jury1;
 	private String jury2;
@@ -289,7 +311,20 @@ public class Group implements Comparable<Group> {
 	private String timeKeeper;
 	private String weighIn1;
 	private String weighIn2;
+	private String competitionDirector;
+	private String competitionSecretary;
+	private String competitionSecretary2;
 	private LocalDateTime weighInTime;
+	@Column(columnDefinition = "integer default null")
+	private Integer cleanJerkBreakDuration;
+	@Transient
+	@JsonIgnore
+	Pattern pattern = Pattern.compile("(\\d+)\\s+(\\w+)");
+	private LocalDateTime firstSnatchTime;
+	private LocalDateTime firstCJTime;
+	private LocalDateTime lastSnatchDecisionTime;
+	private LocalDateTime lastCJDecisionTime;
+	private String reserveJury;
 
 	/**
 	 * Instantiates a new group.
@@ -329,33 +364,28 @@ public class Group implements Comparable<Group> {
 		this.setCompetitionTime(competition);
 	}
 
-	@Transient
-	@JsonIgnore
-	Pattern pattern = Pattern.compile("(\\d+)\\s+(\\w+)");
-
-	@Transient
-	@JsonIgnore
-	public Integer getSessionBlock() {
-		if (Config.getCurrent().featureSwitch("usaw")) {
-			Matcher matcher = pattern.matcher(this.getName());
-			if (matcher.find()) {
-				String number = matcher.group(1);
-				// String word = matcher.group(2);
-				try {
-					return Integer.parseInt(number);
-				} catch (NumberFormatException e) {
-					return 999;
-				}
+	public int cjBreakDuration(FieldOfPlay fieldOfPlay) {
+		Group cGroup = fieldOfPlay.getGroup();
+		// reload the group from database to get changed break time
+		cGroup = GroupRepository.getById(cGroup.getId());
+		
+		int millisRemaining;
+		Competition cCur = Competition.getCurrent();
+		Integer cleanJerkBreakDuration = cGroup.getCleanJerkBreakDuration();
+		if (cleanJerkBreakDuration != null) {
+			millisRemaining = cleanJerkBreakDuration * 60 * 1000;
+		} else {
+			millisRemaining = 10 * 60 * 1000;
+			int size = fieldOfPlay.getLiftingOrder().size();
+			if (cCur.getShorterBreakMin() != null && size > cCur.getShorterBreakMin()) {
+				millisRemaining = (cCur.getShorterBreakDuration() != null ? cCur.getShorterBreakDuration() : 10) * 60
+				        * 1000;
+			} else if (cCur.getLongerBreakMax() != null && size < cCur.getLongerBreakMax()) {
+				millisRemaining = (cCur.getLongerBreakDuration() != null ? cCur.getLongerBreakDuration() : 10) * 60
+				        * 1000;
 			}
-			return 999;
 		}
-		return 1;
-	}
-
-	@Transient
-	@JsonIgnore
-	public List<AgeGroupInfo> getAgeGroupInfo() {
-		return new AgeGroupInfoFactory().getAgeGroupInfos(this);
+		return millisRemaining;
 	}
 
 	/*
@@ -412,20 +442,64 @@ public class Group implements Comparable<Group> {
 		return compare;
 	}
 
-	public void copy(Group source) throws IllegalAccessException, InvocationTargetException {
-		Long myId = getId();
-		BeanUtils.copyProperties(source, this);
-		this.setId(myId);
+	// Method to copy properties from another instance using accessors
+	public void copyFrom(Group other) {
+		if (other == null) {
+			throw new IllegalArgumentException("Source instance must not be null");
+		}
+
+		try {
+			Map<String, Method> getters = new HashMap<>();
+			Map<String, Method> setters = new HashMap<>();
+
+			// Collect all getters and setters
+			for (Method method : Group.class.getDeclaredMethods()) {
+				String name = method.getName();
+
+				if (isGetter(method)) {
+					name = name.substring(name.startsWith("get") ? 3 : 2);
+					getters.put(name, method);
+				} else if (isSetter(method)) {
+					setters.put(name.substring(3), method);
+				}
+			}
+
+			// Copy properties
+			for (String propertyName : getters.keySet()) {
+				Method getter = getters.get(propertyName);
+				Method setter = setters.get(propertyName);
+				// skip the computed properties
+				if (propertyName.equals("Id") || getter.isAnnotationPresent(Transient.class)) {
+					continue;
+				}
+				if (getter != null && setter != null) {
+					try {
+						Object value = getter.invoke(other);
+						setter.invoke(this, value);
+					} catch (Exception e) {
+						logger.error("!!!! mismatch {}", propertyName);
+						throw e;
+					}
+				}
+			}
+		} catch (Exception e) {
+			LoggerUtils.logError(logger, e);
+		}
 	}
 
-	// @Override
-
-	public void doDone(boolean b) {
-		Group.logger.debug("done? {} previous={} done={} {} [{}]", getName(), this.done, b,
-		        System.identityHashCode(this),
-		        LoggerUtils.whereFrom());
-		if (this.done != b) {
-			this.setDone(b);
+	public void doDone() {
+		boolean previousDone = this.isDone();
+		boolean groupDone = true;
+		for (Athlete a : this.getAthletes()) {
+			boolean weighedIn = a.getBodyWeight() != null && a.getBodyWeight() > 0.1;
+			if (weighedIn && !a.isDone()) {
+				groupDone = false;
+				break;
+			}
+		}
+		// logger.debug("done? {} before={} after={} {}", getName(), this.done, groupDone, LoggerUtils.whereFrom());
+		this.setDone(groupDone);
+		if (this.isDone() != previousDone) {
 			GroupRepository.save(this);
 		}
 	}
@@ -462,6 +536,20 @@ public class Group implements Comparable<Group> {
 
 	@Transient
 	@JsonIgnore
+	public List<AgeGroupInfo> getAgeGroupInfo() {
+		List<AgeGroupInfo> ageGroupInfos = new AgeGroupInfoFactory().getAgeGroupInfos(this);
+		return ageGroupInfos;
+	}
+
+	@Transient
+	@JsonIgnore
+	public List<AgeGroupInfo> getAgeGroupInfoByAge() {
+		List<AgeGroupInfo> ageGroupInfos = new AgeGroupInfoFactory().getAgeGroupInfos(this);
+		return ageGroupInfos.stream().sorted().toList();
+	}
+
+	@Transient
+	@JsonIgnore
 	public List<Athlete> getAlphaAthletes() {
 		List<Athlete> athletes = AthleteRepository.findAllByGroupAndWeighIn(this, null);
 		athletes.sort((a, b) -> ObjectUtils.compare(a.getFullName(), b.getFullName()));
@@ -479,9 +567,89 @@ public class Group implements Comparable<Group> {
 
 	@Transient
 	@JsonIgnore
+	public TechnicalOfficial getAnnouncerAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getAnnouncer());
+		return to;
+	}
+	public void setAnnouncerAsTO(TechnicalOfficial ignored) {}
+
+	@Transient
+	@JsonIgnore
 	public List<Athlete> getAthletes() {
 		return AthleteRepository.findAllByGroupAndWeighIn(this, null);
 	}
+	
+	@Transient
+	@JsonIgnore
+	public List<RecordEvent> getRecords() {
+		return RecordRepository.findFiltered(null, null, null, this.name, true);
+	}
+	
+	@Transient
+	@JsonIgnore
+	public void setRecords(List<RecordEvent> ignored) {
+	}
+	
+
+	public Integer getCleanJerkBreakDuration() {
+		return cleanJerkBreakDuration;
+	}
+
+	@Transient
+	@JsonIgnore
+	public int getCleanJerkBreakMinutes() {
+		int minutesRemaining = 0;
+		Competition cCur = Competition.getCurrent();
+		Integer cleanJerkBreakDuration = this.getCleanJerkBreakDuration();
+		if (cleanJerkBreakDuration != null) {
+			minutesRemaining = cleanJerkBreakDuration;
+		} else {
+			minutesRemaining = 10;
+			List<Athlete> athletes = this.getAthletes();
+			int size = athletes != null ? athletes.size() : 0;
+			if (cCur.getShorterBreakMin() != null && size > cCur.getShorterBreakMin()) {
+				minutesRemaining = (cCur.getShorterBreakDuration() != null ? cCur.getShorterBreakDuration() : 10);
+			} else if (cCur.getLongerBreakMax() != null && size < cCur.getLongerBreakMax()) {
+				minutesRemaining = (cCur.getLongerBreakDuration() != null ? cCur.getLongerBreakDuration() : 10);
+			}
+		}
+		return minutesRemaining;
+	}
+
+	public String getCompetitionDirector() {
+		return competitionDirector;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getCompetitionDirectorAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getCompetitionDirector());
+		return to;
+	}
+
+	public String getCompetitionSecretary() {
+		return competitionSecretary;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getCompetitionSecretaryAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getCompetitionSecretary());
+		return to;
+	}
+
+	public String getCompetitionSecretary2() {
+		return competitionSecretary2;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getCompetitionSecretary2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getCompetitionSecretary2());
+		return to;
+	}
+
+	// @Override
 
 	/**
 	 * Gets the competition short date time.
@@ -525,6 +693,101 @@ public class Group implements Comparable<Group> {
 
 	public String getDescription() {
 		return this.description;
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getFormattedRange() {
+		List<Athlete> athletes = getAthletes();
+		boolean unanimous = true;
+		Double smallestWeightClass = null;
+		Double largestWeightClass = null;
+		String largestWeightClassLimitString = null;
+		String weightClassRange = null;
+		String bestSubCategory = null;
+		TreeMap<String, BWCatInfo> subCats = new TreeMap<>();
+
+		for (Athlete a : athletes) {
+			AgeGroup ageGroup = a.getAgeGroup();
+			if (ageGroup == null) {
+				continue;
+			}
+
+			String subCategory = a.getSubCategory();
+			if (subCategory.isBlank()) {
+				subCategory = null;
+			}
+
+			if (weightClassRange == null) {
+				smallestWeightClass = a.getCategory().getMaximumWeight();
+				largestWeightClass = a.getCategory().getMaximumWeight();
+				largestWeightClassLimitString = a.getCategory().getLimitString();
+				weightClassRange = a.getCategory().getLimitString();
+				bestSubCategory = subCategory;
+
+				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
+				subCats.put(bwi.getKey(), bwi);
+			} else {
+				if (smallestWeightClass == null
+				        || a.getCategory().getMaximumWeight() < smallestWeightClass) {
+					smallestWeightClass = a.getCategory().getMaximumWeight();
+				}
+
+				if (largestWeightClass == null
+				        || a.getCategory().getMaximumWeight() > largestWeightClass) {
+					largestWeightClass = a.getCategory().getMaximumWeight();
+					largestWeightClassLimitString = a.getCategory().getLimitString();
+				}
+
+				if (subCategory != null) {
+					if (bestSubCategory != null) {
+						int compare = subCategory.compareToIgnoreCase(bestSubCategory);
+
+						if (compare < 0) {
+							// A is better than B
+							bestSubCategory = subCategory;
+						}
+
+						unanimous = unanimous && (compare == 0);
+					} else {
+						// largest was null, if we are "A", still unanimous
+						int compare = "A".compareToIgnoreCase(subCategory);
+						bestSubCategory = subCategory;
+						unanimous = unanimous && (compare == 0);
+					}
+				} else {
+					if (bestSubCategory != null) {
+						// a null subcategory is considered to be the same as "A".
+						int compare = "A".compareToIgnoreCase(bestSubCategory);
+						unanimous = unanimous && (compare == 0);
+					} else {
+						// all null subCategories so far.
+						unanimous = true;
+					}
+				}
+
+				BWCatInfo bwi = new BWCatInfo(a.getCategory().getMaximumWeight().intValue(), a.getCategory().getLimitString(), a.getSubCategory());
+				subCats.put(bwi.getKey(), bwi);
+
+				if (Math.abs(largestWeightClass - smallestWeightClass) < 0.1) {
+					// same
+					weightClassRange = a.getCategory().getLimitString();
+				} else {
+					weightClassRange = (int) Math.round(smallestWeightClass) + "-"
+					        + largestWeightClassLimitString;
+				}
+			}
+		}
+
+		if (unanimous) {
+			if (bestSubCategory == null) {
+				return weightClassRange;
+			} else {
+				return weightClassRange + " " + bestSubCategory;
+			}
+		} else {
+			return subCats.values().stream().map(v -> v.getFormattedString()).collect(Collectors.joining(", "));
+		}
 	}
 
 	/**
@@ -627,11 +890,25 @@ public class Group implements Comparable<Group> {
 		return this.jury1;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getJury1AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getJury1());
+		return to;
+	}
+
 	/**
 	 * @return the jury2
 	 */
 	public String getJury2() {
 		return this.jury2;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getJury2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getJury2());
+		return to;
 	}
 
 	/**
@@ -641,6 +918,13 @@ public class Group implements Comparable<Group> {
 		return this.jury3;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getJury3AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getJury3());
+		return to;
+	}
+
 	/**
 	 * @return the jury4
 	 */
@@ -648,11 +932,25 @@ public class Group implements Comparable<Group> {
 		return this.jury4;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getJury4AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getJury4());
+		return to;
+	}
+
 	/**
 	 * @return the jury5
 	 */
 	public String getJury5() {
 		return this.jury5;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getJury5AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getJury5());
+		return to;
 	}
 
 	/**
@@ -684,6 +982,7 @@ public class Group implements Comparable<Group> {
 	 */
 	@Transient
 	@JsonIgnore
+	@Deprecated
 	public String getLocalizedStartHour() {
 		String formatted = "";
 		try {
@@ -697,6 +996,12 @@ public class Group implements Comparable<Group> {
 			LoggerUtils.logError(Group.logger, e);
 		}
 		return formatted;
+	}
+	
+	@Transient
+	@JsonIgnore
+	public String getLocalStartHour() {
+		return getLocalizedStartHour();
 	}
 
 	/**
@@ -748,6 +1053,13 @@ public class Group implements Comparable<Group> {
 		return this.marshal2;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getMarshal2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getMarshal2());
+		return to;
+	}
+
 	/**
 	 * Gets the marshall.
 	 *
@@ -755,6 +1067,18 @@ public class Group implements Comparable<Group> {
 	 */
 	public String getMarshall() {
 		return this.marshall;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getMarshallAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getMarshall());
+		return to;
+	}
+
+	public boolean getMasters() {
+		// defaults to competition setting.
+		return isMasters();
 	}
 
 	/**
@@ -785,12 +1109,31 @@ public class Group implements Comparable<Group> {
 	}
 
 	/**
+	 * Gets the referee 1.
+	 *
+	 * @return the referee 1
+	 */
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getReferee1AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.referee1);
+		return to;
+	}
+
+	/**
 	 * Gets the referee 2.
 	 *
 	 * @return the referee 2
 	 */
 	public String getReferee2() {
 		return this.referee2;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getReferee2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.referee2);
+		return to;
 	}
 
 	/**
@@ -802,11 +1145,74 @@ public class Group implements Comparable<Group> {
 		return this.referee3;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getReferee3AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.referee3);
+		return to;
+	}
+
+	/**
+	 * @return the reserve
+	 */
+	public String getReserveJury() {
+		return this.reserveJury;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getReserveJuryAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.reserveJury);
+		return to;
+	}
+
 	/**
 	 * @return the reserve
 	 */
 	public String getReserve() {
 		return this.reserve;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getReserveAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.reserve);
+		return to;
+	}
+
+	@Transient
+	@JsonIgnore
+	public Integer getSessionBlock() {
+		if (Config.getCurrent().featureSwitch("usawSessionBlocks")) {
+			Matcher matcher = this.pattern.matcher(this.getName());
+			if (matcher.find()) {
+				String number = matcher.group(1);
+				// String word = matcher.group(2);
+				try {
+					return Integer.parseInt(number);
+				} catch (NumberFormatException e) {
+					return 999;
+				}
+			}
+			return 999;
+		}
+		return 1;
+	}
+
+	@Transient
+	@JsonIgnore
+	public Range getStartingRange() {
+		int min = Integer.MAX_VALUE;
+		int max = 0;
+		for (Athlete a : getAthletes()) {
+			Integer q = a.getQualifyingTotal();
+			if (q == null) {
+				continue;
+			}
+			min = q < min ? q : min;
+			max = q > max ? q : max;
+		}
+		return new Range(min, max);
 	}
 
 	/**
@@ -822,6 +1228,20 @@ public class Group implements Comparable<Group> {
 		return this.technicalController2;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getTechnicalController2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getTechnicalController2());
+		return to;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getTechnicalControllerAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getTechnicalController());
+		return to;
+	}
+
 	/**
 	 * Gets the time keeper.
 	 *
@@ -831,12 +1251,33 @@ public class Group implements Comparable<Group> {
 		return this.timeKeeper;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getTimeKeeperAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getTimeKeeper());
+		return to;
+	}
+
 	public String getWeighIn1() {
 		return this.weighIn1;
 	}
 
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getWeighIn1AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getWeighIn1());
+		return to;
+	}
+
 	public String getWeighIn2() {
 		return this.weighIn2;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getWeighIn2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getWeighIn2());
+		return to;
 	}
 
 	/**
@@ -882,6 +1323,11 @@ public class Group implements Comparable<Group> {
 		return this.done;
 	}
 
+	public boolean isMasters() {
+		// defaults to competition setting.
+		return masters == null ? Competition.getCurrent().isMasters() : this.masters;
+	}
+
 	public void setAlphaAthletes(List<Athlete> a) {
 	}
 
@@ -897,6 +1343,25 @@ public class Group implements Comparable<Group> {
 	public void setAthletes(List<Athlete> a) {
 	}
 
+	public void setCleanJerkBreakDuration(Integer cleanJerkBreakDuration) {
+		this.cleanJerkBreakDuration = cleanJerkBreakDuration;
+	}
+
+	public void setCleanJerkBreakMinutes(int ignored) {
+	}
+
+	public void setCompetitionDirector(String competitionDirector) {
+		this.competitionDirector = competitionDirector;
+	}
+
+	public void setCompetitionSecretary(String competitionSecretary) {
+		this.competitionSecretary = competitionSecretary;
+	}
+
+	public void setCompetitionSecretary2(String competitionSecretary2) {
+		this.competitionSecretary2 = competitionSecretary2;
+	}
+
 	/**
 	 * Sets the competition time.
 	 *
@@ -908,6 +1373,10 @@ public class Group implements Comparable<Group> {
 
 	public void setDescription(String description) {
 		this.description = description;
+	}
+
+	public void setFormattedRange(String unused) {
+
 	}
 
 	/**
@@ -964,6 +1433,10 @@ public class Group implements Comparable<Group> {
 	 */
 	public void setMarshall(String announcer) {
 		this.marshall = announcer;
+	}
+
+	public void setMasters(boolean masters) {
+		this.masters = masters;
 	}
 
 	/**
@@ -1082,6 +1555,30 @@ public class Group implements Comparable<Group> {
 		this.hourFormatter = hourFormatter;
 	}
 
+	private boolean isGetter(Method method) {
+		if (!method.getName().startsWith("get"))
+			return false;
+		if (method.getParameterTypes().length != 0)
+			return false;
+		if (void.class.equals(method.getReturnType()))
+			return false;
+		if (!Modifier.isPublic(method.getModifiers()))
+			return false;
+		return true;
+	}
+
+	private boolean isSetter(Method method) {
+		if (!method.getName().startsWith("set"))
+			return false;
+		if (method.getParameterTypes().length != 1)
+			return false;
+		if (!void.class.equals(method.getReturnType()))
+			return false;
+		if (!Modifier.isPublic(method.getModifiers()))
+			return false;
+		return true;
+	}
+
 	private void setDayFormatter(Locale locale) {
 		setDayFormatter(DateTimeFormatter
 		        .ofLocalizedDate(FormatStyle.SHORT)
@@ -1096,5 +1593,94 @@ public class Group implements Comparable<Group> {
 		setHourFormatter(DateTimeFormatter
 		        .ofLocalizedTime(FormatStyle.SHORT)
 		        .withLocale(locale));
+	}
+
+	public void setFirstSnatchTime(LocalDateTime now, FieldOfPlay fop) {
+		logger.info("{}%%%%%%%%% {} setFirstSnatchTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		this.firstSnatchTime = now;
+	}
+
+	public void setFirstCJTime(LocalDateTime now, FieldOfPlay fop) {
+		logger.info("{}%%%%%%%%% {} setFirstCJTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		this.firstCJTime = now;
+	}
+
+	public void setLastSnatchDecisionTime(LocalDateTime now, Group session, FieldOfPlay fop) {
+		logger.info("{}%%%%%%%%% {} setLastSnatchDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		this.lastSnatchDecisionTime = now;
+	}
+
+	public void setLastCJDecisionTime(LocalDateTime now, Group session, FieldOfPlay fop) {
+		logger.info("{}%%%%%%%%% {} setLastCJDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		this.lastCJDecisionTime = now;
+	}
+
+	public void setFirstSnatchExcelTime(double ignored) {
+		return;
+	}
+
+	public void setFirstCJExcelTime(double ignored) {
+		return;
+	}
+
+	public void setLastSnatchDecisionExcelTime(double ignored) {
+		return;
+	}
+
+	public void setLastCJDecisionExcelTime(double ignored) {
+		return;
+	}
+
+	@Transient
+	@JsonIgnore
+	public double getFirstSnatchExcelTime() {
+		double time = DateTimeUtils.localDateTimeToExcelDate(firstSnatchTime);
+		return time;
+	}
+
+	@Transient
+	@JsonIgnore
+	public double getFirstCJExcelTime() {
+		return DateTimeUtils.localDateTimeToExcelDate(firstCJTime);
+	}
+
+	@Transient
+	@JsonIgnore
+	public double getLastSnatchDecisionExcelTime() {
+		return DateTimeUtils.localDateTimeToExcelDate(lastSnatchDecisionTime);
+	}
+
+	@Transient
+	@JsonIgnore
+	public double getLastCJDecisionExcelTime() {
+		return DateTimeUtils.localDateTimeToExcelDate(lastCJDecisionTime);
+	}
+
+	public LocalDateTime getFirstSnatchTime() {
+		return firstSnatchTime;
+	}
+
+	public LocalDateTime getFirstCJTime() {
+		return firstCJTime;
+	}
+
+	public LocalDateTime getLastSnatchDecisionTime() {
+		return lastSnatchDecisionTime;
+	}
+
+	public LocalDateTime getLastCJDecisionTime() {
+		return lastCJDecisionTime;
+	}
+
+	public int getNbAthletes() {
+		return getAthletes().size();
+	}
+
+	public int getNbAttemptedLifts() {
+		return AthleteSorter.countAllLiftsDone(getAthletes());
+	}
+
+	public void setReserveJury(String reserveJury) {
+		this.reserveJury = reserveJury;
 	}
 }

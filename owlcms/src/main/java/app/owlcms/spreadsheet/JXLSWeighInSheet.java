@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AthleteSorter;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -41,29 +40,16 @@ public class JXLSWeighInSheet extends JXLSWorkbookStreamSource {
 	@Override
 	public List<Athlete> getSortedAthletes() {
 		final Group currentGroup = getGroup();
-		String computedStartingWeightsSheetTemplateFileName = Competition.getCurrent()
-		        .getComputedStartingWeightsSheetTemplateFileName();
-		// logger.debug(computedStartingWeightsSheetTemplateFileName);
-		if (computedStartingWeightsSheetTemplateFileName.contains("Weigh")) {
-			List<Athlete> collect = AthleteSorter
-			        .registrationOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(currentGroup, null)).stream()
-			        .map(a -> {
-				        if (a.getTeam() == null) {
-					        a.setTeam("");
-				        }
-				        return a;
-			        }).collect(Collectors.toList());
-			// logger.debug("sorted by category {}", collect);
-			return collect;
-		}
-		if (currentGroup != null) {
-			return AthleteSorter
-			        .registrationOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(currentGroup, isExcludeNotWeighed()));
-		} else {
-			return AthleteSorter
-			        .registrationOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(null, isExcludeNotWeighed()));
-		}
-
+		List<Athlete> collect = AthleteSorter
+		        .registrationOrderCopy(AthleteRepository.findAllByGroupAndWeighIn(currentGroup, null)).stream()
+		        .map(a -> {
+			        if (a.getTeam() == null) {
+				        a.setTeam("");
+			        }
+			        return a;
+		        }).collect(Collectors.toList());
+		// logger.debug("sorted by category {}", collect);
+		return collect;
 	}
 
 }

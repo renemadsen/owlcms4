@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -59,6 +59,7 @@ import app.owlcms.data.group.Group;
 import app.owlcms.data.platform.Platform;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordEvent;
+import app.owlcms.data.technicalofficial.TechnicalOfficial;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.StartupUtils;
 import ch.qos.logback.classic.Level;
@@ -77,6 +78,7 @@ public class JPAService {
 	static {
 		logger.setLevel(Level.INFO);
 	}
+	static Map<EntityManager, String> whereFrom = new HashMap<>();
 
 	/**
 	 * Close.
@@ -88,11 +90,17 @@ public class JPAService {
 		setFactory(null);
 	}
 
-	/**
-	 * @return the factory
-	 */
-	static EntityManagerFactory getFactory() {
-		return factory;
+	public static int getPoolStatistics() {
+		SessionFactory sessionFactory = factory.unwrap(SessionFactory.class);
+		ConnectionProvider connectionProvider = sessionFactory.getSessionFactoryOptions().getServiceRegistry()
+		        .getService(ConnectionProvider.class);
+		HikariDataSource dataSource = connectionProvider.unwrap(HikariDataSource.class);
+		HikariDataSourcePoolDetail dsd = new HikariDataSourcePoolDetail(dataSource);
+		int active = dsd.getActive();
+		if (logger.isTraceEnabled()) {
+			logger.trace("HikariDataSource details: max={} active={}", dsd.getMax(), active);
+		}
+		return active;
 	}
 
 	/**
@@ -197,17 +205,6 @@ public class JPAService {
 		return properties;
 	}
 
-	private static void traceLeak() {
-		if (logger.isTraceEnabled()) {
-			int active = JPAService.getPoolStatistics();
-			if (active > 0) {
-				logger.trace("active > 0 {}", whereFrom.values());
-			}
-		}
-	}
-
-	static Map<EntityManager, String> whereFrom = new HashMap<>();
-
 	/**
 	 * Run in transaction.
 	 *
@@ -305,6 +302,7 @@ public class JPAService {
 		        .add(RecordEvent.class.getName())
 		        .add(Participation.class.getName())
 		        .add(RecordConfig.class.getName())
+				.add(TechnicalOfficial.class.getName())
 		        .build();
 		return vals;
 	}
@@ -344,6 +342,13 @@ public class JPAService {
 	}
 
 	/**
+	 * @return the factory
+	 */
+	static EntityManagerFactory getFactory() {
+		return factory;
+	}
+
+	/**
 	 * Gets the factory from code (without a persistance.xml file)
 	 *
 	 * @param memoryMode run from memory if true
@@ -359,19 +364,6 @@ public class JPAService {
 		factory = new EntityManagerFactoryBuilderImpl(new PersistenceUnitInfoDescriptor(persistenceUnitInfo),
 		        configuration).build();
 		return factory;
-	}
-
-	public static int getPoolStatistics() {
-		SessionFactory sessionFactory = factory.unwrap(SessionFactory.class);
-		ConnectionProvider connectionProvider = sessionFactory.getSessionFactoryOptions().getServiceRegistry()
-		        .getService(ConnectionProvider.class);
-		HikariDataSource dataSource = connectionProvider.unwrap(HikariDataSource.class);
-		HikariDataSourcePoolDetail dsd = new HikariDataSourcePoolDetail(dataSource);
-		int active = dsd.getActive();
-		if (logger.isTraceEnabled()) {
-			logger.trace("HikariDataSource details: max={} active={}", dsd.getMax(), active);
-		}
-		return active;
 	}
 
 	private static Properties h2FileProperties(String schemaGeneration, String dbUrl, String userName,
@@ -442,16 +434,19 @@ public class JPAService {
 		        .put("hibernate.javax.cache.missing_cache_strategy", "create")
 		        .put("javax.persistence.sharedCache.mode", "ALL").put("hibernate.c3p0.min_size", 5)
 		        .put("hibernate.enable_lazy_load_no_trans", true)
+		        .put("logging.level.com.zaxxer.hikari.HikariConfig", "DEBUG")
+				.put("logging.level.com.zaxxer.hikari=TRACE", true)
 		        // .put("hibernate.c3p0.max_size", 20).put("hibernate.c3p0.acquire_increment", 5)
 		        // .put("hibernate.c3p0.timeout", 84200).put("hibernate.c3p0.preferredTestQuery", "SELECT 1")
 		        // .put("hibernate.c3p0.testConnectionOnCheckout", true).put("hibernate.c3p0.idle_test_period", 500)
 		        .put("hibernate.connection.provider_class", cp)
-		        .put("hibernate.hikari.minimumIdle", "5")
-		        .put("hibernate.hikari.maximumPoolSize", "15")
+		        .put("hibernate.hikari.connectionTimeout", "50000")
+		        .put("hibernate.hikari.minimumIdle", "20")
+		        .put("hibernate.hikari.maximumPoolSize", "30")
 		        .put("hibernate.hikari.idleTimeout", "300000") // 5 minutes
 		        .put("hibernate.hikari.maxLifetime", "600000") // 10 minutes (docker kills sockets after 15min)
 		        .put("hibernate.hikari.initializationFailTimeout", "60000")
-		        .put("hibernate.hikari.leakDetectionThreshold", "10000")
+		        .put("hibernate.hikari.leakDetectionThreshold", "60000")
 		        .put("hibernate.hikari.autoCommit", "false")
 		        .put("hibernate.connection.provider_disables_autocommit", true)
 		        .build();
@@ -540,11 +535,10 @@ public class JPAService {
 	 * H2 can expose its embedded server on demand, as well as a console
 	 *
 	 * <p>
-	 * Not enabled by default, protected by a feature switch
-	 * (<code>-DH2ServerPort=9092 or OWLCMS_H2SERVERPORT=9092</code>)
+	 * Not enabled by default, protected by a feature switch (<code>-DH2ServerPort=9092 or OWLCMS_H2SERVERPORT=9092</code>)
 	 * <p>
-	 * When using a tool to connect, such as the H2 console (<code>java -jar h2-1.4.200.jar</code>) or DBVisualizer, the
-	 * the URL given to the tool must include the absolute path to the database for example:
+	 * When using a tool to connect, such as the H2 console (<code>java -jar h2-1.4.200.jar</code>) or DBVisualizer, the the URL given to the tool must include
+	 * the absolute path to the database for example:
 	 *
 	 * <pre>
 	 * jdbc:h2:tcp://localhost:9092/c:/dev/git/owlcms4/owlcms/database/owlcms
@@ -565,6 +559,15 @@ public class JPAService {
 			}
 		} catch (SQLException e) {
 			LoggerUtils.logError(logger, e);
+		}
+	}
+
+	private static void traceLeak() {
+		if (logger.isTraceEnabled()) {
+			int active = JPAService.getPoolStatistics();
+			if (active > 0) {
+				logger.trace("active > 0 {}", whereFrom.values());
+			}
 		}
 	}
 

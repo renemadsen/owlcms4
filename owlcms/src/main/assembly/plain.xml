@@ -11,14 +11,18 @@
             <directory>${project.basedir}/src/main/resources</directory>
             <outputDirectory>local</outputDirectory>
             <includes>
+            	<include>agefactors**/**</include>
                 <include>agegroups**/**</include>
                 <include>records**/**</include>
                 <include>sinclair**/**</include>
+                <include>qpoints**/**</include>
+                <include>gamx**/**</include>
+                <include>robi**/**</include>
+                <include>iwf**/**</include>
                 <include>templates**/**</include>
                 <include>flags**/**</include>
                 <include>pictures**/**</include>
                 <include>logos**/**</include>
-                <include>robi**/**</include>
                 <include>logback.xml</include>
             </includes>
         </fileSet>
@@ -37,16 +41,6 @@
             <source>${project.build.directory}/${project.artifactId}-${project.version}.jar</source>
             <outputDirectory></outputDirectory>
             <destName>${project.artifactId}.jar</destName>
-        </file>
-        <file>
-            <source>${project.basedir}/src/main/assembly/Procfile</source>
-            <outputDirectory></outputDirectory>
-            <filtered>true</filtered>
-        </file>
-        <file>
-            <source>${project.basedir}/src/main/assembly/system.properties</source>
-            <outputDirectory></outputDirectory>
-            <filtered>true</filtered>
         </file>
         <file>
             <source>${project.basedir}/src/main/resources/logback.xml</source>

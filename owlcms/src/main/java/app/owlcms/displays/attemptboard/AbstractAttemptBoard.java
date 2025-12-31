@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -11,6 +11,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +41,7 @@ import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
+import app.owlcms.data.records.RecordEvent;
 import app.owlcms.data.team.Team;
 import app.owlcms.displays.video.StylesDirSelection;
 import app.owlcms.fieldofplay.FOPState;
@@ -88,8 +90,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	}
 
 	/*
-	 * The following 3 items need to be injected in the LitTemplate. Vaadin will create the slots and perform the
-	 * injection based on the @Id annotation.
+	 * The following 3 items need to be injected in the LitTemplate. Vaadin will create the slots and perform the injection based on the @Id annotation.
 	 */
 	@Id("athleteTimer")
 	protected AthleteTimerElement athleteTimer; // created by Flow during template instantiation
@@ -121,11 +122,14 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		// logger.debug("*** AttemptBoard new {}", LoggerUtils.whereFrom());
 		// athleteTimer.setOrigin(this);
 		this.getElement().setProperty("kgSymbol", Translator.translate("KgSymbol"));
+		this.getElement().setProperty("STOP", Translator.translate("STOP"));
 		// breakTimer.setParent("attemptBoard");
 		checkImages();
 		// js files add the build number to file names in order to prevent cache
 		// collisions
 		this.getElement().setProperty("autoversion", StartupUtils.getAutoVersion());
+
+		overrideColors(this.getElement());
 	}
 
 	@Override
@@ -370,8 +374,8 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	}
 
 	/**
-	 * Multiple attempt boards and athlete-facing boards can co-exist. We need to show down on the slave devices -- the
-	 * master device is the one where refereeing buttons are attached.
+	 * Multiple attempt boards and athlete-facing boards can co-exist. We need to show down on the slave devices -- the master device is the one where
+	 * refereeing buttons are attached.
 	 *
 	 * @param e
 	 */
@@ -400,7 +404,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 
 	@Subscribe
 	public void slaveJuryNotification(UIEvent.JuryNotification e) {
-		if (e.isRequestForAnnounce()) {
+		if (e.isWaitForAnnouncer()) {
 			return;
 		}
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
@@ -458,16 +462,21 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 				}
 			} else if (state == FOPState.INACTIVE) {
 			} else if (!e.isCurrentDisplayAffected()) {
+				// same as next case
+				// logging to see if this ever occurs
+				logger.info(">>>>> isCurrentDisplayAffected false");
+				Athlete b = fop.getCurAthlete();
+				doAthleteUpdate(b, e.getFop());
 			} else {
-				Athlete a = e.getAthlete();
-				doAthleteUpdate(a, e.getFop());
+				Athlete b = fop.getCurAthlete();
+				doAthleteUpdate(b, e.getFop());
 			}
 		}));
 	}
 
 	/**
-	 * Multiple attempt boards and athlete-facing boards can co-exist. We need to show decisions on the slave devices --
-	 * the master device is the one where refereeing buttons are attached.
+	 * Multiple attempt boards and athlete-facing boards can co-exist. We need to show decisions on the slave devices -- the master device is the one where
+	 * refereeing buttons are attached.
 	 *
 	 * @param e
 	 */
@@ -514,18 +523,6 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 	public void slaveStopBreak(UIEvent.BreakDone e) {
 		uiEventLogger.debug("### {} {} {} {}", this.getClass().getSimpleName(), e.getClass().getSimpleName(),
 		        this.getOrigin(), e.getOrigin());
-		// UIEventProcessor.uiAccess(this, uiEventBus, () -> {
-		// Athlete a = e.getAthlete();
-		// if (a == null) {
-		// OwlcmsSession.withFop(fop -> {
-		// List<Athlete> order = fop.getLiftingOrder();
-		// Athlete athlete = order.size() > 0 ? order.get(0) : null;
-		// doAthleteUpdate(athlete);
-		// });
-		// } else {
-		// doAthleteUpdate(a);
-		// }
-		// });
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			syncWithFOP(e.getFop());
 		});
@@ -553,8 +550,6 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 						doAthleteUpdate(fop.getCurAthlete(), e.getFop());
 				}
 			});
-			// uiEventLogger./**/warn("#### reloading {}", this.getElement().getClass());
-			// this.getElement().callJsFunction("reload");
 		});
 	}
 
@@ -581,14 +576,23 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		}
 
 		String lastName = a.getLastName();
-		// logger.debug("setting lastName");
-
 		this.getElement().setProperty("lastName", lastName.toUpperCase());
-		this.getElement().setProperty("firstName", a.getFirstName());
 		if (lastName.length() > 18) {
 			this.getElement().setProperty("nameSizeOverride",
-        			"font-size: 8vh; line-height: 8vh; text-wrap: balance; text-overflow: hidden");
+			        "font-size: 8vh; line-height: 8vh; text-wrap: balance; text-overflow: hidden");
 		}
+
+		String lFirst = a.getFirstName();
+		// add the out-of-competition marker if defined in the translation file.
+		if (!a.isEligibleForIndividualRanking() && lFirst != null && !lFirst.isBlank()) {
+			lFirst = Translator.translate("Attempt.Extra/Invited", lFirst);
+		}
+		this.getElement().setProperty("firstName", lFirst);
+
+		Integer nextAttemptRequestedWeight = a.getNextAttemptRequestedWeight();
+		setDisplayedWeight(nextAttemptRequestedWeight > 0 ? nextAttemptRequestedWeight.toString() : "");
+		showPlates();
+
 		this.getElement().setProperty("decisionVisible", false);
 		Category category2 = a.getCategory();
 		this.getElement().setProperty("category", category2 != null ? category2.getDisplayName() : "");
@@ -603,7 +607,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		String teamFileName = URLUtils.sanitizeFilename(team);
 		if (this.teamFlags && !team.isBlank()) {
 			Arrays.stream(Team.getFlagExtensions())
-				.anyMatch(ext -> URLUtils.setImgProp("teamFlagImg", "flags/", teamFileName, ext, this));
+			        .anyMatch(ext -> URLUtils.setImgProp("teamFlagImg", "flags/", teamFileName, ext, this));
 		}
 
 		String membership = a.getMembership();
@@ -616,16 +620,13 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 			}
 		}
 
-		spotlightRecords(fop, a);
-
 		this.getElement().setProperty("startNumber", a.getStartNumber());
 		String formattedAttempt = formatAttempt(a);
 		this.getElement().setProperty("attempt", formattedAttempt);
-		Integer nextAttemptRequestedWeight = a.getNextAttemptRequestedWeight();
-		setDisplayedWeight(nextAttemptRequestedWeight > 0 ? nextAttemptRequestedWeight.toString() : "");
-		showPlates();
 		this.getElement().setProperty("mode", BoardMode.CURRENT_ATHLETE.name());
 
+		// this will push the changes done so far
+		spotlightRecords(fop, a);
 		setDone(false);
 	}
 
@@ -826,7 +827,6 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 
 		OwlcmsSession.withFop(fop -> {
 			n.open();
-			return;
 		});
 	}
 
@@ -906,36 +906,64 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 					platesElement.getClassList().set("dark", true);
 					attemptBoard.getElement().appendChild(platesElement);
 				} catch (Throwable t) {
-					t.printStackTrace();
+					LoggerUtils.logError(logger, t);
 				}
 			});
 		});
 	}
 
-	private void spotlightNewRecord() {
+	private void spotlightNewRecord(List<RecordEvent> records) {
+		UI.getCurrent().push();
+		try {
+			Thread.sleep(200);
+		} catch (InterruptedException e) {
+		}
 		this.getElement().setProperty("recordBroken", true);
 		this.getElement().setProperty("recordAttempt", false);
-		this.getElement().setProperty("recordMessage", Translator.translate("Scoreboard.NewRecord"));
+		String prefix = Translator.translate("Scoreboard.NewRecord(s)", records.size());
+		computeMessageProperties(records, prefix);
+		UI.getCurrent().push();
 	}
 
-	private void spotlightRecordAttempt() {
+	private void spotlightRecordAttempt(List<RecordEvent> records) {
+		UI.getCurrent().push();
+		try {
+			Thread.sleep(200);
+		} catch (InterruptedException e) {
+		}
 		this.getElement().setProperty("recordBroken", false);
 		this.getElement().setProperty("recordAttempt", true);
-		this.getElement().setProperty("recordMessage", Translator.translate("Scoreboard.RecordAttempt"));
+		String prefix = Translator.translate("Scoreboard.RecordAttempt(s)", records.size());
+		computeMessageProperties(records, prefix);
+		UI.getCurrent().push();
+	}
+
+	public void computeMessageProperties(List<RecordEvent> records, String prefix) {
+		// must not modify the original list.
+		String recordsList = records.stream().map(c -> c.prettyPrint()).collect(Collectors.joining(", "));
+		this.getElement().setProperty("recordMessage", prefix + " \u2013 " + recordsList);
+		this.getElement().setProperty("recordMessageSpeed", 5 + records.size() * 5);
 	}
 
 	private void spotlightRecords(FieldOfPlay fop, Athlete a) {
 		if (Config.getCurrent().featureSwitch("disableRecordHighlight")) {
+			UI.getCurrent().push();
 			return;
 		}
 		if (fop.getState() == FOPState.INACTIVE || fop.getState() == FOPState.BREAK) {
 			hideRecordInfo(a);
-		} else if (fop.getNewRecords() != null && !fop.getNewRecords().isEmpty()) {
-			spotlightNewRecord();
-		} else if (fop.getChallengedRecords() != null && !fop.getChallengedRecords().isEmpty()) {
-			spotlightRecordAttempt();
 		} else {
-			hideRecordInfo(a);
+			List<RecordEvent> newRecords = fop.getNewRecords();
+			if (newRecords != null && !newRecords.isEmpty()) {
+				spotlightNewRecord(newRecords);
+			} else {
+				List<RecordEvent> challengedRecords = fop.getChallengedRecords();
+				if (challengedRecords != null && !challengedRecords.isEmpty()) {
+					spotlightRecordAttempt(challengedRecords);
+				} else {
+					hideRecordInfo(a);
+				}
+			}
 		}
 	}
 

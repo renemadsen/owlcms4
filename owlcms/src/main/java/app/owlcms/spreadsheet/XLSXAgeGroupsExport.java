@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.spreadsheet;
 
 import java.io.OutputStream;
@@ -12,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
@@ -36,6 +43,8 @@ public class XLSXAgeGroupsExport extends XLSXWorkbookStreamSource {
 			header.createCell(4).setCellValue("from");
 			header.createCell(5).setCellValue("to");
 			header.createCell(6).setCellValue("active");
+			header.createCell(7).setCellValue("agegroupscoring");
+			header.createCell(8).setCellValue("agegroupbestathlete");
 
 			List<AgeGroup> ageGroups = AgeGroupRepository.findAll();
 			ageGroups.sort(Comparator
@@ -46,15 +55,19 @@ public class XLSXAgeGroupsExport extends XLSXWorkbookStreamSource {
 			int rowNum = 1;
 			for (AgeGroup ag : ageGroups) {
 				Row curRow = sheet.createRow(rowNum);
-				curRow.createCell(0).setCellValue(ag.getCode());
+				curRow.createCell(0).setCellValue((ag.isAlreadyGendered() ? "!" : "") + ag.getCode());
 				curRow.createCell(1).setCellValue(ag.getChampionship().getName());
 				curRow.createCell(2).setCellValue(ag.getChampionshipType().name());
 				curRow.createCell(3).setCellValue(ag.getGender().name());
 				curRow.createCell(4).setCellValue(ag.getMinAge());
 				curRow.createCell(5).setCellValue(ag.getMaxAge());
 				curRow.createCell(6).setCellValue(ag.isActive());
+				Ranking scoringSystem = ag.getComputedScoringSystem();
+				curRow.createCell(7).setCellValue(scoringSystem == Ranking.TOTAL ? "" : scoringSystem.getReportingName());
+				Ranking bestScoringSystem = ag.getBestAthleteScoringSystem();
+				curRow.createCell(8).setCellValue(bestScoringSystem != null ? bestScoringSystem.getReportingName() : "");
 
-				int cellNum = 7;
+				int cellNum = 9;
 				for (Category cat : ag.getCategories()) {
 					Double maximumWeight = cat.getMaximumWeight();
 					int val = (int) (maximumWeight + 0.5);

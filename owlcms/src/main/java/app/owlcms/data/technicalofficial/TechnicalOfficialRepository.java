@@ -1,0 +1,80 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
+package app.owlcms.data.technicalofficial;
+
+import java.util.List;
+
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+
+import org.slf4j.LoggerFactory;
+
+import app.owlcms.data.jpa.JPAService;
+import ch.qos.logback.classic.Logger;
+
+/**
+ * TechnicalOfficialRepository.
+ *
+ */
+public class TechnicalOfficialRepository {
+
+	@SuppressWarnings("unused")
+	final private static Logger logger = (Logger) LoggerFactory.getLogger(TechnicalOfficialRepository.class);
+
+	public static void delete(TechnicalOfficial to) {
+		JPAService.runInTransaction(em -> {
+			em.remove(em.contains(to) ? to : em.merge(to));
+			return null;
+		});
+	}
+
+	public static List<TechnicalOfficial> findAll() {
+		return JPAService
+				.runInTransaction(em -> em.createQuery("select c from TechnicalOfficial c order by c.lastName, c.firstName", TechnicalOfficial.class)
+						.getResultList());
+	}
+
+	public static TechnicalOfficial findByName(String string) {
+		String[] t = string.split("[, ]+");
+		String lastName = t[0];
+		String firstName = t[1];
+		return JPAService.runInTransaction(em -> {
+			TypedQuery<TechnicalOfficial> query = em.createQuery("select c from TechnicalOfficial c where (lower(lastName) = lower(:lastName) and lower(firstName) = lower(:firstName))", TechnicalOfficial.class);
+			query.setParameter("lastName", lastName);
+			query.setParameter("firstName", firstName);
+			List<TechnicalOfficial> resultList = query.getResultList();
+			return resultList.isEmpty() ? null : resultList.get(0);
+		});
+	}
+	
+	public static TechnicalOfficial safeFindByName(String string) {
+		TechnicalOfficial to = findByName(string);
+		if (to == null) {
+			to = new TechnicalOfficial();
+			to.setLastName(string);
+		}
+		return to;
+	}
+
+	public static TechnicalOfficial getById(Long id, EntityManager em) {
+		TypedQuery<TechnicalOfficial> query = em.createQuery("select u from TechnicalOfficial u where u.id=:id",
+				TechnicalOfficial.class);
+		query.setParameter("id", id);
+
+		return query.getResultList().stream().findFirst().orElse(null);
+	}
+
+	public static TechnicalOfficial save(TechnicalOfficial technicalOfficial) {
+		TechnicalOfficial nTechnicalOfficial = JPAService.runInTransaction(em -> em.merge(technicalOfficial));
+		return nTechnicalOfficial;
+	}
+
+	public static void deleteAll(EntityManager em) {
+		// use JPQL to delete all rows
+		em.createQuery("delete from TechnicalOfficial").executeUpdate();
+	}
+}

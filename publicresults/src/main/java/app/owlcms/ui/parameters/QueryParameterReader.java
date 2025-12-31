@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -24,7 +24,6 @@ import com.vaadin.flow.router.QueryParameters;
 
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.utils.URLUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 public interface QueryParameterReader extends HasUrlParameter<String> {
@@ -102,13 +101,12 @@ public interface QueryParameterReader extends HasUrlParameter<String> {
      */
     @Override
     public default void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
-        logger.setLevel(Level.INFO);
         Location location = event.getLocation();
         QueryParameters queryParameters = location.getQueryParameters();
         Map<String, List<String>> parametersMap = queryParameters.getParameters();
         HashMap<String, List<String>> params = computeParams(location, parametersMap);
         // change the URL to reflect retrieved parameters
-        event.getUI().getPage().getHistory().replaceState(null,
+        URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
                 new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
     }
 

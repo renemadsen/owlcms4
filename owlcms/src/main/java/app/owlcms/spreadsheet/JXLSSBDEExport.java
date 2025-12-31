@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -77,4 +77,8 @@ public class JXLSSBDEExport extends JXLSWorkbookStreamSource {
 		return getLocalizedTemplate("/templates/registration/SBDE", ".xls", locale);
 	}
 
+	@Override
+	public boolean isEmptyOk() {
+		return true;
+	}
 }

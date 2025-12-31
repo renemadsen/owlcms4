@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -19,17 +19,16 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
-import java.util.concurrent.CountDownLatch;
 
 import org.apache.commons.beanutils.ConvertUtils;
 import org.apache.commons.beanutils.converters.DateConverter;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
+import app.owlcms.apputils.LogbackConfigReloader;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.ChampionshipType;
-import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.competition.Competition;
@@ -40,13 +39,15 @@ import app.owlcms.data.jpa.BenchmarkData;
 import app.owlcms.data.jpa.DemoData;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.jpa.ProdData;
+import app.owlcms.data.jpa.UtcNormalizationMigration;
 import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordDefinitionReader;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.InitialData;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
-import app.owlcms.servlet.EmbeddedJetty;
+import app.owlcms.jetty.EmbeddedJetty;
+import app.owlcms.monitors.MQTTMonitor;
 import app.owlcms.uievents.AppEvent;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
@@ -98,6 +99,23 @@ public class Main {
 	private static InitialData initialData;
 	public static String mqttStartup;
 	private static Integer demoResetDelay;
+	private static Server mqttBroker;
+
+	public static EmbeddedJetty doRun() {
+		EmbeddedJetty embeddedJetty = new EmbeddedJetty(null, "owlcms")
+		        .setStartLogger(logger)
+		        .setInitConfig(Main::initConfig)
+		        .setInitData(Main::initData);
+		Thread server = new Thread(() -> {
+			try {
+				embeddedJetty.run(serverPort, "/");
+			} catch (Exception e) {
+				logger.error("cannot start server {}\\n{}", e, LoggerUtils.stackTrace(e));
+			}
+		});
+		server.start();
+		return embeddedJetty;
+	}
 
 	public static Logger getStartupLogger() {
 		String name = Main.class.getName() + ".startup";
@@ -115,6 +133,12 @@ public class Main {
 		}
 		// check for database override of resource files
 		Config.initConfig();
+
+		// Run UTC normalization migration after JPAService and Config are initialized
+		JPAService.runInTransaction(em -> {
+			UtcNormalizationMigration.normalizeAllToUtc(em);
+			return null;
+		});
 	}
 
 	/**
@@ -123,9 +147,6 @@ public class Main {
 	public static void initData() {
 		// Vaadin configs
 		System.setProperty("vaadin.i18n.provider", Translator.class.getName());
-		if (demoResetDelay == null) {
-			startMQTT();
-		}
 
 		long now = System.currentTimeMillis();
 		// read locale from database and override if needed
@@ -134,8 +155,13 @@ public class Main {
 		overrideTimeZone();
 		logger.info("Initialized data ({} ms)", System.currentTimeMillis() - now);
 
+		if (demoResetDelay == null) {
+			startMQTT();
+		}
 		// initialization, don't push out to browsers
 		OwlcmsFactory.initDefaultFOP();
+
+		signalDatabaseReady();
 	}
 
 	public static void injectSuppliers() {
@@ -148,9 +174,8 @@ public class Main {
 	/**
 	 * The main method.
 	 *
-	 * Start a web server and do all the required initializations for the application If running normally, we run until
-	 * killed. If running as a public demo, we sleep for awhile, and then exit. Some external mechanism such as
-	 * Kubernetes will notice and restart another instance.
+	 * Start a web server and do all the required initializations for the application If running normally, we run until killed. If running as a public demo, we
+	 * sleep for awhile, and then exit. Some external mechanism such as Kubernetes will notice and restart another instance.
 	 *
 	 * @param args the arguments
 	 * @throws Exception the exception
@@ -163,22 +188,11 @@ public class Main {
 		}
 
 		init();
-		CountDownLatch latch = OwlcmsFactory.getInitializationLatch();
+		// CountDownLatch latch = OwlcmsFactory.getInitializationLatch();
 
 		// restart automatically forever if running as public demo
 		while (true) {
-			EmbeddedJetty embeddedJetty = new EmbeddedJetty(latch, "owlcms")
-			        .setStartLogger(logger)
-			        .setInitConfig(Main::initConfig)
-			        .setInitData(Main::initData);
-			Thread server = new Thread(() -> {
-				try {
-					embeddedJetty.run(serverPort, "/");
-				} catch (Exception e) {
-					logger.error("cannot start server {}\\n{}", e, LoggerUtils.stackTrace(e));
-				}
-			});
-			server.start();
+			EmbeddedJetty embeddedJetty = doRun();
 			if (demoResetDelay == null) {
 				break;
 			} else {
@@ -188,11 +202,76 @@ public class Main {
 
 	}
 
+	@SuppressWarnings("deprecation")
+	public static void startMQTT() {
+		Config conf = Config.getCurrent();
+		Boolean mqttInternal = conf.getMqttInternal();
+		if (mqttInternal == null) {
+			conf.setMqttInternal(true);
+			Config.setCurrent(conf);
+		} else {
+			// conf.setMqttInternal(true);
+			// Config.setCurrent(conf);
+			if (!mqttInternal) {
+				logger.info("MQTT server disabled using database configuration");
+				return;
+			}
+		}
+
+		mqttStartup = Long.toString(System.currentTimeMillis());
+		final IConfig mqttConfig = new MemoryConfig(new Properties());
+		Config.getCurrent().setMqttConfig(mqttConfig);
+		mqttConfig.setProperty(IConfig.ALLOW_ANONYMOUS_PROPERTY_NAME,
+		        Boolean.toString(Config.getCurrent().getParamMqttUserName() == null));
+		mqttConfig.setProperty(IConfig.AUTHENTICATOR_CLASS_NAME, "app.owlcms.init.MoquetteAuthenticator");
+		mqttConfig.setProperty(IConfig.PORT_PROPERTY_NAME, Config.getCurrent().getParamMqttPort());
+		mqttConfig.setProperty(IConfig.BUFFER_FLUSH_MS_PROPERTY_NAME, Integer.toString(0));
+		mqttConfig.setProperty(IConfig.PERSISTENCE_ENABLED_PROPERTY_NAME, Boolean.FALSE.toString());
+		// this should be in memory, but the DATA_PATH_PROPERTY_NAME does not work with a virtual file system
+		mqttConfig.setProperty(IConfig.DATA_PATH_PROPERTY_NAME, "mqttData");
+		new File(mqttConfig.getProperty(IConfig.DATA_PATH_PROPERTY_NAME)).mkdirs();
+
+		mqttBroker = new Server();
+		List<? extends InterceptHandler> userHandlers = Collections.singletonList(new PublisherListener());
+
+		if (Config.getCurrent().getParamMqttServer() != null && !Config.getCurrent().getParamMqttServer().isBlank()) {
+			logger.info("MQTT Server overridden by environment or system parameter, not starting embedded MQTT");
+			return;
+		}
+		if (!Config.getCurrent().getParamMqttInternal()) {
+			logger.info("Internal MQTT server not enabled, skipping");
+			return;
+		}
+		if (Config.getCurrent().getMqttInternal() == null) {
+			// default should be true if not set previously
+			Config.getCurrent().setMqttInternal(true);
+		}
+
+		try {
+			long now = System.currentTimeMillis();
+			logger.info("starting MQTT broker.");
+			mqttBroker.startServer(mqttConfig, userHandlers);
+			logger.info("started MQTT broker ({} ms).", System.currentTimeMillis() - now);
+
+			// Bind a shutdown hook
+			Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+				logger.info("Stopping broker");
+				mqttBroker.stopServer();
+				logger.info("Broker stopped");
+			}));
+		} catch (Exception e) {
+			logger.error("could not start server", e.toString(), e.getCause());
+		}
+	}
+
+	public static void stopMQTT() {
+		mqttBroker.stopServer();
+	}
+
 	/**
 	 * Prepare owlcms
 	 *
-	 * Reads configuration options, injects data, initializes singletons and configurations. The embedded web server can
-	 * then be started.
+	 * Reads configuration options, injects data, initializes singletons and configurations. The embedded web server can then be started.
 	 *
 	 * Sample command line to run on port 80 and in demo mode (automatically generated fake data, in-memory database)
 	 *
@@ -209,6 +288,17 @@ public class Main {
 		SLF4JBridgeHandler.install();
 		// disable poixml warning
 		StartupUtils.disableWarning();
+		
+		// needed otherwise history.replace does not work correctly in Vaadin 24
+		System.setProperty("vaadin.react.enable", "false");
+
+		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+			@Override
+			public void uncaughtException(Thread t, Throwable e) {
+				System.out.println("Caught " + e);
+				e.printStackTrace();
+			}
+		});
 
 		// read command-line and environment variable parameters
 		parseConfig();
@@ -253,6 +343,9 @@ public class Main {
 			boolean publicDemo = StartupUtils.getBooleanParam("publicDemo");
 			if (allCompetitions.isEmpty() || publicDemo) {
 				logger.info("injecting initial data {}", data);
+				Config current = Config.getCurrent();
+				current.setLocalDateTimeUtcNormalized(true);
+				Config.setCurrent(current); // forces a s save.
 				switch (data) {
 					case EMPTY_COMPETITION:
 						ProdData.insertInitialData(0);
@@ -267,7 +360,7 @@ public class Main {
 						break;
 					case BENCHMARK:
 						BenchmarkData.insertInitialData(
-								EnumSet.of(ChampionshipType.IWF, ChampionshipType.MASTERS));
+						        EnumSet.of(ChampionshipType.IWF, ChampionshipType.MASTERS));
 						break;
 				}
 			} else {
@@ -275,7 +368,7 @@ public class Main {
 				logger.info("database not empty: {}", allCompetitions.get(0).getCompetitionName());
 				List<AgeGroup> ags = AgeGroupRepository.findAll();
 				if (ags.isEmpty()) {
-					logger.info("creating age groups and categories");
+					logger.info("Creating age groups and categories");
 					JPAService.runInTransaction(em -> {
 						AgeGroupRepository.insertAgeGroups(em, null);
 						return null;
@@ -287,28 +380,28 @@ public class Main {
 				}
 				List<Config> configs = ConfigRepository.findAll();
 				if (configs.isEmpty()) {
-					logger.info("adding config object");
+					logger.debug("adding config object");
 					Config.setCurrent(new Config());
 				}
 
-				int nbParts = CategoryRepository.countParticipations();
-				if (nbParts == 0
-				        && AthleteRepository.countFiltered(null, null, null, null, null, null, null, null) > 0) {
-					// database has athletes, but no participations. 4.22 and earlier.
-					// need to create Participation entries for the Athletes.
-					logger.info("updating database: computing athlete eligibility to age groups and categories.");
-					AthleteRepository.resetParticipations();
-				}
+//				int nbParts = CategoryRepository.countParticipations();
+//				if (nbParts == 0
+//				        && AthleteRepository.countFiltered(null, null, null, null, null, null, null, null) > 0) {
+//					// database has athletes, but no participations. 4.22 and earlier.
+//					// need to create Participation entries for the Athletes.
+//					logger.debug("updating database: computing athlete eligibility to age groups and categories.");
+//					AthleteRepository.resetParticipations(false, true);
+//				}
 
 				List<Category> nullCodeCategories = CategoryRepository.findNullCodes();
 				if (!nullCodeCategories.isEmpty()) {
-					logger.info("updating category codes", nullCodeCategories);
+					logger.debug("updating category codes", nullCodeCategories);
 					CategoryRepository.fixNullCodes(nullCodeCategories);
 				}
 
 				PlatformRepository.checkPlatforms();
 			}
-			RecordDefinitionReader.loadRecords();
+			new RecordDefinitionReader().loadRecords();
 		} finally {
 			Translator.setForcedLocale(locale);
 		}
@@ -398,65 +491,12 @@ public class Main {
 		masters = StartupUtils.getBooleanParam("masters");
 	}
 
-	@SuppressWarnings("deprecation")
-	private static void startMQTT() {
-		Config conf = Config.getCurrent();
-		Boolean mqttInternal = conf.getMqttInternal();
-		if (mqttInternal == null) {
-			conf.setMqttInternal(true);
-			Config.setCurrent(conf);
-		} else {
-			// conf.setMqttInternal(true);
-			// Config.setCurrent(conf);
-			if (!mqttInternal) {
-				logger.info("MQTT server disabled using database configuration");
-				return;
-			}
-		}
-
-		mqttStartup = Long.toString(System.currentTimeMillis());
-		final IConfig mqttConfig = new MemoryConfig(new Properties());
-		Config.getCurrent().setMqttConfig(mqttConfig);
-		mqttConfig.setProperty(IConfig.ALLOW_ANONYMOUS_PROPERTY_NAME,
-		        Boolean.toString(Config.getCurrent().getParamMqttUserName() == null));
-		mqttConfig.setProperty(IConfig.AUTHENTICATOR_CLASS_NAME, "app.owlcms.init.MoquetteAuthenticator");
-		mqttConfig.setProperty(IConfig.PORT_PROPERTY_NAME, Config.getCurrent().getParamMqttPort());
-		mqttConfig.setProperty(IConfig.BUFFER_FLUSH_MS_PROPERTY_NAME, Integer.toString(0));
-		mqttConfig.setProperty(IConfig.PERSISTENCE_ENABLED_PROPERTY_NAME, Boolean.FALSE.toString());
-		// this should be in memory, but the DATA_PATH_PROPERTY_NAME does not work with a virtual file system
-		mqttConfig.setProperty(IConfig.DATA_PATH_PROPERTY_NAME, "mqttData");
-		new File(mqttConfig.getProperty(IConfig.DATA_PATH_PROPERTY_NAME)).mkdirs();
-
-		final Server mqttBroker = new Server();
-		List<? extends InterceptHandler> userHandlers = Collections.singletonList(new PublisherListener());
-
-		if (Config.getCurrent().getParamMqttServer() != null && !Config.getCurrent().getParamMqttServer().isBlank()) {
-			logger.info("MQTT Server overridden by environment or system parameter, not starting embedded MQTT");
-			return;
-		}
-		if (!Config.getCurrent().getParamMqttInternal()) {
-			logger.info("Internal MQTT server not enabled, skipping");
-			return;
-		}
-		if (Config.getCurrent().getMqttInternal() == null) {
-			// default should be true if not set previously
-			Config.getCurrent().setMqttInternal(true);
-		}
-
+	private static void signalDatabaseReady() {
 		try {
-			long now = System.currentTimeMillis();
-			logger.info("starting MQTT broker.");
-			mqttBroker.startServer(mqttConfig, userHandlers);
-			logger.info("started MQTT broker ({} ms).", System.currentTimeMillis() - now);
-
-			// Bind a shutdown hook
-			Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-				logger.info("Stopping broker");
-				mqttBroker.stopServer();
-				logger.info("Broker stopped");
-			}));
-		} catch (Exception e) {
-			logger.error("could not start server", e.toString(), e.getCause());
+			logger.info("Data initialized.");
+			OwlcmsFactory.countDownLatch();
+		} catch (InterruptedException e) {
+			LoggerUtils.logError(logger, e, false);
 		}
 	}
 
@@ -482,5 +522,13 @@ public class Main {
 			logger.info("public demo server shut down");
 		}));
 		System.exit(0);
+	}
+	
+	public static void restart() {
+		EmbeddedJetty.stop(true);
+		Main.stopMQTT();
+		LogbackConfigReloader.reloadLogbackConfiguration();
+		MQTTMonitor.reset();
+		Main.doRun();
 	}
 }

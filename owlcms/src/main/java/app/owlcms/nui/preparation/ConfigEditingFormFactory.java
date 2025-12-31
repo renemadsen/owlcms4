@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -48,6 +48,7 @@ import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.BinderValidationStatus;
 import com.vaadin.flow.data.provider.ListDataProvider;
+import com.vaadin.flow.data.validator.RegexpValidator;
 
 import app.owlcms.data.config.Config;
 import app.owlcms.data.config.ConfigRepository;
@@ -147,7 +148,7 @@ public class ConfigEditingFormFactory
 		                tzLayout, separator(), translationLayout));
 		ts.add(Translator.translate("Config.ConnexionsTab"),
 		        new VerticalLayout(
-		                new Div(), 
+		                new Div(),
 		                publicResultsLayout, separator(),
 		                videoDataLayout, separator(),
 		                mqttLayout, separator()));
@@ -432,6 +433,7 @@ public class ConfigEditingFormFactory
 		layout.addFormItem(publicResultsField, Translator.translate("Config.publicResultsURL"));
 		this.binder.forField(publicResultsField)
 		        .withNullRepresentation("")
+		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(http://|https://).*"))
 		        .bind(Config::getPublicResultsURL, Config::setPublicResultsURL);
 
 		PasswordField updateKey = new PasswordField();
@@ -444,29 +446,6 @@ public class ConfigEditingFormFactory
 		return layout;
 	}
 
-	private FormLayout videoDataForm() {
-		FormLayout layout = createLayout();
-		Component title = createTitle("Config.VideoDataTitle");
-		layout.add(title);
-		layout.setColspan(title, 2);
-
-		TextField videoDataField = new TextField();
-		videoDataField.setWidthFull();
-		layout.addFormItem(videoDataField, Translator.translate("Config.videoDataURL"));
-		this.binder.forField(videoDataField)
-		        .withNullRepresentation("")
-		        .bind(Config::getVideoDataURL, Config::setVideoDataURL);
-
-		PasswordField updateKey = new PasswordField();
-		updateKey.setWidthFull();
-		layout.addFormItem(updateKey, Translator.translate("Config.UpdateKey"));
-		this.binder.forField(updateKey)
-		        .withNullRepresentation("")
-		        .bind(Config::getVideoDataKey, Config::setVideoDataKey);
-
-		return layout;
-	}
-	
 	private Hr separator() {
 		Hr hr = new Hr();
 		hr.getStyle().set("margin-top", "0.5em");
@@ -491,7 +470,7 @@ public class ConfigEditingFormFactory
 
 		TextField videoStylesField = new TextField();
 		videoStylesField.setWidthFull();
-		layout.addFormItem(videoStylesField, Translator.translate("Config.videoStylesLabel"));
+		layout.addFormItem(videoStylesField, Translator.translate("Config.v55_videoStylesLabel"));
 		this.binder.forField(videoStylesField)
 		        .withNullRepresentation("")
 		        .bind(Config::getVideoStylesDirBase, Config::setVideoStylesDirectory);
@@ -577,6 +556,30 @@ public class ConfigEditingFormFactory
 			browserTZButton.setText(browserZoneText);
 			defaultTZ.setText(Translator.translate("Config.TZ_FromServer", defZone));
 		});
+
+		return layout;
+	}
+
+	private FormLayout videoDataForm() {
+		FormLayout layout = createLayout();
+		Component title = createTitle("Config.VideoDataTitle");
+		layout.add(title);
+		layout.setColspan(title, 2);
+
+		TextField videoDataField = new TextField();
+		videoDataField.setWidthFull();
+		layout.addFormItem(videoDataField, Translator.translate("Config.videoDataURL"));
+		this.binder.forField(videoDataField)
+		        .withNullRepresentation("")
+		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(http://|https://).*"))
+		        .bind(Config::getVideoDataURL, Config::setVideoDataURL);
+
+		PasswordField updateKey = new PasswordField();
+		updateKey.setWidthFull();
+		layout.addFormItem(updateKey, Translator.translate("Config.UpdateKey"));
+		this.binder.forField(updateKey)
+		        .withNullRepresentation("")
+		        .bind(Config::getVideoDataKey, Config::setVideoDataKey);
 
 		return layout;
 	}

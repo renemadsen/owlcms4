@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -11,7 +11,6 @@ import java.io.IOException;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.utils.LoggerUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -25,7 +24,6 @@ public class ExpiredServlet extends HttpServlet implements Traceable {
     private Logger logger = (Logger) LoggerFactory.getLogger(ExpiredServlet.class);
 
     public ExpiredServlet() {
-        this.getLogger().setLevel(Level.DEBUG);
     }
 
     /**

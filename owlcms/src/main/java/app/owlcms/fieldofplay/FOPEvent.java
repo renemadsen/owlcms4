@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.group.Group;
+import app.owlcms.data.jpa.JPAService;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.CeremonyType;
@@ -295,9 +296,10 @@ public class FOPEvent {
 		public Boolean ref3;
 		public Long ref3Time;
 		private boolean immediate;
+		private boolean singleReferee;
 
 		public DecisionFullUpdate(Object origin, Athlete athlete, Boolean ref1, Boolean ref2, Boolean ref3,
-		        Long long1, Long long2, Long long3, boolean immediate) {
+		        Long long1, Long long2, Long long3, boolean immediate, boolean singleReferee) {
 			super(athlete, origin);
 			this.ref1 = ref1;
 			this.ref2 = ref2;
@@ -306,6 +308,17 @@ public class FOPEvent {
 			this.ref2Time = long2;
 			this.ref3Time = long3;
 			this.immediate = immediate;
+			this.singleReferee = singleReferee;
+//			if (isSingleReferee()) {
+//				// move the decision to position 2; this is expected by the JavaScript element
+//				if (this.ref1 != null) {
+//					this.ref2 = this.ref1;
+//					this.ref1 = null;
+//				} else if (this.ref3 != null) {
+//					this.ref2 = this.ref3;
+//					this.ref3 = null;
+//				}
+//			}
 			trace();
 		}
 
@@ -342,6 +355,14 @@ public class FOPEvent {
 
 		private void trace(Boolean ref1, Boolean ref2, Boolean ref3, boolean immediate) {
 			this.logger.trace("decision full update {} {} {} {}", ref1, ref2, ref3, LoggerUtils.whereFrom(2));
+		}
+		
+		public void setSingleReferee(boolean b) {
+			this.singleReferee = b;
+		}
+
+		public boolean isSingleReferee() {
+			return singleReferee;
 		}
 
 	}
@@ -380,6 +401,10 @@ public class FOPEvent {
 			return this.isDecision() == other.isDecision() && this.getRefIndex() == other.getRefIndex();
 		}
 
+		public int getRefIndex() {
+			return this.refIndex;
+		}
+
 		@Override
 		public int hashCode() {
 			final int prime = 31;
@@ -388,25 +413,21 @@ public class FOPEvent {
 			return result;
 		}
 
-		@Override
-		public String toString() {
-			return "[decision=" + this.isDecision() + ", refIndex=" + this.getRefIndex() + "]";
+		public boolean isDecision() {
+			return this.decision;
 		}
 
-		public int getRefIndex() {
-			return refIndex;
+		public void setDecision(boolean decision) {
+			this.decision = decision;
 		}
 
 		public void setRefIndex(int refIndex) {
 			this.refIndex = refIndex;
 		}
 
-		public boolean isDecision() {
-			return decision;
-		}
-
-		public void setDecision(boolean decision) {
-			this.decision = decision;
+		@Override
+		public String toString() {
+			return "[decision=" + this.isDecision() + ", refIndex=" + this.getRefIndex() + "]";
 		}
 
 	}
@@ -627,7 +648,15 @@ public class FOPEvent {
 		}
 
 		public Group getGroup() {
-			return this.group;
+			// force reloading the group.
+			if (group == null) {
+				return null;
+			}
+			Group updatedGroup = JPAService.runInTransaction(em -> {
+				Group updated = em.find(Group.class, this.group.getId());
+				return updated;
+			});
+			return updatedGroup;
 		}
 
 		@Override
@@ -705,10 +734,9 @@ public class FOPEvent {
 
 	protected Athlete athlete;
 	/**
-	 * When a FOPEvent (for example stopping the clock) is handled, it is often reflected as a series of UIEvents (for
-	 * example, all the displays running the clock get told to stop it). The user interface that gave the order doesn't
-	 * want to be notified again, so we memorize which user interface element created the original order so it can
-	 * ignore it.
+	 * When a FOPEvent (for example stopping the clock) is handled, it is often reflected as a series of UIEvents (for example, all the displays running the
+	 * clock get told to stop it). The user interface that gave the order doesn't want to be notified again, so we memorize which user interface element created
+	 * the original order so it can ignore it.
 	 */
 	protected Object origin;
 	final Logger logger = (Logger) LoggerFactory.getLogger(FOPEvent.class);

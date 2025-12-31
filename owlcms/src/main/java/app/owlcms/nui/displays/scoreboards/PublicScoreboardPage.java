@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.displays.scoreboards;
 
 import java.util.HashMap;
@@ -68,6 +74,7 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 		}
 		this.ui.access(() -> {
 			/* copy current parameters from results board to medals board */
+			this.getMedalsBoard().setVisible(true);
 			this.getMedalsBoard().setDownSilenced(true);
 			this.getMedalsBoard().setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
 			this.getMedalsBoard().setVideo(((DisplayParameters) getBoard()).isVideo());
@@ -78,41 +85,35 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
 			checkVideo(this.getMedalsBoard());
 			getMedalsBoard().getStyle().set("display", "block");
+			this.getMedalsBoard().syncWithFOP(getFop());
 			getResultsBoard().getStyle().set("display", "none");
 		});
 	}
 
-	private void createComponents() {
-		var board = new Results();
-		setMedalsBoard(new ResultsMedals());
-		this.setBoard(board);
+	@Subscribe
+	public void slaveVideoRefresh(UIEvent.VideoRefresh e) {
+		// this should never have isVideo() in actual practice.
 
-		getMedalsBoard().setDownSilenced(true);
-		getMedalsBoard().setDarkMode(board.isDarkMode());
-		getMedalsBoard().setVideo(board.isVideo());
-		getMedalsBoard().setPublicDisplay(board.isPublicDisplay());
-		getMedalsBoard().setSingleReferee(board.isSingleReferee());
-		getMedalsBoard().setAbbreviatedName(board.isAbbreviatedName());
-		getMedalsBoard().setTeamWidth(board.getTeamWidth());
-		getMedalsBoard().setEmFontSize(board.getEmFontSize());
-		checkVideo(getMedalsBoard());
-
-		getMedalsBoard().getStyle().set("display", "none");
-		this.ui = UI.getCurrent();
-	}
-	
-	@Override
-	protected void onAttach(AttachEvent attachEvent) {
-		DisplayParameters board = (DisplayParameters) this.getBoard();
-		board.setFop(getFop());
-		getMedalsBoard().setFop(getFop());
-		
-		this.setResultsBoard((Results) board);
-		this.setMedalsBoard(getMedalsBoard());
-		
-		this.addComponent((Component) board);
-		getMedalsBoard().setVisible(false);
-		this.addComponent(getMedalsBoard());
+		// logger.debug("videorefresh {}",e.getFop());
+		if (!isVideo()) {
+			return;
+		}
+		this.ui.access(() -> {
+			/* copy current parameters from results board to medals board */
+			this.getMedalsBoard().setVisible(true);
+			this.getMedalsBoard().setDownSilenced(true);
+			this.getMedalsBoard().setDarkMode(((DisplayParameters) getBoard()).isDarkMode());
+			this.getMedalsBoard().setVideo(((DisplayParameters) getBoard()).isVideo());
+			this.getMedalsBoard().setPublicDisplay(((DisplayParameters) getBoard()).isPublicDisplay());
+			this.getMedalsBoard().setSingleReferee(((SoundParameters) getBoard()).isSingleReferee());
+			this.getMedalsBoard().setAbbreviatedName(((DisplayParameters) getBoard()).isAbbreviatedName());
+			this.getMedalsBoard().setTeamWidth(((DisplayParameters) getBoard()).getTeamWidth());
+			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
+			checkVideo(this.getMedalsBoard());
+			getMedalsBoard().getStyle().set("display", "block");
+			this.getMedalsBoard().syncWithFOP(getFop());
+			getResultsBoard().getStyle().set("display", "none");
+		});
 	}
 
 	@Override
@@ -121,6 +122,23 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 		this.uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
 		createComponents();
 		setDefaultParameters();
+	}
+
+	@Override
+	protected void onAttach(AttachEvent attachEvent) {
+		uiEventBusRegister(this, getFop());
+		DisplayParameters board = (DisplayParameters) this.getBoard();
+		board.setFop(getFop());
+		getMedalsBoard().setFop(getFop());
+
+		this.setResultsBoard((Results) board);
+		this.setMedalsBoard(getMedalsBoard());
+
+		this.addComponent((Component) board);
+		this.addComponent(getMedalsBoard());
+
+		((Component) board).setVisible(true);
+		getMedalsBoard().setVisible(false);
 	}
 
 	protected void setDefaultParameters() {
@@ -147,16 +165,35 @@ public class PublicScoreboardPage extends AbstractResultsDisplayPage {
 		setDefaultParameters(QueryParameters.simple(fullMap));
 	}
 
-	private void setMedalsBoard(ResultsMedals medalsBoard) {
-		this.medalsBoard = medalsBoard;
-	}
-
 	protected void setResultsBoard(Results board) {
 		this.resultsBoard = board;
 	}
 
+	private void createComponents() {
+		var board = new Results();
+		setMedalsBoard(new ResultsMedals());
+		this.setBoard(board);
+
+		getMedalsBoard().setDownSilenced(true);
+		getMedalsBoard().setDarkMode(board.isDarkMode());
+		getMedalsBoard().setVideo(board.isVideo());
+		getMedalsBoard().setPublicDisplay(board.isPublicDisplay());
+		getMedalsBoard().setSingleReferee(board.isSingleReferee());
+		getMedalsBoard().setAbbreviatedName(board.isAbbreviatedName());
+		getMedalsBoard().setTeamWidth(board.getTeamWidth());
+		getMedalsBoard().setEmFontSize(board.getEmFontSize());
+		checkVideo(getMedalsBoard());
+
+		getMedalsBoard().getStyle().set("display", "none");
+		this.ui = UI.getCurrent();
+	}
+
 	private ResultsMedals getMedalsBoard() {
-		return medalsBoard;
+		return this.medalsBoard;
+	}
+
+	private void setMedalsBoard(ResultsMedals medalsBoard) {
+		this.medalsBoard = medalsBoard;
 	}
 
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-Fran�ois Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -22,7 +22,6 @@ import app.owlcms.prutils.DebugUtils;
 import app.owlcms.prutils.SafeEventBusRegistrationPR;
 import app.owlcms.publicresults.UpdateReceiverServlet;
 import app.owlcms.utils.LoggerUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -36,11 +35,6 @@ public abstract class TimerElementPR extends LitTemplate
     private String fopName;
 
     final private Logger logger = (Logger) LoggerFactory.getLogger(TimerElementPR.class);
-    final private Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
-    {
-        this.logger.setLevel(Level.INFO);
-        this.uiEventLogger.setLevel(Level.INFO);
-    }
 
     private Element timerElement;
     private boolean indefinite;
@@ -271,6 +265,7 @@ public abstract class TimerElementPR extends LitTemplate
         Element timerElement2 = getTimerElement();
         if (timerElement2 != null) {
             double seconds = indefinite ? 0.0D : milliseconds / 1000.0D;
+            logger.debug("start {} seconds",seconds);
             timerElement2.callJsFunction("start", seconds, indefinite, silent, timerElement2,
                     Long.toString(System.currentTimeMillis()), from);
         }
@@ -279,6 +274,7 @@ public abstract class TimerElementPR extends LitTemplate
     private void stop(Integer milliseconds, Boolean indefinite, Boolean silent, String from) {
         Element timerElement2 = getTimerElement();
         if (timerElement2 != null) {
+            logger.debug("stop");
             double seconds = indefinite ? 0.0D : milliseconds / 1000.0D;
             timerElement2.callJsFunction("pause", seconds, indefinite, silent, timerElement2,
                     Long.toString(System.currentTimeMillis()), from);

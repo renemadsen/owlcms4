@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -11,7 +11,6 @@ import java.util.Comparator;
 import org.apache.commons.lang3.ObjectUtils;
 
 import app.owlcms.data.athlete.Athlete;
-import app.owlcms.data.competition.Competition;
 
 /**
  * This comparator is used for the technical meeting sheet. It is based on the registration category
@@ -32,7 +31,12 @@ public class RegistrationExportComparator extends AbstractLifterComparator imple
 
 		compare = compareAgeGroup(lifter1, lifter2);
 		if (compare != 0) {
-			return Competition.getCurrent().isMasters() ? -compare : compare;
+			return compare;
+		} else {
+			compare = mastersSessionAgeGroupComparison(lifter1, lifter2, compare);
+			if (compare != 0) {
+				return -compare;
+			}
 		}
 
 		// takes into account platform and group name so that groups are not mixed
@@ -69,5 +73,7 @@ public class RegistrationExportComparator extends AbstractLifterComparator imple
 
 		return compare;
 	}
+
+
 
 }

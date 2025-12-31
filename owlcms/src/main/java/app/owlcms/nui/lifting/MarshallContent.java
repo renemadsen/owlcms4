@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -59,6 +59,7 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 	}
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
 	private boolean startOrder;
+	private boolean liveLights;
 
 	public MarshallContent() {
 		// when navigating to the page, Vaadin will call setParameter+readParameters
@@ -68,7 +69,7 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 		        SoundParameters.DOWNSILENT, "true",
 		        SoundParameters.IMMEDIATE, "true",
 		        SoundParameters.SINGLEREF, "false",
-		        SoundParameters.LIVE_LIGHTS, "true",
+		        SoundParameters.LIVE_LIGHTS, "false",
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.START_ORDER, "true")));
 	}
@@ -111,6 +112,27 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 	@Override
 	public String getPageTitle() {
 		return Translator.translate("Marshall") + OwlcmsSession.getFopNameIfMultiple();
+	}
+
+	@Override
+	public boolean isLiveLights() {
+		// logger.debug("is live lights {} -- {}",this.liveLights, LoggerUtils.whereFrom());
+		return this.liveLights;
+	}
+
+	@Override
+	public boolean isStartOrder() {
+		return this.startOrder;
+	}
+
+	@Override
+	public void setLiveLights(boolean showLiveLights) {
+		this.liveLights = showLiveLights;
+	}
+
+	@Override
+	public void setStartOrder(boolean useStartOrder) {
+		this.startOrder = useStartOrder;
 	}
 
 	@Subscribe
@@ -156,15 +178,6 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 		return buttons;
 	}
 
-	/**
-	 * @see app.owlcms.nui.shared.AthleteGridContent#decisionButtons(com.vaadin.flow.component.orderedlayout.HorizontalLayout)
-	 */
-	@Override
-	protected HorizontalLayout decisionButtons(FlexLayout announcerBar) {
-		HorizontalLayout decisions = new HorizontalLayout();
-		return decisions;
-	}
-
 	@Override
 	protected void createTopBarSettingsMenu() {
 		this.topBarSettings = new MenuBar();
@@ -205,13 +218,12 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 		startOrder.setChecked(this.isStartOrder());
 	}
 
+	/**
+	 * @see app.owlcms.nui.shared.AthleteGridContent#decisionButtons(com.vaadin.flow.component.orderedlayout.HorizontalLayout)
+	 */
 	@Override
-	public void setStartOrder(boolean useStartOrder) {
-		this.startOrder = useStartOrder;
-	}
-	
-	@Override
-	public boolean isStartOrder() {
-		return this.startOrder;
+	protected HorizontalLayout decisionButtons(FlexLayout announcerBar) {
+		HorizontalLayout decisions = new HorizontalLayout();
+		return decisions;
 	}
 }

@@ -1,5 +1,6 @@
 /* green transparent page background, no stretching */
 * {
+    /*--pageBackgroundColor: transparent;*/
     --pageBackgroundColor: #00ff00;
     --pageTextColor: white;
 }
@@ -24,7 +25,7 @@
   --groupInfoColor: white;
 
   /* video header */
-  --videoHeaderBackgroundColor: #ab1a1f;
+  --videoHeaderBackgroundColor: darkblue;
   --videoHeaderTextColor: white;
 }
 

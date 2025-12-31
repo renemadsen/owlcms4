@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -20,7 +20,9 @@ import app.owlcms.i18n.Translator;
 @SuppressWarnings("serial")
 public class ConfirmationDialog extends Dialog {
 
-	public ConfirmationDialog(String title, String question, String confirmation, Runnable action) {
+	Runnable action;
+
+	public ConfirmationDialog(String title, String question, String confirmation, Runnable pAction) {
 		Dialog dialog = this;
 		dialog.setCloseOnEsc(false);
 		dialog.setCloseOnOutsideClick(false);
@@ -37,8 +39,14 @@ public class ConfirmationDialog extends Dialog {
 
 		HorizontalLayout buttons = new HorizontalLayout();
 		Button confirmButton = new Button(Translator.translate("Confirm"), event -> {
-			action.run();
-			Notification.show(confirmation);
+			if (pAction != null) {
+				pAction.run();
+			} else if (this.action != null) {
+				this.action.run();
+			}
+			if (confirmation != null) {
+				Notification.show(confirmation);
+			}
 			dialog.close();
 		});
 		confirmButton.getElement().setAttribute("theme", "primary");
@@ -54,6 +62,14 @@ public class ConfirmationDialog extends Dialog {
 
 		dialog.add(content);
 		dialog.add(buttons);
-
 	}
+
+	public Runnable getAction() {
+		return this.action;
+	}
+
+	public void setAction(Runnable action) {
+		this.action = action;
+	}
+
 }

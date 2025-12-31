@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-Fran�ois Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -21,6 +21,7 @@ import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Tag;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 
 import app.owlcms.data.athlete.Athlete;
@@ -78,6 +79,7 @@ public class TopSinclair extends AbstractTop {
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
 	private Ranking scoringSystem;
 	private QPoints qpoints = new QPoints(2023);
+	private UI ui;
 
 	public TopSinclair() {
 		uiEventLogger.setLevel(Level.INFO);
@@ -168,8 +170,7 @@ public class TopSinclair extends AbstractTop {
 	public void slaveOrderUpdated(UIEvent.LiftingOrderUpdated e) {
 		uiLog(e);
 		Competition competition = Competition.getCurrent();
-
-		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
+		ui.access(() -> {	
 			doUpdate(competition);
 		});
 	}
@@ -187,9 +188,9 @@ public class TopSinclair extends AbstractTop {
 	@Override
 	public void uiLog(UIEvent e) {
 		if (e == null) {
-			uiEventLogger.debug("### {} {}", this.getClass().getSimpleName(), LoggerUtils.whereFrom());
+			logger.debug("### {} {}", this.getClass().getSimpleName(), LoggerUtils.whereFrom());
 		} else {
-			uiEventLogger.debug("### {} {} {}", this.getClass().getSimpleName(), e.getClass().getSimpleName(),
+			logger.debug("### {} {} {}", this.getClass().getSimpleName(), e.getClass().getSimpleName(),
 			        LoggerUtils.whereFrom());
 		}
 	}
@@ -202,12 +203,10 @@ public class TopSinclair extends AbstractTop {
 
 	@Override
 	protected void doUpdate(Athlete a, UIEvent e) {
-		logger.debug("doUpdate {} {}", a, a != null ? a.getAttemptsDone() : null);
+		logger.debug("XXX doUpdate {} {}", a, a != null ? a.getAttemptsDone() : null);
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
-			if (a != null) {
-				getElement().setProperty("fullName", Translator.translate("Scoreboard.TopSinclair"));
-				updateBottom();
-			}
+			getElement().setProperty("fullName", Translator.translate("Scoreboard.TopSinclair"));
+			updateBottom();
 		});
 	}
 
@@ -277,7 +276,7 @@ public class TopSinclair extends AbstractTop {
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-		logger.debug("onAttach start");
+		ui = this.getUI().get();
 		checkVideo(this);
 		setWide(false);
 		setTranslationMap();
@@ -355,6 +354,17 @@ public class TopSinclair extends AbstractTop {
 						        Math.ceil((this.topManScore - a.getCategorySinclair()) / a.getCatSinclairFactor()));
 					}
 					break;
+				case CAT_QPOINTS:
+					if (curGender == Gender.F) {
+						needed = (int) Math.round(
+						        Math.ceil((this.topWomanScore - a.getCategoryQPoints())
+						                / this.qpoints.qPointsFactor(Gender.F, a.computeCategoryBodyWeight())));
+					} else {
+						needed = (int) Math.round(
+						        Math.ceil((this.topManScore - a.getCategoryQPoints())
+						                / this.qpoints.qPointsFactor(Gender.M, a.computeCategoryBodyWeight())));
+					}
+					break;
 				case GAMX:
 					if (curGender == Gender.F) {
 						int tot = a.getBestSnatch() + a.getBestCleanJerk();
@@ -404,10 +414,10 @@ public class TopSinclair extends AbstractTop {
 				case SMM:
 					if (curGender == Gender.F) {
 						needed = (int) Math.round(
-						        Math.ceil((this.topWomanScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topWomanScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					} else {
 						needed = (int) Math.round(
-						        Math.ceil((this.topManScore - a.getSmfForDelta()) / a.getSmfFactor()));
+						        Math.ceil((this.topManScore - a.getSmhfForDelta()) / a.getSmhfFactor()));
 					}
 					break;
 				default:
@@ -441,7 +451,6 @@ public class TopSinclair extends AbstractTop {
 
 	private List<Athlete> nodups(List<Athlete> athletes) {
 		// massive kludge because we have same athlete in multiple age groups
-		// TODO: top sinclair can be absolute or by age group
 		athletes = athletes.stream()
 		        .map((p) -> p instanceof PAthlete ? ((PAthlete) p)._getAthlete() : p)
 		        .collect(Collectors.toSet())
@@ -475,7 +484,8 @@ public class TopSinclair extends AbstractTop {
 		this.getElement().setProperty("topSinclairMen",
 		        sortedMen2 != null && sortedMen2.size() > 0 ? Translator.translate("Scoreboard.TopScoreMen", ssTitle)
 		                : "");
-		this.getElement().setPropertyJson("sortedMen", getAthletesJson(sortedMen2, true));
+		JsonValue mAthletesJson = getAthletesJson(sortedMen2, true);
+		this.getElement().setPropertyJson("sortedMen", mAthletesJson);
 
 		List<Athlete> sortedWomen2 = getSortedWomen();
 		sortedWomen2 = nodups(sortedWomen2);
@@ -483,9 +493,18 @@ public class TopSinclair extends AbstractTop {
 		        sortedWomen2 != null && sortedWomen2.size() > 0
 		                ? Translator.translate("Scoreboard.TopScoreWomen", ssTitle)
 		                : "");
-		this.getElement().setPropertyJson("sortedWomen", getAthletesJson(sortedWomen2, false));
-
-		logger.debug("updateBottom {} {}", sortedWomen2, sortedMen2);
+		JsonValue wAthletesJson = getAthletesJson(sortedWomen2, false);
+		this.getElement().setPropertyJson("sortedWomen", wAthletesJson);
+	}
+	
+	@Override
+	@Subscribe
+	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
+		uiLog(e);
+		ui.access(() -> {
+			// crude hack due to unexplained behavior of syncWithFop().
+			ui.getPage().reload();
+		});
 	}
 
 }

@@ -6,9 +6,7 @@ owlcms is a web-based application.  All the displays connect to owlcms using a b
 
 In a small club meet, the announcer will often do everything - announce, enter the weight changes, and operate the clock. This can be done on a single laptop, as demonstrated in this [video](Demo1).  You can sometimes even do away with the scoreboard.
 
-
-
-<center><img src="img/equipment/ClubCompetitionWIFI.png" alt="ClubCompetitionWIFI" /></center>
+<center><img src="EquipmentSetup/images/no_wifi.png" alt="ClubCompetitionWIFI" /></center>
 
 ## Suggested Small Competition Setup
 
@@ -16,8 +14,10 @@ If you have a meeting with multiple groups, the following setup will allow you t
 
 <table>
 <tr><td><img src='img/Gallery/ElSalvador.jpg'></img></td><td><img src='img/Gallery/ElSalvador_marshall.jpg'></img></td></tr></table>
+Many gyms have a WiFi router, in which case you can simply connect to it (diagram on the left) If there is no Wifi at the location, you will need to bring your own router. Note that we recommend that you use an ethernet wired connection whenever possible, at least for the owlcms computer (diagram on the right)
 
-![minimal](EquipmentSetup/images/minimal.png)
+<table>
+<tr><td align=center ><img src='EquipmentSetup/images/wifi_minimal.png'></img></td><td align=center><img src='EquipmentSetup/images/minimal.png'></img></td></tr></table>
 
 - The clock and decisions are visible on the attempt board.  The attempt board should visible from the chalk box and from the center of the platform.
 - This uses the "extend desktop" capability of the laptop to have a different output on the monitor. 
@@ -26,7 +26,7 @@ If you have a meeting with multiple groups, the following setup will allow you t
 
 ## Large Competition Setup
 
-At the opposite end of the spectrum, a setup for a state competition using refereeing devices would provide all the requisite displays and technical official stations.  To keep costs down, TVs and projectors can be driven using cheap devices such as Fire TV Sticks or Raspberry Pi.
+At the opposite end of the spectrum, a setup for a state competition using refereeing devices would provide all the requisite displays and technical official stations.  To keep costs down, TVs and projectors can be driven using less expensive devices such as Raspberry Pi, and you can also use HDMI splitters.
 
 
 
@@ -39,7 +39,7 @@ There are three building blocks to such a setup
 1. Some devices require frequent user input (Marshal, Secretary, Announcer). These are handled by laptops.  owlcms is often run on the secretary computer, only that laptop needs to be recent and performant.  All the other laptops can be basic, or refurbished.
 2. The various displays and TVs need a signal.  With owlcms, the signal comes from a web browser.  The most flexible way to do this is to use any of the following
    - Old laptops or Chromebooks that can run Chrome or Firefox
-   - Raspberry Pi (the [model 400](https://www.raspberrypi.org/products/raspberry-pi-400/), has everything built-in and is an excellent choice.  They have two HDMI ports and so fewer devices are available (you can buy long optical fiber HDMI cables of more than 30m if you need to)
+   - Raspberry Pi (the [model 500](https://www.raspberrypi.org/products/raspberry-pi-500/), has everything built-in and is an excellent choice.  They have two HDMI ports and so fewer devices are needed (you can buy long optical fiber HDMI cables of more than 30m if you need to)
    - Mini PCs (preferably with an Ethernet port). Mini PCs also have multiple HDMI ports, so you need fewer devices.  The basic models with 4GB or 8GB of memory are often quite cheap.
    - Chromecasts (this requires internet access for setup, and Wi-Fi has to be of excellent quality). A computer must provide the display being replicated -- a single laptop can drive multiple displays)
 3. Video splitters.  Sometimes it is possible to share the output from a PC and send it to a TV.  For example, the scoreboard in the warmup room can be obtained from the marshal computer and shown on a marshal monitor and a warmup room TV.
@@ -82,25 +82,11 @@ If the equipment used for display has no speakers, you can get the main computer
 
 ## Internet Access
 
-When available, Internet access is used for two reasons
+If available, Internet access is used for streaming and to publish results to the cloud.   There are 3 scenarios
 
-1. On the video streaming computers, to send video to YouTube or Facebook or another streaming service
-2. On the owlcms computer send the competition results to the publicresults module of owlcms running in the cloud.  This is increasingly desirable due to the cost and difficulty of setting up a large scoreboard in the main venue.
-
-What complicates matters is that these computers also need to talk to the rest of the competition network, in addition to the Internet.
-
-There are four ways to solve the problem.
-
-1. If the facility can offer Ethernet access to their network, that is the preferred option.  Simply connect the competition router to the facility's network.
-
-2. If the facility has excellent WiFi, you can take the risk of running everything on the facility WiFi.  Large facilities often have several WiFi networks. You should not use the WiFi used by the crowd, use a separate one if available.
-
-3. You can connect the competition router to a cellular network hotspot
-
-   - Some routers (for example the ASUS RT-AX58U or RT-AX68U) have a USB port and you use a cellular phone to get Internet Access (just like sharing a connection)
-
-   - You can buy or rent a cellular router that has a SIM card.  You connect the competition router to that router, and get Internet access that way.  In the picture, the competition router is in the center.  It is plugged into the cellular router at the left to get Internet access.  The box on the right is a switch that adds additional ports to the router.
-
-![hotspot](EquipmentSetup/Networking/hotspot.png)
-
-4. You can connect OBS and owlcms to the router with a wire, and use the facility WiFi or a phone hotspot to get to the Internet.  This is the approach illustrated in the second diagram -- OBS and owlcms communicate to the Internet on their own, independently.   The configuration required is explained on [this page](PhoneHotSpot.md)
+- You are using a local router and the router is connected to the Internet using Ethernet.  There is nothing to do, all should work.
+- You are using the facility Wi-Fi for all the computers, so they all have access to the Internet.  Likewise, nothing to do.
+- You are using a local router, but there is no Ethernet access to the Internet.  There are 3 options:
+  - If there is Wi-Fi at the facility, you can wire your owlcms and OBS computers to the local router and also connect them to the facility's Wi-Fi. There is nothing required for macOS or Raspberry Pi.  For Windows, see [Using Both Ethernet and Wi-Fi](WiFiPlusEthernet)
+  - There is no Wi-Fi, but you can use a phone as a hotspot. You would use the same approach as above, see [Using Both Ethernet and Wi-Fi](WiFiPlusEthernet)
+  - You can get a device called a Cellular Router.  The competition router connects to the Cellular Router using Ethernet, and the Cellular Router connects to your LTE or 5G network.

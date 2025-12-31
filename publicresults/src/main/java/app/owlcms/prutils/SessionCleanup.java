@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.prutils;
 
 import java.util.Iterator;
@@ -20,8 +26,8 @@ import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.publicresults.MainView;
 import app.owlcms.publicresults.UpdateReceiverServlet;
+import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.StartupUtils;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 public class SessionCleanup {
@@ -34,9 +40,10 @@ public class SessionCleanup {
 
     private SessionCleanup(VaadinSession vs) {
         this.vaadinSession = vs;
-        logger.setLevel(Level.DEBUG);
     }
 
+
+    
     public void cleanupSession() {
         vaadinSession.access(() -> {
             @SuppressWarnings("unchecked")
@@ -44,6 +51,7 @@ public class SessionCleanup {
             int stillAlive = 0;
             if (im != null) {
                 long now = System.currentTimeMillis();
+
                 logger.debug("checking session {}", System.identityHashCode(vaadinSession));
 
                 Iterator<Entry<UnloadObserverPR, Long>> entryIterator = im.entrySet().iterator();
@@ -107,13 +115,17 @@ public class SessionCleanup {
                 }
                 try {
                     Thread.sleep(1000);
-                    logger.debug("*** invalidating session {}", System.identityHashCode(vaadinSession));
-                    vaadinSession.getSession().invalidate();
-                    vaadinSession.close();
+
+                    try {
+                        vaadinSession.getSession().invalidate();
+                        vaadinSession.close();
+                        logger.info("*** invalidatded session {}", System.identityHashCode(vaadinSession));
+                    } catch (Throwable e) {
+                        logger.info("*** could not invalidate session {}", System.identityHashCode(vaadinSession));
+                    }
                     stop();
                 } catch (InterruptedException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
+                    LoggerUtils.logError(logger, e);
                 }
 
             }

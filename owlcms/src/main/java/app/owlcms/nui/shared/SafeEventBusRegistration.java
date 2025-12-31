@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -14,7 +14,6 @@ import com.vaadin.flow.component.UI;
 
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsSession;
-import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -34,7 +33,7 @@ public interface SafeEventBusRegistration {
 		EventBus uiEventBus = fop.getUiEventBus();
 		OwlcmsSession.setFop(fop);
 		uiEventBus.register(c);
-	    logger.debug("==== registering {} on bus {} {}",c, uiEventBus.identifier(), LoggerUtils.whereFrom());
+	    //logger.debug("==== registering {} on bus {} {}",c, uiEventBus.identifier(), LoggerUtils.whereFrom());
 
 //        UnloadObserver unloadObserver = UnloadObserver.get(false);
 //        unloadObserver.addUnloadListener((e) -> {
@@ -48,11 +47,11 @@ public interface SafeEventBusRegistration {
 //        ui.add(unloadObserver);
 
 		ui.addBeforeLeaveListener((e) -> {
-			logger.debug("leaving: unregister {} from {}", c, uiEventBus.identifier());
+			//logger.debug("leaving: unregister {} from {}", c, uiEventBus.identifier());
 			unregister(c, uiEventBus);
 		});
 		ui.addDetachListener((e) -> {
-			logger.debug("detaching: unregister {} from {}", c, uiEventBus.identifier());
+			//logger.debug("detaching: unregister {} from {}", c, uiEventBus.identifier());
 			unregister(c, uiEventBus);
 		});
 		return uiEventBus;

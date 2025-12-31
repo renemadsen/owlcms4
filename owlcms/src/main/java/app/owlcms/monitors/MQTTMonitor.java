@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.monitors;
 
 import java.io.UnsupportedEncodingException;
@@ -7,6 +13,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -28,6 +35,7 @@ import com.google.common.eventbus.Subscribe;
 
 import app.owlcms.Main;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.LiftDefinition;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.platform.PlatformRepository;
@@ -49,35 +57,12 @@ import ch.qos.logback.classic.Logger;
 /**
  * This class receives and emits MQTT events.
  *
- * Events initiated by the devices start with topics that names the device (owlcms/jurybox) Devices do not listen to
- * other devices. They listen to MQTT events that come from the field of play. These events are of the form
- * (owlcms/fop). The field of play is always the last element in the topic.
+ * Events initiated by the devices start with topics that names the device (owlcms/jurybox) Devices do not listen to other devices. They listen to MQTT events
+ * that come from the field of play. These events are of the form (owlcms/fop). The field of play is always the last element in the topic.
  *
  * @author Jean-François Lamy
  */
 public class MQTTMonitor extends Thread implements IUnregister {
-	
-	private static Map<String, MQTTMonitor> mqttMonitorByName = new HashMap<>();
-	
-	synchronized public static MQTTMonitor initMQTTMonitorByName(String monitorName, FieldOfPlay fieldOfPlay) {
-		MQTTMonitor existingMonitor = mqttMonitorByName.get(monitorName);
-		if (existingMonitor == null) {
-			logger.info("{}creating MQTT monitor",FieldOfPlay.getLoggingName(fieldOfPlay));
-			MQTTMonitor newForwarder = new MQTTMonitor(monitorName,fieldOfPlay);
-			//fieldOfPlay.setMqttMonitor(newForwarder);
-			mqttMonitorByName.put(monitorName, newForwarder);
-			return newForwarder;
-		} else {
-			logger.info("{}reusing MQTT monitor",FieldOfPlay.getLoggingName(fieldOfPlay));
-			//existingMonitor.getFop().setMqttMonitor(existingMonitor);
-			existingMonitor.setFop(fieldOfPlay);
-			return existingMonitor;
-		}
-	}
-	
-	public static MQTTMonitor getMqttMonitorByName(String name) {
-		return mqttMonitorByName.get(name);
-	}
 
 	/**
 	 * This inner class contains the routines executed when an MQTT message is received.
@@ -116,7 +101,11 @@ public class MQTTMonitor extends Thread implements IUnregister {
 			logger.debug("{}lost connection to MQTT: {}", FieldOfPlay.getLoggingName(MQTTMonitor.this.getFop()),
 			        cause.getLocalizedMessage());
 			// Called when the client lost the connection to the broker
-			connectionLoop(MQTTMonitor.this.client);
+			try {
+				connectionLoop(MQTTMonitor.this.client);
+			} catch (Throwable e) {
+				logger.error("connectionLost {}", e);
+			}
 		}
 
 		@Override
@@ -262,23 +251,37 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		}
 
 		private void postFopTimeEvents(String topic, String messageStr) {
+			int index = messageStr.indexOf(' ');
+			if (index > 0) {
+				// ignore second part
+				messageStr = messageStr.substring(0, index);
+			}
 			messageStr = messageStr.trim();
+			FieldOfPlay fop2 = MQTTMonitor.this.getFop();
 			if (messageStr.equalsIgnoreCase("start")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.TimeStarted(this));
+				fop2.fopEventPost(new FOPEvent.TimeStarted(this));
 			} else if (messageStr.equalsIgnoreCase("stop")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.TimeStopped(this));
+				fop2.fopEventPost(new FOPEvent.TimeStopped(this));
+			} else if (messageStr.equalsIgnoreCase("toggle")) {
+				if (fop2.getAthleteTimer().isRunning()) {
+					fop2.fopEventPost(new FOPEvent.TimeStopped(this));	
+				} else {
+					fop2.fopEventPost(new FOPEvent.TimeStarted(this));
+				}
 			} else if (messageStr.equalsIgnoreCase("60")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.ForceTime(60000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(60000, this));
 			} else if (messageStr.equalsIgnoreCase("120")) {
-				MQTTMonitor.this.getFop().fopEventPost(new FOPEvent.ForceTime(120000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(120000, this));
 			} else {
 				logger.error("{}Malformed MQTT clock message topic='{}' message='{}'",
-				        FieldOfPlay.getLoggingName(MQTTMonitor.this.getFop()), topic, messageStr);
+				        FieldOfPlay.getLoggingName(fop2), topic, messageStr);
 			}
 		}
 	}
 
+	private static Map<String, MQTTMonitor> mqttMonitorByName = new HashMap<>();
 	private static Logger logger = (Logger) LoggerFactory.getLogger(MQTTMonitor.class);
+
 	static {
 		logger.setLevel(Level.DEBUG);
 	}
@@ -296,6 +299,48 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		        fop.getName() + "_" + System.currentTimeMillis(), // ClientId
 		        new MemoryPersistence()); // Persistence
 		return client;
+	}
+
+	public static MQTTMonitor getMqttMonitorByName(String name) {
+		return mqttMonitorByName.get(name);
+	}
+
+	synchronized public static MQTTMonitor initMQTTMonitorByName(String monitorName, FieldOfPlay fieldOfPlay) {
+		MQTTMonitor existingMonitor = mqttMonitorByName.get(monitorName);
+		if (existingMonitor == null) {
+			logger.info("{}creating MQTT monitor", FieldOfPlay.getLoggingName(fieldOfPlay));
+			MQTTMonitor newForwarder = new MQTTMonitor(monitorName, fieldOfPlay);
+			// fieldOfPlay.setMqttMonitor(newForwarder);
+			mqttMonitorByName.put(monitorName, newForwarder);
+			return newForwarder;
+		} else {
+			logger.info("{}reusing MQTT monitor", FieldOfPlay.getLoggingName(fieldOfPlay));
+			// existingMonitor.getFop().setMqttMonitor(existingMonitor);
+			existingMonitor.setFop(fieldOfPlay);
+			return existingMonitor;
+		}
+	}
+
+	public static void reset() {
+		for (Entry<String, MQTTMonitor> e : mqttMonitorByName.entrySet()) {
+			MQTTMonitor monitor = e.getValue();
+			logger.info("unregistering MQTT monitor for platform {}", monitor.getMonitoredFopName());
+			monitor.setFop(null);
+			FieldOfPlay fop2 = OwlcmsFactory.getFOPByName(monitor.getMonitoredFopName());
+			if (fop2 != null) {
+				fop2.setEventForwarder(null);
+			}
+			try {
+				monitor.client.disconnect();
+			} catch (MqttException ex) {
+				try {
+					monitor.client.disconnectForcibly();
+				} catch (MqttException e1) {
+					LoggerUtils.logError(logger, e1);
+				}
+			}
+		}
+		mqttMonitorByName.clear();
 	}
 
 	private MqttAsyncClient client;
@@ -323,19 +368,103 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		publishMqttConfig("owlcms/fop/config");
 	}
 
-	public void publishStartAthleteTimer() throws MqttPersistenceException, MqttException {
-		this.client.publish("owlcms/clock/" + this.getFop().getName(),
-		        new MqttMessage("start".getBytes(StandardCharsets.UTF_8)));
+	public void publishRefDecision(int i, boolean goodLift) throws MqttPersistenceException, MqttException {
+		// 0 is the announcer decision, bump by 1.
+		String message = Integer.toString(i + 1) + " " + (goodLift ? "good" : "bad");
+		this.client.publish("owlcms/refbox/decision/" + this.getFop().getName(),
+		        new MqttMessage(message.getBytes(StandardCharsets.UTF_8)));
 	}
 
-	public void publishStopAthleteTimer() throws MqttPersistenceException, MqttException {
+	@SuppressWarnings("unused")
+	/*
+	 * used to republish a clock start event with information that the triggering device doesn't have.
+	 */
+	public void publishStartAthleteTimer(UIEvent.StartTime e) {
+		try {
+			Integer timeRemaining = e.getTimeRemaining();
+			Athlete currentAthlete = getFop().getCurAthlete();
+			int attemptNumber = currentAthlete.getAttemptNumber();
+			LiftDefinition.Stage liftType = currentAthlete.getAttemptsDone() >= 3 ? LiftDefinition.Stage.CLEANJERK : LiftDefinition.Stage.SNATCH;
+
+			if (currentAthlete != null) {
+				Map<String, Object> payload = new TreeMap<>();
+				payload.put("athleteName", currentAthlete.getFullName());
+				payload.put("liftType", liftType.toString());
+				payload.put("attemptNumber", attemptNumber);
+				payload.put("session", getFop().getGroup().getName());
+
+				String json;
+				try {
+					json = new ObjectMapper().writeValueAsString(payload);
+				} catch (JsonProcessingException ex) {
+					json = "";
+				}
+				this.client.publish("owlcms/fop/start/" + this.getFop().getName(),
+				        new MqttMessage((json + " " + timeRemaining).getBytes(StandardCharsets.UTF_8)));
+			} else {
+				// can't happen. parsers should ignore if less than 2 parts
+				this.client.publish("owlcms/fop/start/" + this.getFop().getName(),
+				        new MqttMessage("{}".getBytes(StandardCharsets.UTF_8)));
+			}
+		} catch (MqttPersistenceException e1) {
+			logger.error("cannot publish start athlete timer", e1);
+		} catch (MqttException e1) {
+			logger.error("cannot publish start athlete timer", e1);
+		}
+	}
+
+	/*
+	 * used to republish a clock stop event with information that the triggering device doesn't have.
+	 */
+	public void publishStopAthleteTimer(UIEvent.StopTime s) {
+		Integer timeRemaining = s.getTimeRemaining();
+		try {
+			this.client.publish("owlcms/fop/stop/" + this.getFop().getName(),
+			        new MqttMessage(("" + timeRemaining).getBytes(StandardCharsets.UTF_8)));
+		} catch (MqttPersistenceException e1) {
+			logger.error("cannot publish stop athlete timer", e1);
+		} catch (MqttException e1) {
+			logger.error("cannot publish stop athlete timer", e1);
+		}
+	}
+
+	@SuppressWarnings("unused")
+	public void simulateStartAthleteTimer() throws MqttPersistenceException, MqttException {
+		Athlete currentAthlete = getFop().getCurAthlete();
+		int attemptNumber = currentAthlete.getAttemptNumber();
+		LiftDefinition.Stage liftType = currentAthlete.getAttemptsDone() >= 3 ? LiftDefinition.Stage.CLEANJERK : LiftDefinition.Stage.SNATCH;
+
+		if (currentAthlete != null) {
+			Map<String, Object> payload = new TreeMap<>();
+			payload.put("athleteName", currentAthlete.getFullName());
+			payload.put("liftType", liftType.toString());
+			payload.put("attemptNumber", attemptNumber);
+			payload.put("session", getFop().getGroup().getName());
+
+			String json;
+			try {
+				json = new ObjectMapper().writeValueAsString(payload);
+			} catch (JsonProcessingException e) {
+				json = "";
+			}
+			this.client.publish("owlcms/clock/" + this.getFop().getName(),
+			        new MqttMessage(("start " + json).getBytes(StandardCharsets.UTF_8)));
+		} else {
+			// can't happen
+			this.client.publish("owlcms/clock/" + this.getFop().getName(),
+			        new MqttMessage("start".getBytes(StandardCharsets.UTF_8)));
+		}
+	}
+
+	public void simulateStopAthleteTimer() throws MqttPersistenceException, MqttException {
 		this.client.publish("owlcms/clock/" + this.getFop().getName(),
 		        new MqttMessage("stop".getBytes(StandardCharsets.UTF_8)));
 	}
 
 	public void setFop(FieldOfPlay fop) {
 		this.fop = fop;
-		//logger.debug("MQTTMonitor setFop {} {} {}\n{}", fop.getName(), System.identityHashCode(fop), System.identityHashCode(this), LoggerUtils.stackTrace());
+		// logger.debug("MQTTMonitor setFop {} {} {}\n{}", fop.getName(), System.identityHashCode(fop), System.identityHashCode(this),
+		// LoggerUtils.stackTrace());
 	}
 
 	@Subscribe
@@ -378,8 +507,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 	}
 
 	/**
-	 * A display or console has triggered the down signal (e.g. keypad connected to a laptop) and down signal post
-	 * connected via MQTT.
+	 * A display or console has triggered the down signal (e.g. keypad connected to a laptop) and down signal post connected via MQTT.
 	 *
 	 * @param d
 	 */
@@ -480,6 +608,12 @@ public class MQTTMonitor extends Thread implements IUnregister {
 
 	@Subscribe
 	public void slaveTimeStarted(UIEvent.StartTime e) {
+		publishStartAthleteTimer(e);
+	}
+
+	@Subscribe
+	public void slaveTimeStopped(UIEvent.StopTime e) {
+		publishStopAthleteTimer(e);
 	}
 
 	@Subscribe
@@ -492,7 +626,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 
 	@Override
 	public void start() {
-		//this.setFop(this.getFop());
+		// this.setFop(this.getFop());
 		this.getFop().getUiEventBus().register(this);
 		this.getFop().getFopEventBus().register(this);
 
@@ -512,25 +646,8 @@ public class MQTTMonitor extends Thread implements IUnregister {
 
 	@Override
 	public void unregister() {
-		// we do nothing.  We now have exactly one MQTTMonitor per platform name
+		// we do nothing. We now have exactly one MQTTMonitor per platform name
 		// and we reuse it if we ever recreate the field of play
-		
-//		logger.info("unregistering MQTT monitor for platform {}",getName());
-//		this.setFop(null);
-//		FieldOfPlay fop2 = OwlcmsFactory.getFOPByName(getMonitoredFopName());
-//		if (fop2 != null) {
-//			fop2.setEventForwarder(null);
-//		}
-//		mqttMonitorByName.remove(getMonitoredFopName());
-//		try {
-//			this.client.disconnect();
-//		} catch (MqttException e) {
-//			try {
-//				this.client.disconnectForcibly();
-//			} catch (MqttException e1) {
-//				LoggerUtils.logError(logger, e1);
-//			}
-//		}
 	}
 
 	private void connectionLoop(MqttAsyncClient mqttAsyncClient) {
@@ -539,11 +656,20 @@ public class MQTTMonitor extends Thread implements IUnregister {
 				// doConnect will generate a new client Id, and wait for completion
 				// client.reconnect() and automaticReconnection do not work as I expect.
 				doConnect();
+			} catch (MqttException me) {
+				if (me.getReasonCode() == MqttException.REASON_CODE_CLIENT_CONNECTED) {
+					try {
+						doConnect();
+					} catch (MqttException e) {
+						e.printStackTrace();
+					}
+				}
 			} catch (Exception e1) {
 				Main.getStartupLogger().error("{}MQTT refereeing device server: {}", FieldOfPlay.getLoggingName(this.getFop()),
 				        e1.getCause() != null ? e1.getCause().getMessage() : e1);
 				logger.error("{}MQTT refereeing device server: {}", FieldOfPlay.getLoggingName(this.getFop()),
 				        e1.getCause() != null ? e1.getCause().getMessage() : e1);
+				break;
 			}
 			sleep(1000);
 		}
@@ -570,10 +696,10 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		this.client.connect(connOpts).waitForCompletion();
 
 		publishMqttLedOnOff();
-		logger.info("{}connected to {} MQTT broker {}", 
-				FieldOfPlay.getLoggingName(fop),
-				(external ? "external" : "embedded"),
-				this.client.getCurrentServerURI());
+		logger.info("{}connected to {} MQTT broker {}",
+		        FieldOfPlay.getLoggingName(this.fop),
+		        (external ? "external" : "embedded"),
+		        this.client.getCurrentServerURI());
 
 		this.client.subscribe(this.callback.deprecatedDecisionTopicName, 0);
 		logger.trace("{}MQTT subscribe {} {}", FieldOfPlay.getLoggingName(this.getFop()), this.callback.deprecatedDecisionTopicName,
@@ -612,6 +738,11 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		this.client.publish(topic, new MqttMessage(Integer.toString(ref).getBytes(StandardCharsets.UTF_8)));
 		String deprecatedTopic = "owlcms/summon/" + this.getFop().getName() + "/" + ref;
 		this.client.publish(deprecatedTopic, new MqttMessage(("on").getBytes(StandardCharsets.UTF_8)));
+	}
+
+	@SuppressWarnings("unused")
+	private String getMonitoredFopName() {
+		return this.monitoredFopName;
 	}
 
 	private void publishMqttBreak(BreakStarted e) throws MqttPersistenceException, MqttException {
@@ -661,7 +792,7 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		payload.put("jurySize", Competition.getCurrent().getJurySize());
 		try {
 			String json = new ObjectMapper().writeValueAsString(payload);
-			logger.info("{}{} MQTT Config: {}", FieldOfPlay.getLoggingName(this.getFop()), System.identityHashCode(this), json);
+			logger.debug("{}{} MQTT Config: {}", FieldOfPlay.getLoggingName(this.getFop()), System.identityHashCode(this), json);
 			this.client.publish(topic, new MqttMessage(json.getBytes(StandardCharsets.UTF_8)));
 		} catch (JsonProcessingException | MqttException e) {
 		}
@@ -722,9 +853,15 @@ public class MQTTMonitor extends Thread implements IUnregister {
 	}
 
 	private void publishMqttRefereeDecision(Boolean ref1, Boolean ref2, Boolean ref3) {
-		boolean decision;
-		if (ref1 == null) {
-			decision = ref2;
+		boolean decision = false;
+		if (ref1 == null || ref2 == null || ref3 == null) {
+			if (ref1 != null) {
+				decision = ref1;
+			} else if (ref2 != null) {
+				decision = ref2;
+			} else if (ref3 != null) {
+				decision = ref3;
+			}
 		} else {
 			decision = (ref1 && ref2) || (ref1 && ref3) || (ref2 && ref3);
 		}
@@ -844,6 +981,10 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		}
 	}
 
+	private void setMonitoredFopName(String monitorName) {
+		this.monitoredFopName = monitorName;
+	}
+
 	private MqttConnectOptions setUpConnectionOptions(String username, String password) {
 		MqttConnectOptions connOpts = new MqttConnectOptions();
 		connOpts.setCleanSession(true);
@@ -873,12 +1014,4 @@ public class MQTTMonitor extends Thread implements IUnregister {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private String getMonitoredFopName() {
-		return monitoredFopName;
-	}
-
-	private void setMonitoredFopName(String monitorName) {
-		this.monitoredFopName = monitorName;
-	}
 }

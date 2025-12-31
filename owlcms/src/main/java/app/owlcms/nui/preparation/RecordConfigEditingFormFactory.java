@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.preparation;
 
 import java.io.IOException;
@@ -39,6 +45,7 @@ import com.vaadin.flow.data.binder.ValidationException;
 
 import app.owlcms.components.JXLSDownloader;
 import app.owlcms.components.fields.GridField;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordDefinitionReader;
 import app.owlcms.data.records.RecordEvent;
@@ -174,7 +181,7 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
 		// Translator.translate("Records.exportAllRecordsTitle"), new JXLSExportRecords(UI.getCurrent(), true));
 
-		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), true);
+		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), true, false);
 		JXLSDownloader dd = new JXLSDownloader(
 		        () -> {
 			        return recordsWriter;
@@ -187,7 +194,23 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		allRecords.add(dd.createImmediateDownloadButton());
 		allRecords.setWidthFull();
 
+		var recordsWriter1 = new JXLSExportRecords(UI.getCurrent(), true, true);
+		JXLSDownloader dd1 = new JXLSDownloader(
+		        () -> {
+			        return recordsWriter1;
+		        },
+		        "/templates/records",
+		        Competition::getComputedCurrentRecordsTemplateFileName,
+		        Competition::setCurrentRecordsTemplateFileName,
+		        Translator.translate("Records.exportCurrentRecordsTitle"),
+		        Translator.translate("Download"));
+		Div allRecords1 = new Div();
+		Button downloadButton = dd1.createDownloadButton();
+		downloadButton.setWidthFull();
+		allRecords1.add(downloadButton);
+
 		recordsAvailableLayout.addFormItem(allRecords, Translator.translate("Records.exportAllRecordsLabel"));
+		recordsAvailableLayout.addFormItem(allRecords1, Translator.translate("Records.exportCurrentRecordsLabel"));
 
 		return recordsAvailableLayout;
 	}
@@ -210,7 +233,7 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		uploadRecords.setUploadButton(uploadButton);
 		uploadRecords.setDropLabel(new NativeLabel(Translator.translate("Records.UploadDropZone")));
 		uploadRecords.addSucceededListener(e -> {
-			List<String> errors = RecordDefinitionReader.readInputStream(receiver.getInputStream(),
+			List<String> errors = new RecordDefinitionReader().readInputStream(receiver.getInputStream(),
 			        receiver.getFileName());
 			if (errors.isEmpty()) {
 				UI.getCurrent().getPage().reload();
@@ -257,15 +280,6 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 	}
 
 	private FormLayout provisionalForm() {
-		Button clearNewRecords = new Button(Translator.translate("Preparation.ClearNewRecords"),
-		        buttonClickEvent -> {
-			        try {
-				        RecordRepository.clearNewRecords();
-			        } catch (IOException e) {
-				        throw new RuntimeException(e);
-			        }
-		        });
-
 		FormLayout recordsAvailableLayout = createLayout();
 		Component title = createTitle("Records.ProvisionalSection");
 
@@ -275,7 +289,7 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
 		// Translator.translate("Results.NewRecords"), new JXLSExportRecords(UI.getCurrent(), false));
 
-		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false);
+		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false, false);
 		JXLSDownloader dd = new JXLSDownloader(
 		        () -> {
 			        return recordsWriter;
@@ -290,9 +304,25 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 
 		recordsAvailableLayout.addFormItem(newRecords, Translator.translate("Results.NewRecords"));
 
+		Button clearNewRecords = new Button(Translator.translate("Preparation.ClearNewRecords"),
+		        buttonClickEvent -> {
+			        try {
+				        RecordRepository.clearNewRecords();
+			        } catch (IOException e) {
+				        throw new RuntimeException(e);
+			        }
+		        });
 		clearNewRecords.setWidthFull();
 		recordsAvailableLayout.addFormItem(clearNewRecords,
 		        Translator.translate("Preparation.ClearNewRecordsExplanation"));
+
+		Button recomputeNewRecords = new Button(Translator.translate("Preparation.RecomputeNewRecords"),
+		        buttonClickEvent -> {
+			        RecordRepository.recomputeNewRecords();
+		        });
+		recomputeNewRecords.setWidthFull();
+		recordsAvailableLayout.addFormItem(recomputeNewRecords,
+		        Translator.translate("Preparation.RecomputeNewRecordsExplanation"));
 
 		return recordsAvailableLayout;
 	}

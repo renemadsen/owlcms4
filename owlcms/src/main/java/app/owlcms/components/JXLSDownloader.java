@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -153,6 +153,16 @@ public class JXLSDownloader {
 		return dialogOpen;
 	}
 
+	/**
+	 * Deprecated because the time stamp in the file name is determined when the download button is created, and not when the file is downloaded.
+	 *
+	 * Use LazyDownloadButton instead.
+	 *
+	 * @param tooltipText
+	 * @return
+	 */
+	// @Deprecated
+	// CODEREVIEW remove use of createImmediateDownloadButton
 	public Anchor createImmediateDownloadButton(String... tooltipText) {
 		this.xlsWriter = this.streamSourceSupplier.get();
 		Supplier<String> supplier = () -> getTargetFileName();
@@ -226,9 +236,9 @@ public class JXLSDownloader {
 					this.logger.debug("(2) template as set {}", this.templateNameGetter.apply(current));
 
 					this.xlsWriter = this.streamSourceSupplier.get();
-					this.logger.debug("(2) xlsWriter dialog {} {}", xlsWriter, dialog);
+					this.logger.debug("(2) xlsWriter dialog {} {}", this.xlsWriter, this.dialog);
 					if (this.xlsWriter == null) {
-						UI.getCurrent().access(() -> dialog.close());
+						UI.getCurrent().access(() -> this.dialog.close());
 						return;
 					}
 					this.logger.debug("(2) xlsWriter {} {}", this.xlsWriter.getClass().getSimpleName(),
@@ -318,6 +328,7 @@ public class JXLSDownloader {
 
 		String fileName = "";
 		String templateName = this.templateNameGetter.apply(Competition.getCurrent());
+		
 		String extension = FileUtils.getExtension(templateName);
 		if ((templateName.matches(".*[_-](A4|LETTER|LEGAL).*"))) {
 			fileName = templateName.replaceAll("[_-](A4|LETTER|LEGAL)(." + extension + ")", "") + suffix + "."
@@ -368,7 +379,7 @@ public class JXLSDownloader {
 		for (Resource r : resourceList) {
 			String curName = r.getFileName();
 			// give precedence to .xlsx file if both .xls and .xlsx
-			if (curName.endsWith(".xlsx") || (curName.endsWith(".xls") && !prevName.contentEquals(curName + "x"))) {
+			if (curName.endsWith(".xlsm") || curName.endsWith(".xlsx") || (curName.endsWith(".xls") && !prevName.contentEquals(curName + "x"))) {
 				proritizedList.add(r);
 			}
 			prevName = curName;

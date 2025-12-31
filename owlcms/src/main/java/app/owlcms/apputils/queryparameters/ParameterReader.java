@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.apputils.queryparameters;
 
 import java.util.List;
@@ -17,6 +23,7 @@ import com.vaadin.flow.router.QueryParameters;
 
 import ch.qos.logback.classic.Logger;
 
+@SuppressWarnings("unused")
 public interface ParameterReader extends HasUrlParameter<String> {
 
 	final Logger logger = (Logger) LoggerFactory.getLogger(ParameterReader.class);
@@ -73,14 +80,12 @@ public interface ParameterReader extends HasUrlParameter<String> {
 	 *
 	 * The values are stored in the URL in order to allow bookmarking and easy reloading.
 	 *
-	 * Note: what Vaadin calls a parameter is in the REST style, actually part of the URL path. We use the old-style
-	 * Query parameters for our purposes.
+	 * Note: what Vaadin calls a parameter is in the REST style, actually part of the URL path. We use the old-style Query parameters for our purposes.
 	 *
 	 * @see com.vaadin.flow.router.HasUrlParameter#setParameter(com.vaadin.flow.router. BeforeEvent, java.lang.Object)
 	 */
 	/**
-	 * @see app.owlcms.apputils.queryparameters.ParameterReader#setParameter(com.vaadin.flow.router.BeforeEvent,
-	 *      java.lang.String)
+	 * @see app.owlcms.apputils.queryparameters.ParameterReader#setParameter(com.vaadin.flow.router.BeforeEvent, java.lang.String)
 	 */
 	@Override
 	public default void setParameter(BeforeEvent event, @OptionalParameter String routeParameter) {

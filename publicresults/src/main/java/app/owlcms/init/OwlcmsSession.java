@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -17,7 +17,6 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.server.VaadinSession;
 
 import app.owlcms.i18n.Translator;
-import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -32,9 +31,6 @@ import ch.qos.logback.classic.Logger;
 public class OwlcmsSession {
 
     private final static Logger logger = (Logger) LoggerFactory.getLogger(OwlcmsSession.class);
-    static {
-        logger.setLevel(Level.INFO);
-    }
 
     /**
      * Gets the attribute.

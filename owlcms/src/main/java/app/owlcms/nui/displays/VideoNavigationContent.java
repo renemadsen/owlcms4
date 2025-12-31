@@ -1,24 +1,31 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
  *******************************************************************************/
 package app.owlcms.nui.displays;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import app.owlcms.data.athleteSort.Ranking;
+import app.owlcms.nui.displays.top.TopTeamsSinclairPage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
+import org.vaadin.addons.tatu.ColorPicker;
+import org.vaadin.addons.tatu.ColorPicker.ColorPreset;
 
 import com.github.appreciated.layout.FlexibleGridLayout;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.NativeLabel;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.router.BeforeEnterEvent;
@@ -30,6 +37,7 @@ import app.owlcms.apputils.DebugUtils;
 import app.owlcms.components.GroupCategorySelectionMenu;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.displays.video.StreamingEventMonitor;
@@ -83,6 +91,8 @@ public class VideoNavigationContent extends BaseNavigationContent
 		intro.getStyle().set("margin-bottom", "0");
 		fillH(intro, this);
 
+        colorOverride();
+        
 		Button currentAthlete = openInNewTabQueryParameters(CurrentAthletePage.class,
 		        Translator.translate("CurrentAthleteTitle"), "video=true");
 		Button attempt = openInNewTabQueryParameters(PublicFacingAttemptBoardPage.class,
@@ -149,7 +159,18 @@ public class VideoNavigationContent extends BaseNavigationContent
 		VerticalLayout intro1a = new VerticalLayout();
 		// addP(intro1, Translator.translate("darkModeSelect"));
 		intro1a.add(hl);
-		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings);
+
+		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		String scoringTitle = Ranking.getScoringTitle(scoringSystem);
+
+		Button topTeamsSinclair = new Button(
+				Translator.translate("Scoreboard.TopTeamsSinclair"));
+		topTeamsSinclair.addClickListener((e) -> {
+			Class<TopTeamsSinclairPage> class1 = TopTeamsSinclairPage.class;
+			openInNewTabWithResultsQueryParameters(class1);
+		});
+
+		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings, topTeamsSinclair);
 		doGroup(Translator.translate("Scoreboard.RANKINGS"), intro1a, grid1a, this);
 
 		Button obsMonitor = openInNewTab(OBSMonitor.class, Translator.translate("OBS.MonitoringButton"));
@@ -161,8 +182,56 @@ public class VideoNavigationContent extends BaseNavigationContent
 		addP(intro4, Translator.translate("OBS.MonitoringExplanation", Translator.translate("OBS.MonitoringButton")));
 		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(eventMonitor, obsMonitor);
 		doGroup(Translator.translate("OBS.MonitoringButton"), intro4, grid4, this);
+		
 
 		DebugUtils.gc();
+	}
+
+	public void colorOverride() {
+		boolean enableColorOverrides = Config.getCurrent().getEnableColorOverrides();
+		Checkbox enableColorOverrideCheckbox = new Checkbox(enableColorOverrides);
+		enableColorOverrideCheckbox.setMaxWidth("40%");
+		ColorPicker colorPicker = new ColorPicker();
+		colorPicker.setEnabled(enableColorOverrides);
+		
+        enableColorOverrideCheckbox.addClickListener(event -> {
+        	boolean selected = Boolean.TRUE.equals(enableColorOverrideCheckbox.getValue());
+        	Config.getCurrent().setEnableColorOverrides(selected);
+        	colorPicker.setEnabled(selected);
+        	logger.debug("selected {}",selected);
+        });
+        enableColorOverrideCheckbox.setLabel(Translator.translate("ColorSelection.EnabledLabel"));
+        enableColorOverrideCheckbox.setHelperText(Translator.translate("ColorSelection.EnabledHelperText"));
+
+        colorPicker.setLabel(Translator.translate("ColorSelection.Label"));
+        colorPicker.setMaxWidth("40%");
+        colorPicker.setHelperText(Translator.translate("ColorSelection.Helper"));
+        colorPicker
+                .setPresets(Arrays.asList(
+                		new ColorPreset("#000000", "Black"),
+                		new ColorPreset("#696969", "Dim Grey"),
+                		new ColorPreset("#8b0000", "Dark Red"),
+                        new ColorPreset("#006400", "Dark Green"),
+                        new ColorPreset("#00008b", "Dark Blue")
+                        ));
+
+        colorPicker.addValueChangeListener(event -> {
+        	Config.getCurrent().setVideoColorOverrides("--videoHeaderBackgroundColor: "+event.getValue());
+            Notification.show(event.getValue());
+        });
+        
+		VerticalLayout intro5 = new VerticalLayout();
+		intro5.setSpacing(false);
+        intro5.add(new Div(Translator.translate("ColorSelection.Intro")));
+        intro5.setMargin(false);
+        intro5.setPadding(false);
+        HorizontalLayout horizontalLayout = new HorizontalLayout(enableColorOverrideCheckbox, colorPicker);
+        horizontalLayout.setMargin(false);
+        horizontalLayout.setAlignItems(Alignment.CENTER);
+		intro5.add(horizontalLayout);
+
+		doGroup(Translator.translate("ColorSelection"), intro5, new FlexibleGridLayout(), this);
+		
 	}
 
 	@Override
@@ -239,8 +308,8 @@ public class VideoNavigationContent extends BaseNavigationContent
 		fop.setVideoCategory(c);
 		setMedalGroup(g);
 		setMedalCategory(c);
-		logger.info("switching to {} {}", g.getName(), c != null ? c.getNameWithAgeGroup() : "");
-		fop.getUiEventBus().post(new UIEvent.VideoRefresh(this, g, c, getFop()));
+		logger.info("============ switching {} video to {} {}", fop, g != null ? g.getName() : null, c != null ? c.getNameWithAgeGroup() : "");
+		fop.getUiEventBus().post(new UIEvent.VideoRefresh(this, g, c, fop));
 	}
 
 	private void setMedalCategory(Category c) {

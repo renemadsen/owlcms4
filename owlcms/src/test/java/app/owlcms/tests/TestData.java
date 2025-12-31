@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -63,7 +63,7 @@ public class TestData {
      */
     public static void insertInitialData(int nbAthletes, boolean testMode) {
         JPAService.runInTransaction(em -> {
-        	EnumSet<ChampionshipType> divisions = EnumSet.of(ChampionshipType.IWF);
+        	EnumSet<ChampionshipType> divisions = EnumSet.of(ChampionshipType.DEFAULT);
             Competition competition = createDefaultCompetition(divisions);
             CompetitionRepository.save(competition);
             AgeGroupRepository.insertAgeGroups(em, divisions, "/agegroups/AgeGroups_Tests.xlsx");
@@ -73,7 +73,7 @@ public class TestData {
             setupTestData(em, nbAthletes);
             return null;
         });
-        AthleteRepository.resetParticipations();
+        AthleteRepository.resetParticipations(false, true);
 
     }
 
@@ -98,15 +98,15 @@ public class TestData {
     protected static void assignStartNumbers(EntityManager em, Group groupA) {
         List<Athlete> athletes = AthleteRepository.doFindAllByGroupAndWeighIn(em, groupA, true, (Gender) null);
         AthleteSorter.registrationOrder(athletes);
-        AthleteSorter.assignStartNumbers(athletes);
+        AthleteSorter.doAssignStartNumbers(athletes);
     }
 
     protected static void createAthlete(EntityManager em, Random r, Athlete p, double nextDouble, int catLimit) {
         p.setBodyWeight(81 - nextDouble);
         p.setGender(Gender.M);
-        Category cat = CategoryRepository.findByCode("SR_M81");
-        p.setCategory(cat);
-        logger.debug("athlete {} category {} participations {}", p, p.getCategory(), p.getParticipations());
+        Category cat = CategoryRepository.findByCode("Open_M81");
+        p.computeCategory(cat);
+        // logger.debug("athlete {} category {} participations{} group {}", p, p.getCategory(), p.getParticipations(), p.getGroup());
     }
 
     protected static Competition createDefaultCompetition(EnumSet<ChampionshipType> championshipTypes) {
@@ -133,17 +133,18 @@ public class TestData {
     protected static void createGroup(EntityManager em, Group group, final String[] fnames, final String[] lnames,
             Random r,
             int cat1, int cat2, int liftersToLoad) {
+    	logger.debug("liftersToLoad", liftersToLoad);
         for (int i = 0; i < liftersToLoad; i++) {
-            Athlete p = new Athlete();
+            Athlete ath = new Athlete();
             Group mg = (em.contains(group) ? group : em.merge(group));
-            p.setGroup(mg);
-            p.setFirstName(fnames[r.nextInt(fnames.length)]);
-            p.setLastName(lnames[r.nextInt(lnames.length)]);
-            p.setFullBirthDate(LocalDate.of(testDateNow().getYear() - 40, 1, 1));
-            p.setLotNumber(lotNumber);
+            ath.setGroup(mg);
+            ath.setFirstName(fnames[r.nextInt(fnames.length)]);
+            ath.setLastName(lnames[r.nextInt(lnames.length)]);
+            ath.setFullBirthDate(LocalDate.of(testDateNow().getYear() - 40, 1, 1));
+            ath.setLotNumber(lotNumber);
             lotNumber++;
-            createAthlete(em, r, p, 0.0D, cat1);
-            em.persist(p);
+            createAthlete(em, r, ath, 0.0D, cat1);
+            em.persist(ath);
         }
     }
 
@@ -185,6 +186,7 @@ public class TestData {
         groupC.setPlatform(platform1);
 
         insertSampleLifters(em, liftersToLoad, groupA, groupB, groupC);
+        AthleteRepository.resetParticipations(false, true);
 
 //        em.persist(groupA);
 //        em.persist(groupB);

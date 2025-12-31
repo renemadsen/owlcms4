@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -22,17 +22,18 @@ import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.dom.DomEvent;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.server.InputStreamFactory;
 import com.vaadin.flow.server.StreamResource;
 import com.vaadin.flow.shared.Registration;
 
+import app.owlcms.servlet.StopProcessingException;
 import ch.qos.logback.classic.Logger;
 
 /**
- * Extension of anchor, that will display a vaadin button as clickable instance to initiate a download. The download
- * content is generated at click time.
+ * Extension of anchor, that will display a vaadin button as clickable instance to initiate a download. The download content is generated at click time.
  *
  * @author Stefan Uebe
  * @implNote Copied from https://github.com/stefanuebe/vaadin-lazy-download-button
@@ -46,8 +47,7 @@ public class LazyDownloadButton extends Button {
 		private final DomEvent clientSideEvent;
 
 		/**
-		 * Creates a new event using the given source and indicator whether the event originated from the client side or
-		 * the server side.
+		 * Creates a new event using the given source and indicator whether the event originated from the client side or the server side.
 		 *
 		 * @param source     the source component
 		 * @param fromClient <code>true</code> if the event originated from the client
@@ -68,6 +68,7 @@ public class LazyDownloadButton extends Button {
 	private Anchor anchor;
 	private Supplier<String> fileNameCallback;
 	private InputStreamFactory inputStreamCallback;
+	private Notification notification;
 
 	public LazyDownloadButton() {
 	}
@@ -101,12 +102,11 @@ public class LazyDownloadButton extends Button {
 	 * The third parameter is a callback, that is used to generate the download file name
 	 * <p/>
 	 * <p>
-	 * The fourth parameter is a callback to generate the input stream sent to the client. This callback will be called
-	 * in a separate thread (so that the UI thread is not blocked).
+	 * The fourth parameter is a callback to generate the input stream sent to the client. This callback will be called in a separate thread (so that the UI
+	 * thread is not blocked).
 	 * <p/>
 	 * <p>
-	 * You can add an additional listener using {@link #addDownloadStartsListener(ComponentEventListener)} for when the
-	 * download starts
+	 * You can add an additional listener using {@link #addDownloadStartsListener(ComponentEventListener)} for when the download starts
 	 * </p>
 	 *
 	 * @param text                button text
@@ -144,7 +144,6 @@ public class LazyDownloadButton extends Button {
 					anchorElement.setAttribute("download", true);
 					anchorElement.getStyle().set("display", "none");
 					component.getElement().appendChild(this.anchor.getElement());
-
 					anchorElement.addEventListener("click",
 					        event1 -> fireEvent(new DownloadStartsEvent(this, true, event1)));
 				}
@@ -155,6 +154,10 @@ public class LazyDownloadButton extends Button {
 					try {
 						InputStream inputStream = getInputStreamCallback().createInputStream();
 						optionalUI.ifPresent(ui -> ui.access(() -> {
+							if (this.notification != null) {
+								this.notification.open();
+							}
+
 							StreamResource href = new StreamResource(getFileNameCallback().get(), () -> inputStream);
 							href.setCacheTime(0);
 							this.anchor.setHref(href);
@@ -164,9 +167,10 @@ public class LazyDownloadButton extends Button {
 							}
 							this.anchor.getElement().callJsFunction("click");
 						}));
-
 					} catch (Exception e) {
-						throw new RuntimeException(e);
+						if (!(e instanceof StopProcessingException)) {
+							throw new RuntimeException(e);
+						}
 					}
 				});
 				newSingleThreadExecutor.shutdown();
@@ -194,12 +198,20 @@ public class LazyDownloadButton extends Button {
 		return this.inputStreamCallback;
 	}
 
+	public Notification getNotification() {
+		return this.notification;
+	}
+
 	public void setFileNameCallback(Supplier<String> fileNameCallback) {
 		this.fileNameCallback = fileNameCallback;
 	}
 
 	public void setInputStreamCallback(InputStreamFactory inputStreamCallback) {
 		this.inputStreamCallback = inputStreamCallback;
+	}
+
+	public void setNotification(Notification notification) {
+		this.notification = notification;
 	}
 
 	@Override

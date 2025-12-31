@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright © 2009-present Jean-François Lamy
+ *
+ * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
+ * License text at https://opensource.org/licenses/NPOSL-3.0
+ *******************************************************************************/
 package app.owlcms.nui.displays.scoreboards;
 
 import java.util.Map;
@@ -36,7 +42,7 @@ public class WarmupNoLeadersPage extends WarmupScoreboardPage {
 
 	@Override
 	protected void init() {
-		logger = (Logger) LoggerFactory.getLogger(WarmupNoLeadersPage.class);
+		this.logger = (Logger) LoggerFactory.getLogger(WarmupNoLeadersPage.class);
 		var board = new Results();
 		this.setBoard(board);
 
@@ -60,15 +66,18 @@ public class WarmupNoLeadersPage extends WarmupScoreboardPage {
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);
-		setDefaultParameters(QueryParameters.simple(fullMap));
+		setDefaultParameters(QueryParameters.simple(fullMap));		
 	}
-	
+
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		DisplayParameters board = (DisplayParameters) this.getBoard();
 		board.setFop(this.getFop());
-		board.setLeadersDisplay(false);
-		board.setRecordsDisplay(false);
+		
+// not needed now that the defaults are correctly defined.
+// we want to read from the URL if overridden there.
+//		board.setLeadersDisplay(this.isLeadersDisplay());
+//		board.setRecordsDisplay(this.isRecordsDisplay());
 
 		this.addComponent((Component) board);
 	}

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -391,16 +391,14 @@ public class ResourceWalker {
 		}
 		byte[] blob = localZipBlobSupplier != null ? localZipBlobSupplier.get() : null;
 		if (blob != null && blob.length > 0) {
-			if (logger.isEnabledFor(Level.DEBUG)) {
-				logger.debug("override zip blob found");
-			}
 			try {
 				unzipBlobToTemp(blob);
+				logger.info("override zip blob: found and extracted.");
 			} catch (Exception e) {
 				checkForLocalOverrideDirectory();
 			}
 		} else {
-			logger.debug("checking for override.");
+			logger.debug("no blob, checking for override.");
 			checkForLocalOverrideDirectory();
 		}
 		setInitializedLocalDir(true);
@@ -443,7 +441,7 @@ public class ResourceWalker {
 				out.flush();
 				out.close();
 			} catch (Throwable e) {
-				e.printStackTrace();
+				LoggerUtils.logError(logger, e);
 			}
 		}).start();
 		return in;
@@ -687,7 +685,7 @@ public class ResourceWalker {
 		}
 		//
 		// for (Entry<String, Resource> n : resourceMap.entrySet()) {
-		// System.err.println(n.getKey() + " " + n.getValue().getFilePath().normalize().toAbsolutePath());
+		// System.err./**/println(n.getKey() + " " + n.getValue().getFilePath().normalize().toAbsolutePath());
 		// }
 		return resourceMap;
 	}

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009-2023 Jean-François Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -33,6 +33,7 @@ import com.vaadin.flow.router.OptionalParameter;
 import com.vaadin.flow.router.QueryParameters;
 
 import app.owlcms.i18n.Translator;
+import app.owlcms.utils.StartupUtils;
 import app.owlcms.utils.URLUtils;
 
 /**
@@ -145,7 +146,8 @@ public interface DisplayParameters extends ContentParameters {
     }
 
     public default boolean isDefaultLiftingOrderDisplay() {
-        return false;
+        boolean liftingOrder = StartupUtils.getBooleanParam("liftingOrder");
+        return liftingOrder;
     }
 
     public default boolean isDefaultRecordsDisplay() {
@@ -320,7 +322,7 @@ public interface DisplayParameters extends ContentParameters {
         Map<String, List<String>> parametersMap = queryParameters.getParameters();
         HashMap<String, List<String>> params = readParams(location, parametersMap);
 
-        event.getUI().getPage().getHistory().replaceState(null,
+        URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
                 new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
     }
 
