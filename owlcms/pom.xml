@@ -204,11 +204,6 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-compress</artifactId>
-			<version>1.26.0</version>
-		</dependency>
 
 		<!-- netty versions are managed by netty-bom in dependencyManagement -->
 
