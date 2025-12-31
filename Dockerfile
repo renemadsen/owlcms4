@@ -28,11 +28,18 @@ COPY ./playwright/pom.xml ./playwright/
 COPY ./playwright/src ./playwright/src
 #COPY ./installtools/pom.xml ./installtools/
 
-# go-offline using the pom.xml
-RUN mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true
+# go-offline using the pom.xml with retry logic for transient failures
+RUN --mount=type=cache,target=/root/.m2 \
+    for i in 1 2 3; do \
+        mvn dependency:go-offline package -P production -am -pl owlcms -Dmaven.test.skip=true && break || \
+        if [ $i -eq 3 ]; then exit 1; fi; \
+        echo "Retry $i failed, waiting 10 seconds..."; \
+        sleep 10; \
+    done
 
 # compile the source code and package it in a jar file
-RUN mvn clean package -P production -am -pl owlcms -Dmaven.test.skip=true
+RUN --mount=type=cache,target=/root/.m2 \
+    mvn clean package -P production -am -pl owlcms -Dmaven.test.skip=true
 
 FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
