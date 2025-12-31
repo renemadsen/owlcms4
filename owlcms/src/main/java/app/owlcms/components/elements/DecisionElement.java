@@ -1,10 +1,12 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
  *******************************************************************************/
 package app.owlcms.components.elements;
+
+import java.util.Locale;
 
 import org.slf4j.LoggerFactory;
 
@@ -20,10 +22,10 @@ import com.vaadin.flow.component.littemplate.LitTemplate;
 
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FieldOfPlay;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.lifting.UIEventProcessor;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import app.owlcms.uievents.UIEvent;
+import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -48,11 +50,10 @@ public class DecisionElement extends LitTemplate
 	protected EventBus uiEventBus;
 	private boolean silenced;
 	private boolean juryMode;
-	private boolean singleRef;
 	private boolean dontReset;
 	private boolean publicFacing;
 	protected boolean downSlave;
-	private FieldOfPlay fop;
+	protected FieldOfPlay fop;
 
 	public DecisionElement() {
 	}
@@ -63,6 +64,10 @@ public class DecisionElement extends LitTemplate
 
 	public boolean isPublicFacing() {
 		return this.publicFacing;
+	}
+
+	public void setFop(FieldOfPlay fop) {
+		this.fop = fop;
 	}
 
 	/**
@@ -87,17 +92,14 @@ public class DecisionElement extends LitTemplate
 	        Integer ref2Time,
 	        Integer ref3Time) {
 		Object origin = this.getOrigin();
-		OwlcmsSession.withFop((fop) -> {
-			if (!fopName.contentEquals(fop.getName())) {
-				return;
-			}
-			fop.fopEventPost(
-			        new FOPEvent.DecisionFullUpdate(origin, fop.getCurAthlete(), ref1, ref2, ref3,
+		if (this.fop != null && fopName.contentEquals(this.fop.getName())) {
+			//logger.debug("masterRefereeUpdate {} {} {}",ref1, ref2, ref3);
+			this.fop.fopEventPost(
+			        new FOPEvent.DecisionFullUpdate(origin, this.fop.getCurAthlete(), ref1, ref2, ref3,
 			                Long.valueOf(ref1Time),
 			                Long.valueOf(ref2Time),
-			                Long.valueOf(ref3Time), false, fop.isSingleReferee()));
-		});
-
+			                Long.valueOf(ref3Time), false));
+		}
 	}
 
 	@ClientCallable
@@ -112,7 +114,9 @@ public class DecisionElement extends LitTemplate
 	public void masterShowDown(String fopName, Boolean decision, Boolean ref1, Boolean ref2, Boolean ref3) {
 		Object origin = this.getOrigin();
 		getElement().setProperty("singleRef", this.isSingleRef());
-		OwlcmsSession.getFop().fopEventPost(new FOPEvent.DownSignal(origin));
+		if (this.fop != null && this.fop.getName().equals(fopName)) {
+			this.fop.fopEventPost(new FOPEvent.DownSignal(origin));
+		}
 	}
 
 	public void setDontReset(boolean dontReset) {
@@ -122,6 +126,20 @@ public class DecisionElement extends LitTemplate
 	public void setJury(boolean juryMode) {
 		this.setJuryMode(juryMode);
 		getElement().setProperty("jury", juryMode);
+	}
+
+
+	public void setDisplaySize(String size) {
+		String normalized = size == null ? "small" : size.toLowerCase(Locale.ROOT);
+		switch (normalized) {
+		case "small":
+		case "large":
+		case "x-large":
+			getElement().setProperty("size", normalized);
+			break;
+		default:
+			throw new IllegalArgumentException("Unsupported decision element size: " + size);
+		}
 	}
 
 	public void setPublicFacing(boolean publicFacing) {
@@ -138,7 +156,7 @@ public class DecisionElement extends LitTemplate
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			logger.debug("slaveBreakStart disable");
-			this.getElement().callJsFunction("setEnabled", false);
+			this.getElement().callJsFunction("setEnabled", true);
 		});
 	}
 
@@ -156,17 +174,18 @@ public class DecisionElement extends LitTemplate
 	@Subscribe
 	public void slaveDownSignal(UIEvent.DownSignal e) {
 		logger.debug("!!! slaveDownSignal  downSlave {} emitter {}", isDownSlave(), this.getOrigin() == e.getOrigin());
-		if (isJuryMode() || (!isDownSlave() && (this.getOrigin() == e.getOrigin()))) {
-			// we emitted the down signal, don't do it again.
-			// logger.trace("skipping down, {} is origin",this.getOrigin());
+		if (isJuryMode()) {
+			// jury mode doesn't show down signal
 			return;
 		}
+		// Backend now controls showing down on all decision elements including the keystroke master
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			uiEventLogger.debug("!!! {} down ({})", this.getOrigin(),
 			        this.getParent().get().getClass().getSimpleName());
 			getElement().setProperty("singleRef", this.isSingleRef());
+			boolean emitSoundsOnServer = (this.fop != null && this.fop.isEmitSoundsOnServer());
 			this.getElement().callJsFunction("showDown", false,
-			        isSilenced() || OwlcmsSession.getFop().isEmitSoundsOnServer());
+			        isSilenced() || emitSoundsOnServer);
 		});
 	}
 
@@ -183,14 +202,15 @@ public class DecisionElement extends LitTemplate
 
 	@Subscribe
 	public void slaveShowDecision(UIEvent.Decision e) {
-		//logger.debug("decision {} {} {}", e.ref1, e.ref2, e.ref3);
-		UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this.getOrigin(), () -> {
+		//logger.debug("decision {} {} {} --- {}", e.ref1, e.ref2, e.ref3, e.isSingleReferee());
+		// Backend now controls hiding down and showing decisions on all decision elements
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
 			if (e.isSingleReferee()) {
-				getElement().setProperty("singleRef", this.singleRef);
+				getElement().setProperty("singleRef", e.isSingleReferee());
 				this.getElement().callJsFunction("showSingleDecision", e.decision);
 				this.getElement().callJsFunction("setEnabled", false);
 			} else {
-				getElement().setProperty("singleRef", this.singleRef);
+				getElement().setProperty("singleRef", e.isSingleReferee());
 				this.getElement().callJsFunction("showDecisions", false, e.ref1, e.ref2, e.ref3);
 				this.getElement().callJsFunction("setEnabled", false);
 			}
@@ -230,14 +250,15 @@ public class DecisionElement extends LitTemplate
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		super.onAttach(attachEvent);
-		OwlcmsSession.withFop(fop -> {
-			// defensive: needed to make sure the update is processed on the right fop
-			init(fop.getName());
-			// we send on fopEventBus, listen on uiEventBus.
-			this.fopEventBus = fop.getFopEventBus();
-			this.uiEventBus = uiEventBusRegister(this, fop);
-			this.fop = fop;
-		});
+		if (this.fop == null) {
+			logger.error("DecisionElement requires explicit FOP before attach {}", LoggerUtils.whereFrom());
+			return;
+		}
+		// defensive: needed to make sure the update is processed on the right fop
+		init(this.fop.getName());
+		// we send on fopEventBus, listen on uiEventBus.
+		this.fopEventBus = this.fop.getFopEventBus();
+		this.uiEventBus = uiEventBusRegister(this, this.fop);
 	}
 
 	private void init(String fopName) {
@@ -253,9 +274,6 @@ public class DecisionElement extends LitTemplate
 	}
 
 	public boolean isSingleRef() {
-		if (this.fop == null) {
-			this.fop = OwlcmsSession.getFop();
-		}
 		return this.fop != null ? this.fop.isSingleReferee() : false;
 	}
 

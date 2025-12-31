@@ -41,12 +41,32 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	 */
 	@Override
 	public default void doUpdateUrlLocation(UI ui, Location location, Map<String, List<String>> queryParameterMap) {
+		// Log incoming state
+		List<String> incomingFop = queryParameterMap.get(FOP);
+		// if (incomingFop == null || incomingFop.isEmpty()) {
+		// 	logger.debug("doUpdateUrlLocation - incoming location: {}, FOP param: {}", 
+		// 		location.getPathWithQueryParameters(), incomingFop);
+		// } else {
+		// 	logger./**/warn("doUpdateUrlLocation - incoming location: {}, FOP param: {}", 
+		// 		location.getPathWithQueryParameters(), incomingFop);
+		// }
 
 		Map<String, List<String>> nq = removeDefaultValues(queryParameterMap);
-
+		
+		// Ensure FOP is in the URL
+		if (incomingFop != null && !incomingFop.isEmpty()) {
+			nq.put(FOP, incomingFop);
+		}
+		
 		setUrlParameterMap(nq);
 		Location location2 = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(nq)));
-		URLUtils.replaceState(ui.getPage().getHistory(),null, location2);
+		// if (incomingFop == null || incomingFop.isEmpty()) {
+		// 	logger.debug("doUpdateUrlLocation - final location: {}", location2.getPathWithQueryParameters());
+		// } else {
+		// 	logger./**/warn("doUpdateUrlLocation - final location: {}", location2.getPathWithQueryParameters());
+		// }
+		
+		URLUtils.replaceState(ui.getPage().getHistory(), null, location2, location);
 		setLocation(location2);
 		if (logger.isDebugEnabled()) {
 			logger.debug("**** updatingLocation {} {}", location2.getPathWithQueryParameters(),
@@ -87,6 +107,10 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 				String decoded = URLDecoder.decode(fopNames.get(0), StandardCharsets.UTF_8);
 				// logger.debug("URL fop = {} decoded = {}",fopNames.get(0), decoded);
 				tFop = OwlcmsFactory.getFOPByName(decoded);
+				if (tFop == null && decoded != null && !decoded.isBlank()) {
+					logger.warn("FOP '{}' from URL not found, will use default FOP. Available FOPs: {}", 
+						decoded, OwlcmsFactory.getFOPs().stream().map(f -> f.getName()).toList());
+				}
 				this.setFop(tFop);
 			} else if (OwlcmsSession.getFop() != null) {
 				// logger.trace("OwlcmsSession.getFop() {}", OwlcmsSession.getFop());
@@ -126,8 +150,8 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 			newParameterMap.remove(GROUP);
 		}
 
-		logger.debug("URL parsing: {} OwlcmsSession: fop={} group={}", LoggerUtils.whereFrom(),
-		        (tFop != null ? tFop.getName() : null), (group != null ? group.getName() : null));
+		// logger.debug("URL parsing: {} OwlcmsSession: fop={} group={}", LoggerUtils.whereFrom(),
+		//         (tFop != null ? tFop.getName() : null), (group != null ? group.getName() : null));
 
 		setUrlParameterMap(removeDefaultValues(newParameterMap));
 		return getUrlParameterMap();

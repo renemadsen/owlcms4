@@ -78,6 +78,7 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		}
 		return compare;
 	};
+	
 	public static Comparator<Category> categoryReportOrderComparator = (category1, category2) -> {
 		if (category1 == null && category2 == null) {
 			return 0;
@@ -120,6 +121,7 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		// multiple age groups with same boundaries
 		return ObjectUtils.compare(category1.getAgeGroup().getCode(), category2.getAgeGroup().getCode());
 	};
+	
 	public static Comparator<Athlete> athleteReportOrderComparator = (lifter1, lifter2) -> {
 		int compare;
 
@@ -148,6 +150,7 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 
 		return compare;
 	};
+	
 	public static Comparator<Athlete> athleteRegistrationOrderComparator = (lifter1, lifter2) -> {
 		int compare;
 		// normally part of the same group when this is called, but never too careful.
@@ -161,14 +164,14 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		if (Competition.getCurrent().isDisplayByAgeGroup() || bothMasters) {
 			compare = ageGroupRegistrationComparator.compare(lifter1.getAgeGroup(), lifter2.getAgeGroup());
 			if (compare != 0) {
-				traceComparison("RegistrationOrderComparator ageGroup", lifter1, lifter1.getAgeGroup(), lifter2,
+				traceComparison("ageGroupRegistrationComparator ageGroup", lifter1, lifter1.getAgeGroup(), lifter2,
 				        lifter2.getAgeGroup(), compare);
 				return bothMasters ? -compare : compare;
 			}
 		} else {
 			compare = ObjectUtils.compare(lifter1.getGender(), lifter2.getGender());
 			if (compare != 0) {
-				traceComparison("RegistrationOrderComparator gender", lifter1, lifter1.getAgeGroup(), lifter2,
+				traceComparison("athleteRegistrationOrderComparator gender", lifter1, lifter1.getAgeGroup(), lifter2,
 				        lifter2.getAgeGroup(), compare);
 				return compare;
 			}
@@ -178,7 +181,7 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		Category b = lifter2.getCategory();
 		compare = categoryRegistrationComparator.compare(a, b);
 		if (compare != 0) {
-			traceComparison("RegistrationOrderComparator category", lifter1, a, lifter2, b, compare);
+			traceComparison("categoryRegistrationComparator category", lifter1, a, lifter2, b, compare);
 			return compare;
 		}
 
@@ -200,7 +203,9 @@ public class RegistrationOrderComparator extends AbstractLifterComparator implem
 		return compare;
 	};
 	public static Comparator<Athlete> athleteSessionRegistrationOrderComparator = (lifter1, lifter2) -> {
-		return AbstractLifterComparator.athleteSessionComparator.thenComparing(athleteRegistrationOrderComparator).compare(lifter1, lifter2);
+		return AbstractLifterComparator.athleteSessionComparator
+			.thenComparing(athleteRegistrationOrderComparator)
+			.compare(lifter1, lifter2);
 	};
 
 	/*

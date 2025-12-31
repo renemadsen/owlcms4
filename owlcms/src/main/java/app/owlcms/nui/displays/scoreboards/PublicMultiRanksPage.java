@@ -23,8 +23,8 @@ import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.config.Config;
 import app.owlcms.displays.scoreboard.ResultsMedals;
 import app.owlcms.displays.scoreboard.ResultsMultiRanks;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.uievents.CeremonyType;
 import app.owlcms.uievents.UIEvent;
 import ch.qos.logback.classic.Logger;
@@ -42,7 +42,9 @@ public class PublicMultiRanksPage extends AbstractResultsDisplayPage {
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("ScoreboardMultiRanksTitle") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("ScoreboardMultiRanksTitle") + suffix;
 	}
 
 	public final ResultsMultiRanks getResultsBoard() {
@@ -78,10 +80,10 @@ public class PublicMultiRanksPage extends AbstractResultsDisplayPage {
 	protected void init() {
 		this.logger = (Logger) LoggerFactory.getLogger(PublicScoreboardPage.class);
 		this.uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
-
+		
 		// each subclass must override this routine.
 		// otherwise we end up with multiple instances of the Results board.
-		var board = new ResultsMultiRanks();
+		ResultsMultiRanks board = new ResultsMultiRanks();
 		this.setMedalsBoard(new ResultsMedals());
 		this.setBoard(board);
 		this.setResultsBoard(board);
@@ -97,7 +99,7 @@ public class PublicMultiRanksPage extends AbstractResultsDisplayPage {
 		        DisplayParameters.LEADERS, "true",
 		        DisplayParameters.RECORDS, "true",
 		        DisplayParameters.VIDEO, "false",
-		        DisplayParameters.PUBLIC, "false",
+		        DisplayParameters.PUBLIC, "true",
 		        SoundParameters.SINGLEREF, "false",
 		        DisplayParameters.ABBREVIATED, Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")));
 		var additionalMap = Map.of(

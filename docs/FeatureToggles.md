@@ -14,7 +14,12 @@ These switches change the default behavior of the interface
 | noLiveLights                 | If present, the speaker does not see the live decisions.     | Can be changed from the speaker settings.                    |
 | localTemplatesOnly           | If present, the default templates distributed inside the owlcms binary will not be shown.  Only the templates found in the local folder will be used.  If a .zip file is used to package the local folder and upload it to the program, then only these templates will be shown.<br />This is normally used to create a zip with only the files used in a given federation, potentially renamed in the local language. | This feature can be activated on the Languages and Settings page. |
 | shortScoreboardNames         | if present, the normal scoreboards will use the abbreviated first names | On demand, on each scoreboard                                |
-| masters20kg                  | If present, the Masters 20% rule is ignored.  Used in mixed Masters and Seniors championships that do not follow IMWA rules. | Activated as a competition rule.                             |
+| customTeamName               | allow including the Additional Info fields on the attempt board team line.   If the toggle is active, the attempt board will format the team name line using 4 values.  The translation string `AttemptBoard.TeamFormat` is used.<br /><br />  `{0}` is a count that represents the information available for the athlete.  <br />0 means no custom1 and no custom2.   1 means custom1 is present, but not custom2.   2 means custom2 is present, but not custom1.  3 means both custom1 and custom2 are present.  Present means "not null"  and "not blank/empty". <br /><br /> In the formatting pattern,`{1}` will be the team, `{2}` will be custom1 and `{3}` will be custom2<br /><br /> A format string of the form `{0, choice, 0#{1}|1#{1}, {2}|2#{1}, {3}|3#{1}, {2}, {3}}` would cover all four cases.  See the Java definition of MessageFormat for details. | Only available as a feature switch.                          |
+| medalistsAsLeaders           | If this is set, the leader board on the scoreboard will show the currently presumed medalists, that is, will include athletes from the current group.  Default behavior complies with TCRR and only shows athletes from prior groups. | Only available as a feature switch.                          |
+| dontFixNames                 | Normally, given names in all caps will be fixed to have only the first letter of the name capitalized.  This toggle preserves the capitalization if you wish to have first names all capitalized. | Only available as a feature switch.                          |
+| displayBestScore             | Display best scores on scoreboard                            | BaseResults.java, ResultsMultiRanks.java, Competition.java   |
+
+
 
 ### General Options
 
@@ -29,6 +34,7 @@ These switches change the default behavior of the interface
 | lightBarU13               | Ignore the 20kg bar when a youth age group includes athletes 12 or younger (U13, U11, U9 for example). | Only available as a feature switch. |
 | childrenEquipment         | If present, it is assumed that all platforms have 2,5kg and 5kg large discs, and have 5kg and 10kg bars | Only available as a feature switch. |
 | noInterimScoresInResults  | If present, scoreboards will show interim scores, but result sheets will not (on the result sheets QPoints will be 0 if total is 0) | Only available as a feature switch. |
+| masters20kg               | If present, the Masters 20% rule is ignored.  Used in mixed Masters and Seniors championships that do not follow IMWA rules. | Activated as a competition rule.    |
 
 ### Specialty Features
 
@@ -40,8 +46,13 @@ These features are not commonly used, and will not be promoted to the interface
 | blackStopButton               | if present, the stop button on the Announcer and Timekeeper page will be black instead of red.  This is to accommodate announcer keypads where red/white buttons are used to enter good/bad lifts signaled with flags, and green/black buttons are used to start/stop the clock. | Only available as a feature switch. |
 | noForwarderKeepAlive          | publicresults and video information is sent every 15 seconds.  Set this option to prevent this during troubleshooting. | Only available as a feature switch. |
 | enableTimeKeeperSessionSwitch | The time keeper can switch sessions                          | Only available as a feature switch. |
-| usawSessionBlock              | In USAW meets, session names have two parts: the session block and the platform (23 Red 23 White and 23 Blue are 3 sessions in the same session block, taking place concurrently).<br />This switch enables an an additional property on sessions, such that s.getSessionBlock returns the first part of the session name (23 in the example), so that grouping by session block can be done. | Only available as a feature switch. |
+| usawSessionBlocks             | In USAW meets, session names have two parts: the session block and the platform (23 Red 23 White and 23 Blue are 3 sessions in the same session block, taking place concurrently).<br />This switch enables an an additional property on sessions, such that s.getSessionBlock returns the first part of the session name (23 in the example), so that grouping by session block can be done. | Only available as a feature switch. |
 | usawCollars                   | Apply 2024 USAW rules for bar loading and collars            | Only available as a feature switch. |
+| AthleteCardEntryTotal         | Show entry total on the interactive athlete card used by marshals | Only available as a feature switch. |
+| manualStartNumbers            | Enable manual assignment of start numbers.  Used when competition secretary has assigned start numbers with gaps or prematurely given out bibs out of order. | Only available as a feature switch. |
+| medalsForCategoryOnly         | On the medals scoreboard, show flags only when a single category is shown and not when multiple categories are shown | Only available as a feature switch. |
+| mqttDownSignal                | Enable MQTT down signal testing button on the button testing page, for sites that have Blue-Owl devices.Only available as a feature switch. | Only available as a feature switch. |
+| keepSpanishHyphenShortcut     | The Spanish keyboard has minus where the US keyboard has /.  <br />Normally, we disable the / shortcut so spanish users can use the - at the bottom right of their keyboard.<br />But when using a device that requires the bottom right keycode, this needs to be disabled.<br />The devices should be configured to use NUMPAD_DIVIDE instead. | Only available as a feature switch. |
 
 ### Current Features
 
@@ -51,3 +62,26 @@ These switches will likely be removed, since they can be activated from the appl
 | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | localTemplatesOnly   | If present, the default templates distributed inside the owlcms binary will not be shown.  Only the templates found in the local folder will be used.  If a .zip file is used to package the local folder and upload it to the program, then only these templates will be shown.<br />This is normally used to create a zip with only the files used in a given federation, potentially renamed in the local language. | This feature can be activated on the Languages and Settings page. |
 | shortScoreboardNames | if present, the normal scoreboards will use the abbreviated first names | On demand, on each scoreboard                                |
+
+### Obsolete
+
+| Feature Switch   | Description                                                  | Used In                            |
+| ---------------- | ------------------------------------------------------------ | ---------------------------------- |
+| noAthleteUpdates | Disable athlete updates from registration files.<br />Normally the SBDE would be used instead which has the option in the user interface. | NRegistrationFileUploadDialog.java |
+
+### Use at your own risk
+
+These switches are used in the codebase but have not been tested recently or were done as "temporary". Use at your own risk.
+
+| Feature Switch              | Description                                                  | Used In                                                      |
+| --------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| championshipGrouping        | On the multi-agegroups scoreboards, group the age groups columns according to championship | ResultsMultiRanks.java                                       |
+| genderInclusive             | Enable gender-inclusive mode. Additional "I" gender shown. | Competition.java                                            |
+| iwfLook                     | Experimental lower-third look.  Requires specific style sheet. | BaseResults.java, VideoNavigationContent.java, NCurrentAthletePage.java |
+| noSinclairRank              | Disable Sinclair ranking display                            | BaseResults.java                                            |
+| oldTimers                   | Use old timer display components<br /><br />dead code to be removed. | ProxyAthleteTimer.java, ProxyBreakTimer.java, AthleteTimerElement.java, BreakTimerElement.java |
+| recordNameIsCategory        | Use category name instead of record name                    | RecordFilter.java                                            |
+| SinclairMeet                | Enable Sinclair meet mode                                   | Competition.java                                            |
+| stretchPublic               | Stretch public display to fill screen.  Normally the spacer between results and leaders is compact.<br />Not tested recently. | BaseResults.java                                            |
+| stretchVideo                | Stretch public display to fill screen.  Normally the spacer between results and leaders is compact.<br />Not tested recently. | BaseResults.java                                            |
+| UseCustom2AsSubCategory     | Use custom field 2 as sub-category identifier               | Athlete.java                                                |

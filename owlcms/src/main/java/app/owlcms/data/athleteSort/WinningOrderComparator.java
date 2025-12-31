@@ -162,7 +162,7 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 
 		return tieBreak(lifter1, lifter2);
 	}
-	
+
 	public int compareCatQPointsResultOrder(Athlete lifter1, Athlete lifter2) {
 		int compare = 0;
 
@@ -346,20 +346,20 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 
 	public int compareScoreResultOrder(Athlete lifter1, Athlete lifter2, boolean ignoreCategories) {
 		int compare = 0;
-
 		if (!ignoreCategories) {
-			compare = ObjectUtils.compare(lifter1.getCategory(), lifter2.getCategory(), true);
-			traceComparison("!ignoreCategories", lifter1, lifter2, compare);
+			compare = ObjectUtils.compare(lifter1.getCategorySortCode(), lifter2.getCategorySortCode(), true);
+			//doTraceComparison("compareScoreResultOrder", lifter1, lifter1.getCategorySortCode(), lifter2, lifter2.getCategorySortCode(), compare);
 			if (compare != 0) {
 				return compare;
 			}
 		}
 
 		compare = compareScore(lifter1, lifter2);
+		//doTraceComparison("***score", lifter1, lifter1.computedCategoryScore(), lifter2, lifter2.computedCategoryScore(), compare);
 		if (compare != 0) {
 			return -compare; // we want reverse order - smaller comes after
 		}
-		traceComparison("score", lifter1, lifter1.computedCategoryScore(), lifter2, lifter2.computedCategoryScore(), compare);
+
 
 		return tieBreak(lifter1, lifter2);
 	}
@@ -450,13 +450,17 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 			return -compare; // smaller snatch is less good
 		}
 
-		if (lifter1 != null && lifter2 != null && lifter1.getGroup() != lifter2.getGroup()) {
-			compare = compareBestSnatchTime(lifter1, lifter2);
-			traceComparison("snatch best snatch time", lifter1, lifter1.getBestSnatchAttemptTime(), lifter2, lifter2.getBestSnatchAttemptTime(), compare);
-			if (compare != 0) {
-				// <0 means lifter1 earlier than lifter2
-				return compare; // earlier is better, rank 1 is better than rank 2
+		if (lifter1 != null && lifter2 != null) {
+			if (lifter1.getGroup() != lifter2.getGroup()) {
+				compare = compareBestSnatchTime(lifter1, lifter2);
+				traceComparison("snatch best snatch time", lifter1, lifter1.getBestSnatchAttemptTime(), lifter2, lifter2.getBestSnatchAttemptTime(), compare);
+				if (compare != 0) {
+					// <0 means lifter1 earlier than lifter2
+					return compare; // earlier is better, rank 1 is better than rank 2
+				}
 			}
+		} else {
+			return lifter1 == null ? 1 : 0;
 		}
 
 		compare = compareCompetitionSessionTime(lifter1, lifter2);
@@ -566,9 +570,9 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		LocalDateTime bestCleanJerkAttemptTime1 = lifter1.getBestCleanJerkAttemptTime();
 		LocalDateTime bestCleanJerkAttemptTime2 = lifter2.getBestCleanJerkAttemptTime();
 		if (bestCleanJerkAttemptTime1 == null || bestCleanJerkAttemptTime2 == null) {
-			logger.error("bestCleanJerkAttemptTime missing {}={} {}={}", 
-					lifter1.getAbbreviatedName(), bestCleanJerkAttemptTime1, 
-					lifter2.getAbbreviatedName(), bestCleanJerkAttemptTime2);
+			logger.error("bestCleanJerkAttemptTime missing {}={} {}={}",
+			        lifter1.getAbbreviatedName(), bestCleanJerkAttemptTime1,
+			        lifter2.getAbbreviatedName(), bestCleanJerkAttemptTime2);
 			// we will rely on session time.
 			return 0;
 		}
@@ -582,9 +586,9 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 		LocalDateTime bestSnatchAttemptTime2 = lifter2.getBestSnatchAttemptTime();
 		if (bestSnatchAttemptTime1 == null || bestSnatchAttemptTime2 == null) {
 			// we will rely on session time.
-			logger.error("bestSnatchTime missing {}={} {}={}", 
-					lifter1.getAbbreviatedName(), bestSnatchAttemptTime1, 
-					lifter2.getAbbreviatedName(), bestSnatchAttemptTime2);
+			logger.error("bestSnatchTime missing {}={} {}={}",
+			        lifter1.getAbbreviatedName(), bestSnatchAttemptTime1,
+			        lifter2.getAbbreviatedName(), bestSnatchAttemptTime2);
 			return 0;
 		}
 		return ObjectUtils.compare(bestSnatchAttemptTime1, bestSnatchAttemptTime2);
@@ -631,9 +635,13 @@ public class WinningOrderComparator extends AbstractLifterComparator implements 
 	 * @param lifter2
 	 * @return
 	 */
+	@SuppressWarnings("null")
 	private int tieBreak(Athlete lifter1, Athlete lifter2) {
 		int compare;
-
+		if (lifter1 == null || lifter2 == null) {
+			return lifter1 == null ? 1 : 0;
+		}
+		
 		// if the athletes were not in the same session
 		if (lifter1 != null && lifter2 != null && !sameGroup(lifter1, lifter2)) {
 			compare = compareBestCleanJerkTime(lifter1, lifter2);

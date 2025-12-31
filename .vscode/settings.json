@@ -1,24 +1,40 @@
 {
-    "java.configuration.updateBuildConfiguration": "automatic",
-    "java.jdt.ls.home": "/home/gitpod/.sdkman/candidates/java/current",
+    // Basic file exclusions to keep workspace clean
     "files.exclude": {
         "**/.classpath": true,
         "**/.project": true,
         "**/.settings": true,
         "**/.factorypath": true
     },
-    "java.test.config": [
-        {
-            "name": "owlcms testing",
-            "workingDirectory": "${workspaceFolder}",
-            "vmargs": [ "-ea"],
-            "env": { "key": "value" },
-        }
+    // Java performance and autobuild
+    "java.autobuild.enabled": true,
+    "java.autobuild.annotation.processing.enabled": false,
+    "java.annotation.processing.enabled": false,
+    "java.import.gradle.enabled": false,
+    "java.configuration.updateBuildConfiguration": "disabled",
+    "java.project.importOnFirstTimeStartup": "disabled",
+    "java.server.launchMode": "Standard",
+    "java.project.importHint": false,
+    "java.saveActions.organizeImports": true,
+    "java.validate.allOpenBuffersOnChanges": false,
+    "java.validate.enable": true,
+    "java.project.resourceFilters": [
+        "node_modules",
+        ".git",
+        "target",
+        ".vscode",
+        ".idea"
     ],
-    "maven.view": "flat",
-    "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx8G -Xms100m",
-    "java.compile.nullAnalysis.mode": "disabled",
-    "java.dependency.syncWithFolderExplorer": true,
-    "java.dependency.packagePresentation": "hierarchical",
-    "java.project.explorer.showNonJavaResources": true
+    // Java editor and completion features
+    "java.completion.enabled": true,
+    "java.signatureHelp.enabled": true,
+    "java.hover.enabled": true,
+    "java.format.enabled": true,
+    // Debug and terminal
+    "debug.toolBarLocation": "docked",
+    "debug.allowBreakpointsEverywhere": true,
+    "editor.stickyScroll.enabled": false,
+    "workbench.tree.enableStickyScroll": false,
+    // Explorer auto-reveal when switching tabs
+    "explorer.autoReveal": true
 }

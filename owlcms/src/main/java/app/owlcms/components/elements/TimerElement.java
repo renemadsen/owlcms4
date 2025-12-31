@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -26,7 +26,6 @@ import com.vaadin.flow.server.VaadinSession;
 import app.owlcms.apputils.DebugUtils;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.fieldofplay.IProxyTimer;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.lifting.UIEventProcessor;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import app.owlcms.utils.LoggerUtils;
@@ -45,6 +44,7 @@ public abstract class TimerElement extends LitTemplate
 	public long lastStartMillis;
 	public long lastStopMillis;
 	protected String fopName;
+	protected FieldOfPlay fop;
 	protected VaadinSession vsession;
 	private boolean indefinite;
 	final private Logger logger = (Logger) LoggerFactory.getLogger(TimerElement.class);
@@ -54,6 +54,7 @@ public abstract class TimerElement extends LitTemplate
 	private Element timerElement;
 	protected EventBus uiEventBus;
 	final private Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
+	protected UI ui;
 	{
 		this.logger.setLevel(Level.WARN);
 		this.uiEventLogger.setLevel(Level.WARN);
@@ -63,6 +64,10 @@ public abstract class TimerElement extends LitTemplate
 	 * Instantiates a new timer element.
 	 */
 	public TimerElement() {
+	}
+
+	public void setFop(FieldOfPlay fop) {
+		this.fop = fop;
 	}
 
 	@AllowInert
@@ -150,7 +155,9 @@ public abstract class TimerElement extends LitTemplate
 			}
 			getElement().setProperty("silent", isSilent());
 			start(milliseconds, isIndefinite(), isSilent(), parent);
-			UI.getCurrent().push(); // should not be required...
+			if (ui != null) {
+				ui.push(); // should not be required...
+			}
 		});
 	}
 
@@ -216,13 +223,16 @@ public abstract class TimerElement extends LitTemplate
 	 */
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
-		OwlcmsSession.withFop(fop -> {
-			init(fop.getName());
-			// sync with current status of FOP
-			doSetTimer(fop.getAthleteTimer().getTimeRemaining());
-			// we listen on uiEventBus.
-			this.uiEventBus = uiEventBusRegister(this, fop);
-		});
+		ui = UI.getCurrent();
+		if (this.fop == null) {
+			this.logger.error("TimerElement requires explicit FOP before attach {}", LoggerUtils.whereFrom());
+			return;
+		}
+		init(this.fop.getName());
+		// sync with current status of FOP
+		doSetTimer(this.fop.getAthleteTimer().getTimeRemaining());
+		// we listen on uiEventBus.
+		this.uiEventBus = uiEventBusRegister(this, this.fop);
 	}
 
 	@Override

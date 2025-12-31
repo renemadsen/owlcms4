@@ -56,14 +56,16 @@ import app.owlcms.data.config.Config;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.shared.CustomFormFactory;
 import app.owlcms.nui.shared.IAthleteEditing;
 import app.owlcms.spreadsheet.PAthlete;
 import app.owlcms.uievents.UIEvent;
 import app.owlcms.uievents.UIEvent.Notification;
+import com.google.common.eventbus.EventBus;
+import com.google.common.eventbus.Subscribe;
 import app.owlcms.utils.LoggerUtils;
+import app.owlcms.nui.shared.SafeEventBusRegistration;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
@@ -109,6 +111,8 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 	private BinderValidationStatus<Athlete> initialValidationStatus;
 	private Boolean liftResultChanged;
 	private Button operationButton;
+	private Button acceptChangeButton;
+	private Button cancelButton;
 	private IAthleteEditing origin;
 	private Athlete originalAthlete;
 	private TextField snatch1ActualLift;
@@ -127,6 +131,50 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 	private TextField snatch3Declaration;
 	private BinderValidationStatus<Athlete> status;
 	private Boolean updatingResults;
+	private EventBus uiEventBus;
+
+	/**
+	 * Form component that registers itself safely on the UI event bus and receives DownSignal events.
+	 */
+	private class FormComponent extends VerticalLayout implements SafeEventBusRegistration {
+		private static final long serialVersionUID = 1L;
+
+		@Subscribe
+		public void onDownSignal(UIEvent.DownSignal e) {
+			handleCloseIfCurrent(e);
+		}
+
+		@Subscribe
+		public void onDecision(UIEvent.Decision e) {
+			handleCloseIfCurrent(e);
+		}
+
+		private void handleCloseIfCurrent(UIEvent e) {
+			// execute in UI thread and perform common close/unregister logic
+			UIEventProcessor.uiAccess(AthleteCardFormFactory.this.origin instanceof Component ? (Component) AthleteCardFormFactory.this.origin : null,
+					AthleteCardFormFactory.this.uiEventBus, e, () -> {
+						try {
+							FieldOfPlay fop = e.getFop();
+							if (fop != null && AthleteCardFormFactory.this.originalAthlete != null
+									&& fop.getCurAthlete() != null
+									&& fop.getCurAthlete().equals(AthleteCardFormFactory.this.originalAthlete)) {
+								// explicitly unregister from the UI event bus, then log and close the dialog
+								try {
+									if (AthleteCardFormFactory.this.uiEventBus != null) {
+										AthleteCardFormFactory.this.uiEventBus.unregister(FormComponent.this);
+									}
+								} catch (Exception ex) {
+									// ignore unregister failures
+								}
+								logger.info("Athlete card closed on event {} for athlete {}", e.getClass().getSimpleName(), AthleteCardFormFactory.this.originalAthlete.getId());
+								AthleteCardFormFactory.this.origin.closeDialog();
+							}
+						} catch (Throwable ex) {
+							// swallow
+						}
+					});
+		}
+	}
 
 	public AthleteCardFormFactory(Class<Athlete> domainType, IAthleteEditing origin) {
 		super(domainType);
@@ -190,8 +238,11 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		ComponentEventListener<ClickEvent<Button>> postOperationCallBack = (e) -> {
 		};
 		this.operationButton = null;
+		this.acceptChangeButton = null;
 		if (operation == CrudOperation.UPDATE) {
 			this.operationButton = buildOperationButton(CrudOperation.UPDATE, getEditedAthlete(),
+			        postOperationCallBack);
+			this.acceptChangeButton = buildAcceptChangeButton(CrudOperation.UPDATE, getEditedAthlete(),
 			        postOperationCallBack);
 		} else if (operation == CrudOperation.ADD) {
 			this.operationButton = buildOperationButton(CrudOperation.ADD, getEditedAthlete(), postOperationCallBack);
@@ -199,47 +250,68 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Button deleteButton = buildDeleteButton(CrudOperation.DELETE, getEditedAthlete(), null);
 		Component withdrawButtons = buildWithdrawButtons();
 		Checkbox forcedCurrentCheckbox = buildForcedCurrentCheckbox();
-		Checkbox validateEntries = buildIgnoreErrorsCheckbox();
 		Checkbox allowResultsEditing = buildAllowResultsEditingCheckbox();
-		Button cancelButton = buildCancelButton(cancelButtonClickListener);
+		this.cancelButton = buildCancelButton(cancelButtonClickListener);
 
 		HorizontalLayout footerLayout = new HorizontalLayout();
 		footerLayout.setWidth("100%");
 		footerLayout.setSpacing(true);
 		footerLayout.setPadding(false);
+		footerLayout.setAlignItems(Alignment.START);
 
-		if (deleteButton != null && operation != CrudOperation.ADD) {
-			footerLayout.add(deleteButton);
-		}
-		if (withdrawButtons != null && operation != CrudOperation.ADD) {
-			footerLayout.add(withdrawButtons);
-		}
+		// Add checkboxes first (left side)
 		VerticalLayout vl = new VerticalLayout();
 		if (forcedCurrentCheckbox != null && operation != CrudOperation.ADD) {
 			vl.setSizeUndefined();
 			vl.setPadding(false);
 			vl.setMargin(false);
-			vl.add(validateEntries);
+			vl.setSpacing(true);
 			vl.add(allowResultsEditing);
 			vl.add(forcedCurrentCheckbox);
 			footerLayout.add(vl);
+			footerLayout.setVerticalComponentAlignment(Alignment.START, vl);
+		}
+
+		if (deleteButton != null && operation != CrudOperation.ADD) {
+			footerLayout.add(deleteButton);
+			footerLayout.setVerticalComponentAlignment(Alignment.START, deleteButton);
+		}
+		if (withdrawButtons != null && operation != CrudOperation.ADD) {
+			footerLayout.add(withdrawButtons);
+			footerLayout.setVerticalComponentAlignment(Alignment.START, withdrawButtons);
 		}
 
 		NativeLabel spacer = new NativeLabel();
 
 		footerLayout.add(spacer);// , operationTrigger);
 
-		if (cancelButton != null) {
-			footerLayout.add(cancelButton);
-		}
+		// Create vertical layout for operation buttons with matching widths
+		VerticalLayout buttonStack = new VerticalLayout();
+		buttonStack.setPadding(false);
+		buttonStack.setMargin(false);
+		buttonStack.setSpacing(true);
+		buttonStack.setSizeUndefined();
 
 		if (this.operationButton != null) {
-			footerLayout.add(this.operationButton);
+			this.operationButton.setWidth("240px");
+			buttonStack.add(this.operationButton);
 			if (operation == CrudOperation.UPDATE && shortcutEnter) {
 				ShortcutRegistration reg = this.operationButton.addClickShortcut(Key.ENTER);
 				reg.allowBrowserDefault();
 			}
 		}
+		if (this.acceptChangeButton != null) {
+			this.acceptChangeButton.setWidth("240px");
+			this.acceptChangeButton.setVisible(false);
+			buttonStack.add(this.acceptChangeButton);
+		}
+		if (this.cancelButton != null) {
+			this.cancelButton.setWidth("240px");
+			buttonStack.add(this.cancelButton);
+		}
+
+		footerLayout.add(buttonStack);
+		footerLayout.setVerticalComponentAlignment(Alignment.START, buttonStack);
 		footerLayout.setFlexGrow(1.0, vl);
 		return footerLayout;
 	}
@@ -265,9 +337,18 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 
 		this.gridLayout = setupGrid();
 		this.errorLabel = new Paragraph("initial");
+		this.errorLabel.getStyle().set("font-size", "1.2rem");
+		this.errorLabel.getStyle().set("white-space", "normal");
+		this.errorLabel.getStyle().set("word-wrap", "break-word");
+		this.errorLabel.getStyle().set("overflow-wrap", "break-word");
+		this.errorLabel.getStyle().set("margin", "0");
+		this.errorLabel.getStyle().set("max-width", "600px");
+		this.errorLabel.setWidthFull();
 		HorizontalLayout labelWrapper = new HorizontalLayout(this.errorLabel);
 		// labelWrapper.addClassName("errorMessage");
 		labelWrapper.setWidthFull();
+		labelWrapper.getStyle().set("max-width", "600px");
+		labelWrapper.getStyle().set("overflow-x", "hidden");
 		labelWrapper.setJustifyContentMode(JustifyContentMode.CENTER);
 
 		// We use a copy so that if the user cancels, we still have the original object.
@@ -300,7 +381,7 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		Component footerLayout = this.buildFooter(operation, getEditedAthlete(), cancelButtonClickListener,
 		        updateButtonClickListener, deleteButtonClickListener, true);
 
-		VerticalLayout mainLayout = new VerticalLayout();
+	FormComponent mainLayout = new FormComponent();
 		mainLayout.add(formLayout);
 		mainLayout.add(this.gridLayout);
 		mainLayout.add(labelWrapper);
@@ -325,9 +406,26 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			        sb);
 		}
 
-		setFocus(getEditedAthlete());
+		setFocus(getEditedAthlete(), this.initialValidationStatus.hasErrors());
+		// Use SafeEventBusRegistration to register the form component on the FOP UI event bus
+		// when the component is attached (so a UI is present).
+		mainLayout.addAttachListener((e) -> {
+			try {
+				FieldOfPlay fop = this.origin.getFop();
+				if (fop != null) {
+					// uiEventBusRegister requires the component to have a UI; calling it on attach
+					// ensures SafeEventBusRegistration can obtain the UI and wire unregister listeners.
+					this.uiEventBus = mainLayout.uiEventBusRegister(mainLayout, fop);
+				}
+			} catch (Throwable t) {
+				// ignore registration failures
+			}
+		});
+
 		return mainLayout;
 	}
+
+	// The DownSignal subscriber is implemented on the form component instance. See above.
 
 	/**
 	 * Special version because we use setBean instead of readBean
@@ -348,6 +446,23 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			// already initialized correctly in the form, should not be reset here. see #
 			// domainObject.setCheckTiming(false);
 		});
+		return button;
+	}
+
+	public Button buildAcceptChangeButton(CrudOperation operation, Athlete domainObject,
+	        ComponentEventListener<ClickEvent<Button>> callBack) {
+		if (callBack == null) {
+			return null;
+		}
+		Button button = new Button(Translator.translate("AcceptChange"), new Icon(VaadinIcon.WARNING));
+		button.getElement().setAttribute("theme", "primary contrast");
+		button.getStyle().set("background-color", "#FFC107");
+		button.getStyle().set("color", "#000000");
+		button.addClickListener((f) -> {
+			// Perform the operation with ignoreErrors = true
+			performOperationAndCallback(operation, domainObject, callBack, true);
+		});
+		// Do NOT add keyboard shortcut for this button
 		return button;
 	}
 
@@ -867,27 +982,6 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		return checkbox;
 	}
 
-	private Checkbox buildIgnoreErrorsCheckbox() {
-		this.ignoreErrorsCheckbox = new Checkbox(Translator.translate("RuleViolation.ignoreErrors"), e -> {
-			if (BooleanUtils.isTrue(isIgnoreErrors())) {
-				logger./**/warn/**/("{}!Errors ignored - checkbox override for athlete {}",
-				        FieldOfPlay.getLoggingName(OwlcmsSession.getFop()), this.getEditedAthlete().getShortName());
-				// binder.validate();
-				boolean validationReset = this.editedAthlete.isValidation();
-				try {
-					this.editedAthlete.setValidation(false);
-					this.binder.writeBeanAsDraft(this.editedAthlete, true);
-				} finally {
-					this.editedAthlete.setValidation(validationReset);
-				}
-
-			}
-
-		});
-		this.ignoreErrorsCheckbox.getStyle().set("margin-left", CHECKBOX_MARGIN);
-		return this.ignoreErrorsCheckbox;
-	}
-
 	private Component buildWithdrawButtons() {
 		Integer attemptsDone = getEditedAthlete().getAttemptsDone();
 		VerticalLayout vl = new VerticalLayout();
@@ -898,15 +992,17 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 			        this.originalAthlete.withdrawFromSnatch();
 			        AthleteRepository.save(this.originalAthlete);
-			        OwlcmsSession.withFop((fop) -> {
+			        FieldOfPlay fop = this.origin.getFop();
+			        if (fop != null) {
 				        fop.pushOutUIEvent(new UIEvent.Notification(
 				                this.originalAthlete, this, Notification.Level.WARNING,
 				                "SnatchWithdrawalNotification", 5000, fop, this.originalAthlete.getFullName()));
 				        fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, true));
-			        });
+			        }
 			        this.origin.closeDialog();
 		        });
 		snatchWithdrawalButton.getElement().setAttribute("theme", "error");
+		snatchWithdrawalButton.setWidth("200px");
 
 		Button withdrawalButton = new Button(Translator.translate("Withdrawal"),
 		        new Icon(VaadinIcon.SIGN_OUT),
@@ -914,15 +1010,17 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			        Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 			        this.originalAthlete.withdraw();
 			        AthleteRepository.save(this.originalAthlete);
-			        OwlcmsSession.withFop((fop) -> {
+			        FieldOfPlay fop = this.origin.getFop();
+			        if (fop != null) {
 				        fop.pushOutUIEvent(new UIEvent.Notification(
 				                this.originalAthlete, this, Notification.Level.WARNING,
 				                "FullWithdrawalNotification", 5000, fop, this.originalAthlete.getFullName()));
 				        fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, true));
-			        });
+			        }
 			        this.origin.closeDialog();
 		        });
 		withdrawalButton.getElement().setAttribute("theme", "error");
+		withdrawalButton.setWidth("200px");
 
 		if (attemptsDone < 3) {
 			vl.add(snatchWithdrawalButton, withdrawalButton);
@@ -931,6 +1029,9 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		}
 
 		vl.setSizeUndefined();
+		vl.setPadding(false);
+		vl.setMargin(false);
+		vl.setSpacing(true);
 		return vl;
 	}
 
@@ -984,12 +1085,34 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			this.errorLabel.setVisible(true);
 			this.errorLabel.getElement().setProperty("innerHTML", "\u26A0 " + message);
 			this.errorLabel.getClassNames().set("errorMessage", true);
+			// Show Accept Change button, hide normal Update button
+			if (this.operationButton != null && this.acceptChangeButton != null) {
+				this.operationButton.setVisible(false);
+				this.acceptChangeButton.setVisible(true);
+			}
+			// Change cancel to "Reject Change" with error theme
+			if (this.cancelButton != null) {
+				this.cancelButton.setText(Translator.translate("RejectChange"));
+				this.cancelButton.getElement().setAttribute("theme", "primary error");
+			}
 		} else {
 			logger.debug("{} setting EMPTY", simpleName);
 			this.errorLabel.setVisible(true);
 			this.errorLabel.getElement().setProperty("innerHTML", "&nbsp;");
 			this.errorLabel.getClassNames().clear();
+			// Show normal Update button, hide Accept Change button
+			if (this.operationButton != null && this.acceptChangeButton != null) {
+				this.operationButton.setVisible(true);
+				this.acceptChangeButton.setVisible(false);
+			}
+			// Restore cancel button to normal
+			if (this.cancelButton != null) {
+				this.cancelButton.setText(Translator.translate("Cancel"));
+				this.cancelButton.getElement().removeAttribute("theme");
+			}
 		}
+		// Ensure focus markers reflect the presence of errors (no yellow when error)
+		setFocus(getEditedAthlete(), sb != null && sb.length() > 0);
 	}
 
 	private void doSetErrorLabel(String message, TextField field) {
@@ -998,15 +1121,39 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			this.errorLabel.setVisible(true);
 			this.errorLabel.getElement().setProperty("innerHTML", message);
 			this.errorLabel.getClassNames().set("errorMessage", true);
+			field.getElement().getClassList().set("error", true);
 			field.setInvalid(true);
+			// Show Accept Change button, hide normal Update button
+			if (this.operationButton != null && this.acceptChangeButton != null) {
+				this.operationButton.setVisible(false);
+				this.acceptChangeButton.setVisible(true);
+			}
+			// Change cancel to "Reject Change" with error theme
+			if (this.cancelButton != null) {
+				this.cancelButton.setText(Translator.translate("RejectChange"));
+				this.cancelButton.getElement().setAttribute("theme", "primary error");
+			}
 		} else {
 			logger.debug("{} setting EMPTY");
 			this.errorLabel.setVisible(true);
 			this.errorLabel.getElement().setProperty("innerHTML", "&nbsp;");
 			this.errorLabel.getClassNames().clear();
+			field.getElement().getClassList().set("error", false);
 			field.setInvalid(false);
+			// Show normal Update button, hide Accept Change button
+			if (this.operationButton != null && this.acceptChangeButton != null) {
+				this.operationButton.setVisible(true);
+				this.acceptChangeButton.setVisible(false);
+			}
+			// Restore cancel button to normal
+			if (this.cancelButton != null) {
+				this.cancelButton.setText(Translator.translate("Cancel"));
+				this.cancelButton.getElement().removeAttribute("theme");
+			}
 		}
 		resetReadOnlyFields();
+		// Ensure focus markers reflect the presence of errors (no yellow when error)
+		setFocus(getEditedAthlete(), message != null && !message.isBlank());
 	}
 
 	/**
@@ -1019,9 +1166,10 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 		}
 		Athlete.conditionalCopy(this.originalAthlete, getEditedAthlete(), true, true, true);
 		AthleteRepository.save(this.originalAthlete);
-		OwlcmsSession.withFop((fop) -> {
+		FieldOfPlay fop = this.origin.getFop();
+		if (fop != null) {
 			fop.fopEventPost(new FOPEvent.WeightChange(this.getOrigin(), this.originalAthlete, isLiftResultChanged()));
-		});
+		}
 		this.origin.closeDialog();
 	}
 
@@ -1184,8 +1332,12 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 	}
 
 	private void setFocus(Athlete a) {
-		int targetRow = ACTUAL + 1;
-		int targetCol = CJ3 + 1;
+		setFocus(a, false);
+	}
+
+	private void setFocus(Athlete a, boolean hasErrors) {
+		int targetRow = -1;
+		int targetCol = -1;
 
 		// reset current marker -- can be anywhere
 		for (int col = CJ3; col >= SNATCH1; col--) {
@@ -1194,38 +1346,190 @@ public class AthleteCardFormFactory extends OwlcmsCrudFormFactory<Athlete> imple
 			}
 		}
 
-		// figure out whether we are searching for snatch or CJ
-		int rightCol;
-		int leftCol;
-
-		if (a.getAttemptsDone() >= 3) {
-			rightCol = CJ3;
-			leftCol = CJ1;
-		} else {
-			rightCol = SNATCH3;
-			leftCol = SNATCH1;
-		}
-
-		// set current marker to first empty cell after last lift.
-		for (int col = rightCol; col >= leftCol; col--) {
-			for (int row = ACTUAL; row > AUTOMATIC; row--) {
-				boolean empty = this.textfields[row - 1][col - 1].getValue().isBlank();
-				if (empty) {
-					targetRow = row - 1;
-					targetCol = col - 1;
-				} else {
+		// Check if any field has the "error" class - if so, don't show the yellow "current" marker
+		// The pink error highlighting is sufficient
+		boolean anyFieldHasError = false;
+		TextField firstErrorField = null;
+		for (int col = SNATCH1; col <= CJ3; col++) {
+			for (int row = DECLARATION; row <= ACTUAL; row++) {
+				TextField tf = this.textfields[row - 1][col - 1];
+				if (tf != null && tf.getElement().getClassList().contains("error")) {
+					anyFieldHasError = true;
+					if (firstErrorField == null) {
+						firstErrorField = tf;
+					}
 					break;
 				}
 			}
+			if (anyFieldHasError && firstErrorField != null) {
+				break;
+			}
 		}
 
-		if (targetCol <= CJ3 && targetRow <= ACTUAL) {
-			// a suitable empty cell was found, set focus
+		// Don't show yellow "current" marker when there's an error; focus the first error cell instead
+		if (hasErrors || anyFieldHasError) {
+			if (firstErrorField != null) {
+				firstErrorField.setAutofocus(true);
+				firstErrorField.setAutoselect(true);
+				firstErrorField.focus();
+			}
+			return;
+		}
+
+		// Compute the expected column based on athlete data (attempts done)
+		// This is more reliable than checking TextField values which may not be populated yet
+		int attemptsDone = a.getAttemptsDone();
+		
+		if (attemptsDone >= 6) {
+			// All lifts done, no cell to highlight
+			return;
+		}
+		
+		// Determine which column corresponds to the next lift
+		// attemptsDone: 0=Sn1, 1=Sn2, 2=Sn3, 3=CJ1, 4=CJ2, 5=CJ3
+		int expectedCol;
+		if (attemptsDone < 3) {
+			expectedCol = SNATCH1 + attemptsDone; // SNATCH1, SNATCH2, or SNATCH3
+		} else {
+			expectedCol = CJ1 + (attemptsDone - 3); // CJ1, CJ2, or CJ3
+		}
+
+		// Compute expected row from athlete data by scanning from bottom up
+		// This crosschecks what the TextFields show against the authoritative athlete data
+		int expectedRow = computeExpectedRowFromAthlete(a, expectedCol);
+
+		// When not updating results (e.g., marshal screen), skip the ACTUAL row
+		// since those cells are readonly and should not receive focus
+		// Rows top-to-bottom: AUTOMATIC(2), DECLARATION(3), CHANGE1(4), CHANGE2(5), ACTUAL(6)
+		int bottomRow = isUpdatingResults() ? ACTUAL : CHANGE2;
+
+		// Normal case: find the topmost empty cell in a contiguous block from bottom up
+		for (int row = bottomRow; row > AUTOMATIC; row--) {
+			int tfRowIndex = row - 1;
+			int tfColIndex = expectedCol - 1;
+			TextField tf = this.textfields[tfRowIndex][tfColIndex];
+			String value = tf != null ? tf.getValue() : null;
+			boolean empty = value == null || value.isBlank();
+			if (empty) {
+				targetRow = tfRowIndex;
+				targetCol = tfColIndex;
+			} else {
+				break; // Hit a non-empty cell, stop - targetRow/targetCol has the topmost empty
+			}
+		}
+
+		// Crosscheck: verify TextField-based row matches athlete data-based row
+		// Both should agree on where the focus should go (or both should be -1 if no empty cell)
+		if (targetRow != expectedRow) {
+			logger.error("setFocus mismatch: TextField row={} but athlete data expects row={} for col={} (attemptsDone={}, updatingResults={}) {}",
+			        targetRow >= 0 ? targetRow + 1 : "none",
+			        expectedRow >= 0 ? expectedRow + 1 : "none",
+			        expectedCol, attemptsDone, isUpdatingResults(), LoggerUtils.whereFrom());
+		}
+
+		if (targetCol >= 0 && targetRow >= 0) {
+			// a suitable cell was found, set focus
 			this.textfields[targetRow][targetCol].setAutofocus(true);
 			this.textfields[targetRow][targetCol].setAutoselect(true);
 			this.textfields[targetRow][targetCol].focus();
 			this.textfields[targetRow][targetCol].addClassName("current");
 		}
+	}
+
+	/**
+	 * Compute the expected row for focus based on athlete data (not TextField values).
+	 * Scans from ACTUAL up to DECLARATION to find the topmost empty field.
+	 * 
+	 * @param a the athlete
+	 * @param col the column (SNATCH1..CJ3)
+	 * @return the expected row index (0-based), or -1 if all fields are filled
+	 */
+	private int computeExpectedRowFromAthlete(Athlete a, int col) {
+		// Get the athlete's values for this column (lift)
+		String declaration = getAthleteValueForCell(a, DECLARATION, col);
+		String change1 = getAthleteValueForCell(a, CHANGE1, col);
+		String change2 = getAthleteValueForCell(a, CHANGE2, col);
+		String actual = getAthleteValueForCell(a, ACTUAL, col);
+
+		// When not updating results, skip ACTUAL row
+		int bottomRow = isUpdatingResults() ? ACTUAL : CHANGE2;
+
+		// Scan from bottom up, find topmost empty in contiguous block
+		int expectedRow = -1;
+		for (int row = bottomRow; row > AUTOMATIC; row--) {
+			String value;
+			switch (row) {
+				case DECLARATION: value = declaration; break;
+				case CHANGE1: value = change1; break;
+				case CHANGE2: value = change2; break;
+				case ACTUAL: value = actual; break;
+				default: value = null;
+			}
+			boolean empty = value == null || value.isBlank();
+			if (empty) {
+				expectedRow = row - 1; // 0-based index
+			} else {
+				break;
+			}
+		}
+		return expectedRow;
+	}
+
+	/**
+	 * Get the athlete's value for a specific cell (row, col) using the athlete's getter methods.
+	 */
+	private String getAthleteValueForCell(Athlete a, int row, int col) {
+		switch (col) {
+			case SNATCH1:
+				switch (row) {
+					case DECLARATION: return a.getSnatch1Declaration();
+					case CHANGE1: return a.getSnatch1Change1();
+					case CHANGE2: return a.getSnatch1Change2();
+					case ACTUAL: return a.getSnatch1ActualLift();
+				}
+				break;
+			case SNATCH2:
+				switch (row) {
+					case DECLARATION: return a.getSnatch2Declaration();
+					case CHANGE1: return a.getSnatch2Change1();
+					case CHANGE2: return a.getSnatch2Change2();
+					case ACTUAL: return a.getSnatch2ActualLift();
+				}
+				break;
+			case SNATCH3:
+				switch (row) {
+					case DECLARATION: return a.getSnatch3Declaration();
+					case CHANGE1: return a.getSnatch3Change1();
+					case CHANGE2: return a.getSnatch3Change2();
+					case ACTUAL: return a.getSnatch3ActualLift();
+				}
+				break;
+			case CJ1:
+				switch (row) {
+					case DECLARATION: return a.getCleanJerk1Declaration();
+					case CHANGE1: return a.getCleanJerk1Change1();
+					case CHANGE2: return a.getCleanJerk1Change2();
+					case ACTUAL: return a.getCleanJerk1ActualLift();
+				}
+				break;
+			case CJ2:
+				switch (row) {
+					case DECLARATION: return a.getCleanJerk2Declaration();
+					case CHANGE1: return a.getCleanJerk2Change1();
+					case CHANGE2: return a.getCleanJerk2Change2();
+					case ACTUAL: return a.getCleanJerk2ActualLift();
+				}
+				break;
+			case CJ3:
+				switch (row) {
+					case DECLARATION: return a.getCleanJerk3Declaration();
+					case CHANGE1: return a.getCleanJerk3Change1();
+					case CHANGE2: return a.getCleanJerk3Change2();
+					case ACTUAL: return a.getCleanJerk3ActualLift();
+				}
+				break;
+		}
+		return null;
 	}
 
 	private void setLiftResultChanged(Boolean liftResultChanged) {

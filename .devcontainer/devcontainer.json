@@ -1,31 +1,68 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/java
 {
-	"name": "Java",
+	"name": "OWLCMS Java/Vaadin Development",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/java:1-17-bullseye",
+	"image": "mcr.microsoft.com/devcontainers/java:21-bullseye",
 
 	"features": {
-		"ghcr.io/devcontainers/features/java:1": {
-			"installMaven": true,
-			"version": "17",
-			"jdkDistro": "ms",
-			"gradleVersion": "latest",
-			"mavenVersion": "latest",
-			"antVersion": "latest",
-			"groovyVersion": "latest"
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "22",
+			"nodeGypDependencies": true,
+			"installYarnUsingApt": true
 		}
-	}
+	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [8080,1883],
+	"forwardPorts": [8080, 8081, 1883],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "java -version",
+	// Note: When opening in Codespaces, select 'owlcmsDevcontainer.code-workspace' from the workspace files
+	"postCreateCommand": "echo 'Skipping mvn compile (DCEVM + Java auto build). Run mvn manually if needed.'",
+
+	// Ensure the correct workspace is selected
+	"postStartCommand": "echo 'To use the correct workspace configuration, open: owlcmsDevcontainer.code-workspace'",
+
+	// Use 'onCreateCommand' for Codespaces pre-building
+	"onCreateCommand": "bash .devcontainer/setup-jdk.sh",
+
+	// Use the devcontainer-specific workspace file
+	"workspaceFolder": "/workspaces/owlcms_v23",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/owlcms_v23,type=bind",
+
+	// Set container environment variables
+	// Set container environment variables
+	"containerEnv": {
+		"M2_HOME": "/opt/maven",
+		"OWLCMS_ENABLEEMBEDDEDMQTT": "false"
+	},
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"vscjava.vscode-java-pack",
+				"vscjava.vscode-maven",
+				"redhat.java",
+				"vscjava.vscode-java-debug",
+				"vscjava.vscode-java-test",
+				"vscjava.vscode-java-dependency",
+				"github.copilot",
+				"github.copilot-chat",
+				"esbenp.prettier-vscode",
+				"ms-vscode.vscode-json"
+			],
+			"settings": {
+				"maven.executable.path": "/opt/maven/bin/mvn",
+				"terminal.integrated.defaultProfile.linux": "bash"
+			}
+		}
+	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
+
+	"mounts": [
+		"source=${localEnv:HOME}/.m2,target=/home/vscode/.m2,type=bind,consistency=cached"
+	]
 }

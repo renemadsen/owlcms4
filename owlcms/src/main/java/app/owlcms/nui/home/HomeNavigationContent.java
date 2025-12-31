@@ -25,9 +25,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -45,6 +43,7 @@ import com.github.appreciated.css.grid.sizes.Length;
 import com.github.appreciated.css.grid.sizes.MinMax;
 import com.github.appreciated.css.grid.sizes.Repeat;
 import com.github.appreciated.layout.FlexibleGridLayout;
+import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.UI;
@@ -119,6 +118,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		layout.setWidth("80%");
 		layout.setBoxSizing(BoxSizing.BORDER_BOX);
 		layout.setPadding(true);
+		layout.getElement().getStyle().set("padding-right", "1em");
 		return layout;
 	}
 
@@ -132,6 +132,7 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 	String referenceVersionString;
 	String currentVersionString = "";
 	int comparison = 999;
+	private UI ui;
 
 	/**
 	 * Instantiates a new main navigation content.
@@ -193,7 +194,9 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 			        buttonClickEvent -> {
 				        cdRestart.setAction(() -> {
 					        cdRestart.close();
-					        UI.getCurrent().push();
+					        if (ui != null) {
+					        	ui.push();
+					        }
 					        Main.restart();
 				        });
 				        cdRestart.open();
@@ -208,8 +211,9 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 			        buttonClickEvent -> {
 				        cdStop.setAction(() -> {
 					        cdStop.close();
-					        UI.getCurrent().push();
-
+					        if (ui != null) {
+					        	ui.push();
+					        }
 					        EmbeddedJetty.stop(false);
 					        System.exit(0);
 				        });
@@ -510,6 +514,12 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		}
 		return div;
 	}
+	
+	@Override
+	protected void onAttach(AttachEvent attachEvent) {
+		super.onAttach(attachEvent);
+		ui = UI.getCurrent();
+	}
 
 	private void logUsage() {
 		HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
@@ -559,11 +569,10 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 		        + "&localdate=" + LocalDate.now().toString()
 		        + "&localtime=" + LocalTime.now().toString()
 		        + "&timezone=" + tzId
-		        + "&locale=" + Locale.getDefault()
+		        + "&locale=" + OwlcmsSession.getLocale()
 		        + (local ? "" : "&origin=" + ipAddress)
 		        + (JPAService.isLocalDb() ? "&local=true" : "&local=false");
 
-		Properties attributes = OwlcmsSession.getCurrent().getAttributes();
 		// fire and forget
 		new Thread(() -> {
 			// try 3 times, increasing timeout by 1 second.
@@ -574,8 +583,8 @@ public class HomeNavigationContent extends BaseNavigationContent implements Navi
 					        .timeout(Duration.ofMillis(2000 + (i * 1000)))
 					        .build();
 					client.send(usageRequest, BodyHandlers.ofString());
-					attributes.setProperty(USAGE_STR, usageStr);
-					logger.info("logged usage {}", attributes.getProperty(USAGE_STR));
+					OwlcmsSession.setAttribute(USAGE_STR, usageStr);
+					logger.info("logged usage {}", OwlcmsSession.getAttribute(USAGE_STR));
 					break;
 				} catch (Throwable e) {
 					logger.error("could not log usage - attempt {}: {}", i, e.getMessage());

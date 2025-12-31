@@ -1,4 +1,6 @@
-/*******************************************************************************
+/*****************************import com.vaadin.flow.component.html.H4;
+import com.vaadin.flow.component.html.NativeLabel;
+import com.vaadin.flow.component.html.Paragraph;**********************************************
  * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
@@ -6,12 +8,14 @@
  *******************************************************************************/
 package app.owlcms.nui.preparation;
 
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.vaadin.crudui.crud.CrudOperation;
 
 import com.vaadin.flow.component.ClickEvent;
@@ -36,26 +40,28 @@ import com.vaadin.flow.component.html.Pre;
 import com.vaadin.flow.component.orderedlayout.FlexComponent.Alignment;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
-import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.upload.Upload;
-import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
+import com.vaadin.flow.server.streams.UploadHandler;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.Binder.Binding;
 import com.vaadin.flow.data.binder.ValidationException;
 
-import app.owlcms.components.JXLSDownloader;
 import app.owlcms.components.fields.GridField;
-import app.owlcms.data.competition.Competition;
+import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordDefinitionReader;
 import app.owlcms.data.records.RecordEvent;
 import app.owlcms.data.records.RecordRepository;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
-import app.owlcms.spreadsheet.JXLSExportRecords;
+import app.owlcms.utils.URLUtils;
 
 @SuppressWarnings("serial")
 public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<RecordConfig> {
+
+	private static final Logger logger = LoggerFactory.getLogger(RecordConfigEditingFormFactory.class);
 
 	private class LoadedRecordsField extends GridField<RecordEvent> {
 
@@ -111,23 +117,12 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		setBinder(buildBinder(operation, comp));
 
 		FormLayout recordsOrderLayout = recordOrderForm();
-		FormLayout provisionalLayout = provisionalForm();
 		FormLayout officialLayout = officialForm();
-		FormLayout exportLayout = exportAllForm();
-
-		TabSheet ts = new TabSheet();
-		ts.setWidthFull();
-		ts.add(Translator.translate("Records.ConfigurationTab"),
-		        new VerticalLayout(
-		                recordsOrderLayout,
-		                separator(),
-		                officialLayout));
-		ts.add(Translator.translate("Records.manageNewRecords"),
-		        new VerticalLayout(
-		                provisionalLayout, separator(), exportLayout));
 
 		VerticalLayout mainLayout = new VerticalLayout(
-		        ts);
+		        recordsOrderLayout,
+		        separator(),
+		        officialLayout);
 		mainLayout.setMargin(false);
 		mainLayout.setPadding(false);
 
@@ -171,70 +166,28 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		return title;
 	}
 
-	private FormLayout exportAllForm() {
-		FormLayout recordsAvailableLayout = createLayout();
-		Component title = createTitle("Records.exportAllRecordsTitle");
-
-		recordsAvailableLayout.add(title);
-		recordsAvailableLayout.setColspan(title, 2);
-
-		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
-		// Translator.translate("Records.exportAllRecordsTitle"), new JXLSExportRecords(UI.getCurrent(), true));
-
-		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), true, false);
-		JXLSDownloader dd = new JXLSDownloader(
-		        () -> {
-			        return recordsWriter;
-		        },
-		        "/templates/records",
-		        "exportRecords.xlsx",
-		        Translator.translate("Records.exportAllRecordsTitle"),
-		        fileName -> fileName.endsWith(".xlsx"));
-		Div allRecords = new Div();
-		allRecords.add(dd.createImmediateDownloadButton());
-		allRecords.setWidthFull();
-
-		var recordsWriter1 = new JXLSExportRecords(UI.getCurrent(), true, true);
-		JXLSDownloader dd1 = new JXLSDownloader(
-		        () -> {
-			        return recordsWriter1;
-		        },
-		        "/templates/records",
-		        Competition::getComputedCurrentRecordsTemplateFileName,
-		        Competition::setCurrentRecordsTemplateFileName,
-		        Translator.translate("Records.exportCurrentRecordsTitle"),
-		        Translator.translate("Download"));
-		Div allRecords1 = new Div();
-		Button downloadButton = dd1.createDownloadButton();
-		downloadButton.setWidthFull();
-		allRecords1.add(downloadButton);
-
-		recordsAvailableLayout.addFormItem(allRecords, Translator.translate("Records.exportAllRecordsLabel"));
-		recordsAvailableLayout.addFormItem(allRecords1, Translator.translate("Records.exportCurrentRecordsLabel"));
-
-		return recordsAvailableLayout;
-	}
-
 	private FormLayout officialForm() {
-		Button clearNewRecords = new Button(Translator.translate("Records.ClearOfficialRecords"),
+		Button clearNewRecords = new Button(Translator.translate("RecordConfig.ClearAllRecords"),
 		        buttonClickEvent -> {
 			        try {
-				        RecordRepository.clearOfficialRecords();
+				        // Clear ALL records from the system
+				        JPAService.runInTransaction(em -> {
+					        int deletedCount = em.createQuery("DELETE FROM RecordEvent").executeUpdate();
+					        logger.info("deleted {} record entries", deletedCount);
+					        return null;
+				        });
 				        UI.getCurrent().getPage().reload();
-			        } catch (IOException e) {
+			        } catch (Exception e) {
 				        throw new RuntimeException(e);
 			        }
 		        });
-		MemoryBuffer receiver = new MemoryBuffer();
 
 		Button uploadButton = new Button(Translator.translate("Records.UploadButton"));
 		uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-		Upload uploadRecords = new Upload(receiver);
-		uploadRecords.setUploadButton(uploadButton);
-		uploadRecords.setDropLabel(new NativeLabel(Translator.translate("Records.UploadDropZone")));
-		uploadRecords.addSucceededListener(e -> {
-			List<String> errors = new RecordDefinitionReader().readInputStream(receiver.getInputStream(),
-			        receiver.getFileName());
+		
+		UploadHandler uploadHandler = UploadHandler.inMemory((metadata, bytes) -> {
+			List<String> errors = new RecordDefinitionReader().readInputStream(new ByteArrayInputStream(bytes),
+			        metadata.fileName());
 			if (errors.isEmpty()) {
 				UI.getCurrent().getPage().reload();
 			} else {
@@ -251,9 +204,13 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 				d.open();
 			}
 		});
+		
+		Upload uploadRecords = new Upload(uploadHandler);
+		uploadRecords.setUploadButton(uploadButton);
+		uploadRecords.setDropLabel(new NativeLabel(Translator.translate("Records.UploadDropZone")));
 
 		FormLayout recordsAvailableLayout = createLayout();
-		Component title = createTitle("Records.OfficialSection");
+		Component title = createTitle("RecordConfig.UploadRecords");
 
 		this.loadedField = new LoadedRecordsField(() -> {
 			RecordConfig current = RecordConfig.getCurrent();
@@ -269,61 +226,26 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		FormItem ur = recordsAvailableLayout.addFormItem(uploadRecords,
 		        Translator.translate("Records.UploadOfficialFile"));
 		recordsAvailableLayout.setColspan(ur, 1);
-		FormItem cni = recordsAvailableLayout.addFormItem(clearNewRecords,
-		        Translator.translate("Records.ClearOfficialRecordsExplanation"));
-		recordsAvailableLayout.setColspan(cni, 1);
+
+		HorizontalLayout buttonTitle = new HorizontalLayout();
+		Button editExportRecords = openInNewTabNoParam(RecordContent.class,
+		        Translator.translate("RecordEvent.EditExportRecords"));
+		editExportRecords.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+		Div div = new Div();
+		H4 nativeLabel = new H4(Translator.translate("RecordConfig.LoadedRecords"));
+		clearNewRecords.getElement().setAttribute("title",
+			Translator.translate("RecordConfig.ClearAllRecordsExplanation"));
+		buttonTitle.add(nativeLabel,
+		        div, clearNewRecords,editExportRecords);
+		buttonTitle.setSpacing(true);
+		buttonTitle.setFlexGrow(1, div);
+		buttonTitle.setAlignSelf(Alignment.CENTER, nativeLabel);
+		// visual kludge
+		buttonTitle.getElement().getStyle().set("margin-right", "1em");
 
 		FormItem lfi = recordsAvailableLayout.addFormItem(this.loadedField,
-		        Translator.translate("Records.LoadedOfficialFiles"));
+		        buttonTitle);
 		recordsAvailableLayout.setColspan(lfi, 2);
-		return recordsAvailableLayout;
-	}
-
-	private FormLayout provisionalForm() {
-		FormLayout recordsAvailableLayout = createLayout();
-		Component title = createTitle("Records.ProvisionalSection");
-
-		recordsAvailableLayout.add(title);
-		recordsAvailableLayout.setColspan(title, 2);
-
-		// Div newRecords = DownloadButtonFactory.createDynamicXLSDownloadButton("records",
-		// Translator.translate("Results.NewRecords"), new JXLSExportRecords(UI.getCurrent(), false));
-
-		var recordsWriter = new JXLSExportRecords(UI.getCurrent(), false, false);
-		JXLSDownloader dd = new JXLSDownloader(
-		        () -> {
-			        return recordsWriter;
-		        },
-		        "/templates/records",
-		        "exportRecords.xlsx",
-		        Translator.translate("Results.NewRecords"),
-		        fileName -> fileName.endsWith(".xlsx"));
-		Div newRecords = new Div();
-		newRecords.add(dd.createImmediateDownloadButton());
-		newRecords.setWidthFull();
-
-		recordsAvailableLayout.addFormItem(newRecords, Translator.translate("Results.NewRecords"));
-
-		Button clearNewRecords = new Button(Translator.translate("Preparation.ClearNewRecords"),
-		        buttonClickEvent -> {
-			        try {
-				        RecordRepository.clearNewRecords();
-			        } catch (IOException e) {
-				        throw new RuntimeException(e);
-			        }
-		        });
-		clearNewRecords.setWidthFull();
-		recordsAvailableLayout.addFormItem(clearNewRecords,
-		        Translator.translate("Preparation.ClearNewRecordsExplanation"));
-
-		Button recomputeNewRecords = new Button(Translator.translate("Preparation.RecomputeNewRecords"),
-		        buttonClickEvent -> {
-			        RecordRepository.recomputeNewRecords();
-		        });
-		recomputeNewRecords.setWidthFull();
-		recordsAvailableLayout.addFormItem(recomputeNewRecords,
-		        Translator.translate("Preparation.RecomputeNewRecordsExplanation"));
-
 		return recordsAvailableLayout;
 	}
 
@@ -376,5 +298,22 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 
 	private void setBinder(Binder<RecordConfig> buildBinder) {
 		this.binder = buildBinder;
+	}
+
+	private <T extends Component> Button openInNewTabNoParam(Class<T> targetClass,
+	        String label, Component... icon) {
+		Button button = new Button(label);
+		if (icon.length > 0 && icon[0] != null) {
+			button.setIcon(icon[0]);
+		}
+		button.getElement().setAttribute("onClick", getWindowOpenerFromClassNoParam(targetClass));
+		return button;
+	}
+
+	private <T extends Component> String getWindowOpenerFromClassNoParam(Class<T> targetClass) {
+		FieldOfPlay fop = OwlcmsSession.getFop();
+		String name = fop == null ? "" : "_" + fop.getName();
+		return "window.open('" + URLUtils.getUrlFromTargetClass(targetClass) + "','"
+		        + targetClass.getSimpleName() + name + "')";
 	}
 }

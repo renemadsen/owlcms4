@@ -20,18 +20,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.LoggerFactory;
@@ -57,7 +61,6 @@ import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.fieldofplay.IBreakTimer;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.HasBoardMode;
 import app.owlcms.uievents.BreakDisplay;
 import app.owlcms.uievents.BreakType;
@@ -91,9 +94,79 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(EventForwarder.class);
 	final private static Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + logger.getName());
 	public static final Object singleThreadLock = new Object();
+	private static final long CONFIG_RESEND_WINDOW_MS = 10000L;
+	private static Map<String, Boolean> configSentByEndpoint = Collections.synchronizedMap(new HashMap<>());
+	private static Map<String, Object> configLockByDestination = Collections.synchronizedMap(new HashMap<>());
+	private static Map<String, Boolean> configSendingInProgress = Collections.synchronizedMap(new HashMap<>());
+	private static Map<String, Long> configAttemptTimeByDestination = Collections.synchronizedMap(new HashMap<>());
 	private static Map<String, EventForwarder> eventForwarderByName = new HashMap<>();
+	
+	// Debug flag for detailed timer event logging
+	private static final boolean DEBUG_TIMER_EVENTS = Boolean.parseBoolean(
+			System.getenv().getOrDefault("OWLCMS_DEBUG_TIMER_EVENTS", "false"));
+	
+	// Shared HTTP client with connection pooling to prevent port exhaustion
+	private static final CloseableHttpClient sharedHttpClient;
+	private static final CloseableHttpClient sharedConfigHttpClient;
+	
+	static {
+		// Create connection pool manager
+		// We typically have only 2 target URLs (videoUrl and updateUrl), each hitting one server
+		PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+		connectionManager.setMaxTotal(100); // Max 100 total connections (2 URLs × 3 connections each)
+		connectionManager.setDefaultMaxPerRoute(50); // Max 50 connections per destination URL
+		
+		// Configure socket settings
+		SocketConfig socketConfig = SocketConfig.custom()
+				.setSoKeepAlive(true)
+				.setSoTimeout(30000) // 30 second socket timeout
+				.build();
+		connectionManager.setDefaultSocketConfig(socketConfig);
+		
+		// Configure request settings
+		RequestConfig requestConfig = RequestConfig.custom()
+				.setConnectTimeout(10000) // 10 second connect timeout
+				.setConnectionRequestTimeout(5000) // 5 second timeout to get connection from pool
+				.setSocketTimeout(30000) // 30 second socket timeout
+				.build();
+		
+		// Build shared client for regular posts
+		sharedHttpClient = HttpClients.custom()
+				.setConnectionManager(connectionManager)
+				.setDefaultRequestConfig(requestConfig)
+				.build();
+		
+		// Build separate client for config uploads (with retries disabled)
+		sharedConfigHttpClient = HttpClients.custom()
+				.setConnectionManager(connectionManager)
+				.setDefaultRequestConfig(requestConfig)
+				.disableAutomaticRetries()
+				.build();
+		
+		logger.info("Initialized shared HTTP clients with connection pooling (max {} total, {} per route)", 
+				connectionManager.getMaxTotal(), connectionManager.getDefaultMaxPerRoute());
+	}
 
 	synchronized public static EventForwarder initEventForwarderByName(String name, FieldOfPlay fieldOfPlay) {
+		// Check if there are any HTTP URLs to forward to
+		String updateUrl = Config.getCurrent().getParamPublicResultsURL();
+		String updateUrlV = Config.getCurrent().getParamVideoDataURL();
+		boolean hasHttpUrl = false;
+		
+		if (updateUrl != null && !updateUrl.trim().isEmpty() && 
+		    (updateUrl.startsWith("http://") || updateUrl.startsWith("https://"))) {
+			hasHttpUrl = true;
+		}
+		if (updateUrlV != null && !updateUrlV.trim().isEmpty() && 
+		    (updateUrlV.startsWith("http://") || updateUrlV.startsWith("https://"))) {
+			hasHttpUrl = true;
+		}
+		
+		if (!hasHttpUrl) {
+			logger.info("{}no HTTP URLs configured, skipping EventForwarder creation", FieldOfPlay.getLoggingName(fieldOfPlay));
+			return null;
+		}
+		
 		EventForwarder eventForwarder = eventForwarderByName.get(name);
 		if (eventForwarder == null) {
 			logger.info("{}creating event forwarder", FieldOfPlay.getLoggingName(fieldOfPlay));
@@ -166,25 +239,51 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	private String liftTypeKey;
 	Map<String, Integer> debouncingHash = new HashMap<>();
 	Map<String, Long> debouncingMillis = new HashMap<>();
+	// Per-URL locks to prevent socket timeout on one URL from blocking other URLs
+	private Map<String, Object> postLockByUrl = new ConcurrentHashMap<>();
+	// Track URLs that are experiencing continuous failures to implement exponential backoff
+	private Map<String, Long> failureTimeByUrl = new ConcurrentHashMap<>();
+	private static final long FAILURE_BACKOFF_MS = 30000; // 30 second backoff before retrying failed URL
+
+	/**
+	 * Check if this forwarder has any active HTTP/HTTPS URLs to send to.
+	 * Event handlers should call this first and return immediately if false.
+	 * 
+	 * @return true if there are HTTP/HTTPS URLs configured, false otherwise
+	 */
+	public boolean isActive() {
+		String publicUrl = Config.getCurrent().getParamPublicResultsURL();
+		String videoUrl = Config.getCurrent().getParamVideoDataURL();
+		
+		boolean hasPublicUrl = publicUrl != null && !publicUrl.trim().isEmpty() 
+			&& (publicUrl.startsWith("http://") || publicUrl.startsWith("https://"));
+		boolean hasVideoUrl = videoUrl != null && !videoUrl.trim().isEmpty()
+			&& (videoUrl.startsWith("http://") || videoUrl.startsWith("https://"));
+		
+		return hasPublicUrl || hasVideoUrl;
+	}
 
 	private EventForwarder(String name, FieldOfPlay emittingFop) {
 		this.setForwardedFopName(name);
 		this.setFop(emittingFop);
-		// logger.debug("|||| eventForwarder {} {} {}", System.identityHashCode(this),
-		// emittingFop.getName(),System.identityHashCode(emittingFop));
-		this.NO_KEEPALIVE = Config.getCurrent().featureSwitch("noForwarderKeepAlive");
-
-		this.postBus = getFop().getEventForwardingBus();
-		this.postBus.register(this);
+		logger.warn("EventForwarder created: instance={} fop={} fopId={} {}", 
+			System.identityHashCode(this),
+			emittingFop.getName(),
+			System.identityHashCode(emittingFop),
+			LoggerUtils.whereFrom());
 
 		this.translatorResetTimeStamp = 0L;
 
 		// update key is actually not mandatory
 		// String updateKey = Config.getCurrent().getParamUpdateKey();
 		String updateUrl = Config.getCurrent().getParamPublicResultsURL();
+		boolean publicResultsEnabled = false;
 		if (updateUrl == null || updateUrl.trim().isEmpty()) {
 			logger.info("{}publicresults not enabled.", FieldOfPlay.getLoggingName(getFop()));
+		} else if (updateUrl.startsWith("ws://") || updateUrl.startsWith("wss://")) {
+			logger.info("{}ignoring WebSocket publicresults URL (handled by WebSocketEventForwarder): {}", FieldOfPlay.getLoggingName(getFop()), updateUrl);
 		} else {
+			publicResultsEnabled = true;
 			logger.info("{}publicresults enabled, pushing to {}", FieldOfPlay.getLoggingName(getFop()), updateUrl);
 		}
 		if (emittingFop.getState() != null) {
@@ -194,14 +293,25 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		// update key is actually not mandatory
 		// String updateKeyV = Config.getCurrent().getParamVideoDataKey();
 		String updateUrlV = Config.getCurrent().getParamVideoDataURL();
+		boolean videoResultsEnabled = false;
 		if (updateUrlV == null || updateUrlV.trim().isEmpty()) {
-			logger.info("{}video data not enabled.", FieldOfPlay.getLoggingName(getFop()));
+			logger.info("{}video data not enabled.", FieldOfPlay.getLoggingName(getFop()));		
+		} else if (updateUrlV.startsWith("ws://") || updateUrlV.startsWith("wss://")) {
+			logger.info("{}ignoring WebSocket video data URL (handled by WebSocketEventForwarder): {}", FieldOfPlay.getLoggingName(getFop()), updateUrlV);
 		} else {
+			videoResultsEnabled = true;	
 			logger.info("{}video data enabled, pushing to {}", FieldOfPlay.getLoggingName(getFop()), updateUrlV);
 		}
 		if (emittingFop.getState() != null) {
 			pushUpdate(null);
 		}
+		
+		this.NO_KEEPALIVE = Config.getCurrent().featureSwitch("noForwarderKeepAlive");
+		if (!publicResultsEnabled && !videoResultsEnabled) {
+			this.NO_KEEPALIVE = true;
+			logger.info("{} event forwading keepalive disabled", FieldOfPlay.getLoggingName(getFop()), updateUrlV);
+		}
+		
 	}
 
 	/**
@@ -483,6 +593,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveBreakDone(UIEvent.BreakDone e) {
+		if (!isActive()) return;
 		uiLog(e);
 		Athlete a = e.getAthlete();
 		setHidden(false);
@@ -493,18 +604,21 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveBreakPause(UIEvent.BreakPaused e) {
+		if (!isActive()) return;
 		uiLog(e);
 		pushTimer(e);
 	}
 
 	@Subscribe
 	public void slaveBreakSet(UIEvent.BreakSetTime e) {
+		if (!isActive()) return;
 		uiLog(e);
 		pushTimer(e);
 	}
 
 	@Subscribe
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		doBreak(e);
@@ -514,6 +628,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveCeremonyDone(UIEvent.CeremonyDone e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		doCeremony(e);
@@ -523,6 +638,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveCeremonyStarted(UIEvent.CeremonyStarted e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		doCeremony(e);
@@ -531,6 +647,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveDecision(UIEvent.Decision e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setDecisionLight1(e.ref1);
 		setDecisionLight2(e.ref2);
@@ -542,6 +659,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveDecisionReset(UIEvent.DecisionReset e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setDecisionLight1(null);
 		setDecisionLight2(null);
@@ -553,6 +671,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveDownSignal(UIEvent.DownSignal e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setDecisionLightsVisible(false);
 		setDown(true);
@@ -561,6 +680,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveGlobalRankingUpdated(UIEvent.GlobalRankingUpdated e) {
+		if (!isActive()) return;
 		uiLog(e);
 		computeCurrentGroup(getFop().getGroup());
 		pushUpdate(e);
@@ -568,6 +688,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveGroupDone(UIEvent.GroupDone e) {
+		if (!isActive()) return;
 		uiLog(e);
 		Group g = e.getGroup();
 		if (isDown()) {
@@ -593,6 +714,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveOrderUpdated(UIEvent.LiftingOrderUpdated e) {
+		if (!isActive()) return;
 		uiLog(e);
 		Athlete a = e.getAthlete();
 		computeCurrentGroup(e.getAthlete() != null ? e.getAthlete().getGroup() : null);
@@ -602,6 +724,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveSetTime(UIEvent.SetTime e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		pushTimer(e);
@@ -609,6 +732,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveStartLifting(UIEvent.StartLifting e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		pushUpdate(e);
@@ -616,6 +740,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveStartTime(UIEvent.StartTime e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		pushTimer(e);
@@ -623,6 +748,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveStopTime(UIEvent.StopTime e) {
+		if (!isActive()) return;
 		uiLog(e);
 		setHidden(false);
 		pushTimer(e);
@@ -630,6 +756,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	@Subscribe
 	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
+		if (!isActive()) return;
 		computeCurrentGroup(e.getGroup());
 		if (e.getState() == null) {
 			setHidden(true);
@@ -1130,20 +1257,17 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	}
 
 	private void doBreak(UIEvent e, Group g) {
-		OwlcmsSession.withFop(fop -> {
-			createUpdate(e);
-			if (getFopState() != FOPState.BREAK) {
-				logger.debug("### done not break");
-			} else {
-				logger.debug("### done but break");
-				setFullName(groupResults(g));
-				setTeamName("");
-				setAttempt("");
-				setHidden(false);
-			}
-			pushUpdate(e);
-		});
-
+		createUpdate(e);
+		if (getFopState() != FOPState.BREAK) {
+			logger.debug("### done not break");
+		} else {
+			logger.debug("### done but break");
+			setFullName(groupResults(g));
+			setTeamName("");
+			setAttempt("");
+			setHidden(false);
+		}
+		pushUpdate(e);
 	}
 
 	private void doCeremony(CeremonyDone e) {
@@ -1171,53 +1295,155 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	}
 
 	private void doPost(String url, String updateKey, Map<String, String> parameters) {
-		HttpPost post = new HttpPost(url);
-		// add request parameters or form parameters
-		List<NameValuePair> urlParameters = new ArrayList<>();
-		parameters.entrySet().stream()
-		        .forEach((e) -> urlParameters.add(new BasicNameValuePair(e.getKey(), e.getValue())));
+		// Skip WebSocket URLs - they are handled by WebSocketEventForwarder
+		if (!isActive()) {
+			return;
+		}
+		
+		// Get or create per-URL lock to prevent one URL's socket timeout from blocking other URLs
+		Object urlLock = postLockByUrl.computeIfAbsent(url, k -> new Object());
+		
+		synchronized (urlLock) {
+			// add request parameters or form parameters
+			List<NameValuePair> urlParameters = new ArrayList<>();
+			parameters.entrySet().stream()
+			        .forEach((e) -> urlParameters.add(new BasicNameValuePair(e.getKey(), e.getValue())));
 
-		boolean done = false;
-		int nbTries = 0;
-		// send post. if the local configuration files are missing, we are sent back a
-		// 412 code.
-		// we send the configuration files as well.
-		while (!done && nbTries <= 1) {
-			try {
-				post.setEntity(new UrlEncodedFormEntity(urlParameters, "UTF-8"));
-				try (CloseableHttpClient httpClient = HttpClients.createDefault();
-				        CloseableHttpResponse response = httpClient.execute(post)) {
-					StatusLine statusLine = response.getStatusLine();
-					Integer statusCode = statusLine != null ? statusLine.getStatusCode() : null;
-					if (statusCode != null && statusCode != 200) {
-						synchronized (singleThreadLock) {
+			boolean done = false;
+			int nbTries = 0;
+			String destination = configDestinationForUrl(url);
+			// send post. if the local configuration files are missing, we are sent back a
+			// 412 code.
+			// we send the configuration files as well.
+			while (!done && nbTries <= 1) {
+				boolean destSent = destination != null && Boolean.TRUE.equals(configSentByEndpoint.get(destination));
+				logger.debug("{}doPost loop: nbTries={}, done={}, endpoint={}, destination={}, configSent={}", FieldOfPlay.getLoggingName(getFop()), nbTries, done, url, destination, destSent);
+				try {
+					HttpPost post = new HttpPost(url);
+					post.setEntity(new UrlEncodedFormEntity(urlParameters, "UTF-8"));
+					try (CloseableHttpResponse response = sharedHttpClient.execute(post)) {
+						StatusLine statusLine = response.getStatusLine();
+						Integer statusCode = statusLine != null ? statusLine.getStatusCode() : null;
+						logger.debug("{}POST response: status={}, nbTries={}", FieldOfPlay.getLoggingName(getFop()), statusCode, nbTries);
+						// Consume entity to release connection back to pool
+						EntityUtils.consume(response.getEntity());
+						if (statusCode != null && statusCode != 200) {
 							if (nbTries == 0 && statusCode != null && statusCode == 412) {
 								logger.error("{}missing remote configuration {} {} {}",
-								        FieldOfPlay.getLoggingName(getFop()), url,
-								        statusLine,
-								        LoggerUtils.whereFrom(1));
-								sendConfig(url, updateKey);
-								nbTries++;
+										FieldOfPlay.getLoggingName(getFop()), url,
+										statusLine,
+										LoggerUtils.whereFrom(1));
+								// Coordinate config send per destination to avoid duplicate uploads.
+								if (destination == null) {
+									// no destination computable, abort
+									logger.error("{}cannot compute config destination for {}", FieldOfPlay.getLoggingName(getFop()), url);
+									done = true;
+								} else {
+									Object dlock = configLockByDestination.computeIfAbsent(destination, k -> new Object());
+									synchronized (dlock) {
+										long now = System.currentTimeMillis();
+										Long lastAttemptWrapper = configAttemptTimeByDestination.get(destination);
+										if (lastAttemptWrapper == null) {
+											long farPast = now - CONFIG_RESEND_WINDOW_MS - 1L;
+											configAttemptTimeByDestination.put(destination, farPast);
+											lastAttemptWrapper = farPast;
+										}
+										long lastAttempt = lastAttemptWrapper;
+										if ((now - lastAttempt) > CONFIG_RESEND_WINDOW_MS) {
+											// previous attempts are stale; reset state so we can try again
+											logger.warn("{}previous config attempt for {} is older than {}ms, resetting state", FieldOfPlay.getLoggingName(getFop()), destination, now - lastAttempt);
+											configSendingInProgress.remove(destination);
+											configSentByEndpoint.remove(destination);
+											configAttemptTimeByDestination.remove(destination);
+										}
+										// If another thread is already sending config to this destination, wait for it to finish
+										while (Boolean.TRUE.equals(configSendingInProgress.get(destination))) {
+											try {
+												dlock.wait(1000); // wait up to 1s and re-check
+												// if the in-progress send has been going for more than the resend window, give up
+												Long inProgressStartWrapper = configAttemptTimeByDestination.get(destination);
+												long inProgressStart;
+												if (inProgressStartWrapper == null) {
+													inProgressStart = System.currentTimeMillis() - CONFIG_RESEND_WINDOW_MS - 1L;
+												} else {
+													inProgressStart = inProgressStartWrapper;
+												}
+												if ((System.currentTimeMillis() - inProgressStart) > CONFIG_RESEND_WINDOW_MS) {
+													logger.warn("{}config send in progress for {} exceeded {}ms, giving up and resetting state", FieldOfPlay.getLoggingName(getFop()), destination, System.currentTimeMillis() - inProgressStart);
+													configSendingInProgress.remove(destination);
+													configSentByEndpoint.remove(destination);
+													configAttemptTimeByDestination.remove(destination);
+													break;
+												}
+											} catch (InterruptedException ie) {
+												Thread.currentThread().interrupt();
+												break;
+											}
+										}
+										// If after waiting we already have config for this destination, just retry
+										if (Boolean.TRUE.equals(configSentByEndpoint.get(destination))) {
+											Long lastAttempt2 = configAttemptTimeByDestination.get(destination);
+											long age;
+											if (lastAttempt2 == null) {
+												age = CONFIG_RESEND_WINDOW_MS + 1L;
+											} else {
+												age = System.currentTimeMillis() - lastAttempt2;
+											}
+											logger.warn("{}skipping config send for {} because config already sent {} ms ago, retrying post", FieldOfPlay.getLoggingName(getFop()), destination, age);
+											nbTries++;
+										} else {
+											// mark as in-progress and send, record attempt time
+											configSendingInProgress.put(destination, Boolean.TRUE);
+											configAttemptTimeByDestination.put(destination, System.currentTimeMillis());
+											try {
+												if (sendConfig(destination, updateKey)) {
+													logger.info("{}config sent successfully to {} , will retry posts", FieldOfPlay.getLoggingName(getFop()), destination);
+													configSentByEndpoint.put(destination, Boolean.TRUE);
+													// record success time
+													configAttemptTimeByDestination.put(destination, System.currentTimeMillis());
+													nbTries++;
+												} else {
+													logger.error("{}failed to send config to {}, aborting retry", FieldOfPlay.getLoggingName(getFop()), destination);
+													// record failed attempt time
+													configAttemptTimeByDestination.put(destination, System.currentTimeMillis());
+													done = true;
+												}
+											} finally {
+												configSendingInProgress.remove(destination);
+												dlock.notifyAll();
+											}
+										}
+									}
+								}
 							} else {
 								logger.error("{}could not post to {} {} {}", FieldOfPlay.getLoggingName(getFop()), url,
-								        statusLine,
-								        LoggerUtils.whereFrom(1));
+										statusLine,
+										LoggerUtils.whereFrom(1));
 								done = true;
+								// Mark URL as failed and enter backoff
+								failureTimeByUrl.put(url, System.currentTimeMillis());
 							}
+						} else {
+							done = true;
+							// Clear failure tracking on success
+							failureTimeByUrl.remove(url);
+							// Keep per-destination configSent true until that destination returns 412 again
 						}
-					} else {
+					} catch (Exception e1) {
+						logger.error("{}could not post to {} {} {}", FieldOfPlay.getLoggingName(getFop()), url,
+						        LoggerUtils.exceptionMessage(e1), LoggerUtils.whereFrom(1));
 						done = true;
+						// Mark URL as failed and enter backoff
+						failureTimeByUrl.put(url, System.currentTimeMillis());
 					}
-				} catch (Exception e1) {
+				} catch (UnsupportedEncodingException e2) {
+					// can't happen.
 					logger.error("{}could not post to {} {}", FieldOfPlay.getLoggingName(getFop()), url,
-					        LoggerUtils.exceptionMessage(e1));
+					        LoggerUtils.exceptionMessage(e2));
 					done = true;
+					// Mark URL as failed and enter backoff
+					failureTimeByUrl.put(url, System.currentTimeMillis());
 				}
-			} catch (UnsupportedEncodingException e2) {
-				// can't happen.
-				logger.error("{}could not post to {} {}", FieldOfPlay.getLoggingName(getFop()), url,
-				        LoggerUtils.exceptionMessage(e2));
-				done = true;
 			}
 		}
 	}
@@ -1314,6 +1540,8 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		ja.put("yearOfBirth", a.getYearOfBirth() != null ? a.getYearOfBirth().toString() : "");
 		Integer startNumber = a.getStartNumber();
 		ja.put("startNumber", (startNumber != null ? startNumber.toString() : ""));
+		Integer lotNumber = a.getLotNumber();
+		ja.put("lotNumber", (lotNumber != null ? lotNumber.toString() : ""));
 		ja.put("category", category != null ? category : "");
 		getAttemptsJson(a, liftOrderRank);
 		ja.put("sattempts", this.sattempts);
@@ -1470,7 +1698,8 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	/**
 	 * @return the fop
 	 */
-	private FieldOfPlay getFop() {
+	@Override
+	public FieldOfPlay getFop() {
 		return this.fop;
 	}
 
@@ -1530,6 +1759,14 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	}
 
 	private synchronized void pushTimer(UIEvent e) {
+		if (DEBUG_TIMER_EVENTS) {
+			logger.warn("{}pushTimer: event={} hash={} {}", 
+				FieldOfPlay.getLoggingName(getFop()), 
+				e != null ? e.getClass().getSimpleName() : "null",
+				e != null ? System.identityHashCode(e) : "null",
+				LoggerUtils.whereFrom());
+		}
+		
 		Config current = Config.getCurrent();
 		String timerUrl = current.getParamTimerUrl();
 		String videoUrl = current.getParamVideoDataTimerUrl();
@@ -1586,64 +1823,80 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		sendPost(updateUrl, current.getParamUpdateKey(), this.lastUpdate);
 	}
 
+	private static String configDestinationForUrl(String url) {
+		if (url == null) {
+			return null;
+		}
+		return url.replaceAll("/(timer|update|decision)(/config|/update)?$", "") + "/config";
+	}
+
 	private void recomputeRemainingTimes(Map<String, String> sb) {
 	}
 
-	private void sendConfig(String url, String updateKey) {
-		if (url == null || updateKey == null) {
-			logger.error("cannot send config info, url or updateKey is null");
-			return;
+	private boolean sendConfig(String destination, String updateKey) {
+		if (destination == null) {
+			logger.error("cannot send config info, destination is null");
+			return false;
 		}
 		Config current = Config.getCurrent();
-		String destination = url.replaceAll("/update", "") + "/config";
 		// wait for previous send to finish.
 		// no consequences sending it multiple times in a row -- we have no idea why it
 		// is being requested again.
 		synchronized (current) {
 			try {
-				logger.info("{}sending config", FieldOfPlay.getLoggingName(getFop()));
+				logger.info("{}sending config to {}", FieldOfPlay.getLoggingName(getFop()), destination);
 				HttpPost post = new HttpPost(destination);
 
 				MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-				builder.addPart("updateKey", new StringBody(updateKey, ContentType.TEXT_PLAIN));
-
-				try {
-					PipedOutputStream out = new PipedOutputStream();
-					PipedInputStream in = new PipedInputStream(out);
-					new Thread(() -> {
-						try {
-							ResourceWalker.zipPublicResultsConfig(out);
-							out.flush();
-							out.close();
-						} catch (Throwable e) {
-							throw new RuntimeException(e);
-						}
-					}).start();
-					builder.addBinaryBody("local", in, ContentType.create("application/zip"), "local.zip");
-				} catch (Exception e) {
-					throw new RuntimeException(e);
+				if (updateKey != null) {
+					builder.addPart("updateKey", new StringBody(updateKey, ContentType.TEXT_PLAIN));
 				}
 
-				HttpEntity entity = builder.build();
+			try {
+				PipedOutputStream out = new PipedOutputStream();
+				PipedInputStream in = new PipedInputStream(out);
+				new Thread(() -> {
+					try {
+						ResourceWalker.zipPublicResultsConfig(out);
+						out.flush();
+						out.close();
+					} catch (Throwable e) {
+						try {
+							out.close();
+						} catch (Exception closeException) {
+							// ignore
+						}
+						logger.warn("Error zipping config: {}", LoggerUtils.exceptionMessage(e));
+					}
+				}).start();
+				builder.addBinaryBody("local", in, ContentType.create("application/zip"), "local.zip");
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}				HttpEntity entity = builder.build();
 
 				post.setEntity(entity);
-				try (CloseableHttpClient httpClient = HttpClients.createDefault();
-				        CloseableHttpResponse response = httpClient.execute(post)) {
+				try (CloseableHttpResponse response = sharedConfigHttpClient.execute(post)) {
 					StatusLine statusLine = response.getStatusLine();
 					Integer statusCode = statusLine != null ? statusLine.getStatusCode() : null;
-					if (statusCode != null && statusCode != 200) {
+					if (statusCode != null && statusCode == 200) {
+						logger.info("{}config sent successfully", FieldOfPlay.getLoggingName(getFop()));
+						EntityUtils.toString(response.getEntity());
+						return true;
+					} else {
 						logger.error("{}could not send config to {} {} {}", FieldOfPlay.getLoggingName(getFop()),
 						        destination,
 						        statusLine,
 						        LoggerUtils.whereFrom(1));
+						return false;
 					}
-					EntityUtils.toString(response.getEntity());
 				} catch (Exception e1) {
 					logger.error("{}could not send config to {} {}", FieldOfPlay.getLoggingName(getFop()), destination,
 					        LoggerUtils.exceptionMessage(e1));
+					return false;
 				}
 			} catch (Exception e2) {
 				logger.error("{}could not send config to {} {}", FieldOfPlay.getLoggingName(getFop()), destination, e2);
+				return false;
 			}
 		}
 	}
@@ -1652,6 +1905,24 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		if (url == null) {
 			return;
 		}
+		
+		// Check if this URL is in backoff due to repeated failures
+		Long failureTime = failureTimeByUrl.get(url);
+		if (failureTime != null) {
+			long timeSinceFailure = System.currentTimeMillis() - failureTime;
+			if (timeSinceFailure < FAILURE_BACKOFF_MS) {
+				// Still in backoff period, skip this attempt
+				logger.debug("{}sendPost skipping {} (in backoff for {}ms)", 
+					FieldOfPlay.getLoggingName(getFop()), url, timeSinceFailure);
+				return;
+			} else {
+				// Backoff period expired, clear it and try again
+				failureTimeByUrl.remove(url);
+				logger.info("{}sendPost retrying {} after backoff period", 
+					FieldOfPlay.getLoggingName(getFop()), url);
+			}
+		}
+		
 		Integer previousDebounceHash = this.debouncingHash.get(url);
 		Long previousDebounceMillis = this.debouncingMillis.get(url);
 		long deltaMillis = System.currentTimeMillis() - (previousDebounceMillis != null ? previousDebounceMillis : 0);
@@ -1660,6 +1931,12 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 		// debounce, sometimes several identical updates in a rapid succession
 		// identical updates are ok after 1 sec.
 		if (hashCode != previousDebounceHash || (deltaMillis > 1000)) {
+			// Only log timer POSTs when debug flag is enabled
+			if (DEBUG_TIMER_EVENTS && url != null && url.contains("/timer")) {
+				logger.warn("{}sendPost TIMER: url={}, hashCode={}, prevHash={}, deltaMs={} {}", 
+					FieldOfPlay.getLoggingName(getFop()), url, hashCode, previousDebounceHash, deltaMillis,
+					LoggerUtils.whereFrom());
+			}
 			new Thread(() -> doPost(url, updateKey, parameters)).start();
 
 			this.debouncingHash.put(url, hashCode);
@@ -1703,8 +1980,29 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 	/**
 	 * @param fop the fop to set
 	 */
-	private void setFop(FieldOfPlay fop) {
-		this.fop = fop;
+	private void setFop(FieldOfPlay newFop) {
+		if (this.fop == newFop) {
+			return;
+		}
+
+		EventBus previousBus = this.postBus;
+		if (previousBus != null) {
+			try {
+				previousBus.unregister(this);
+			} catch (IllegalArgumentException ex) {
+				logger.debug("EventForwarder was not registered on previous bus, ignoring: {}", ex.getMessage());
+			}
+		}
+
+		this.fop = newFop;
+		this.postBus = newFop != null ? newFop.getEventForwardingBus() : null;
+		if (this.postBus != null) {
+			try {
+				this.postBus.register(this);
+			} catch (IllegalArgumentException ex) {
+				logger.warn("EventForwarder already registered on event bus for FOP {}: {}", newFop.getName(), ex.getMessage());
+			}
+		}
 	}
 
 	private void setFopState(FOPState state) {

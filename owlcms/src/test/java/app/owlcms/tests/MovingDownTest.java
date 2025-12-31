@@ -34,6 +34,7 @@ import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.fieldofplay.FOPEvent;
+import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Level;
@@ -378,7 +379,7 @@ public class MovingDownTest {
                 new MockCountdownTimer());
         OwlcmsSession.setFop(fopState);
         AthleteSorter.displayOrder(allAthletes);
-        AthleteSorter.doAssignStartNumbers(allAthletes);
+        AthleteSorter.testAssignStartNumbers(allAthletes);
 
         Collections.shuffle(allAthletes);
 
@@ -870,6 +871,7 @@ public class MovingDownTest {
     private FieldOfPlay emptyFieldOfPlay() {
         FieldOfPlay mockFieldOfPlay = FieldOfPlay.mockFieldOfPlay(new ArrayList<Athlete>(), new MockCountdownTimer(),
                 new MockCountdownTimer());
+        mockFieldOfPlay.setState(FOPState.CURRENT_ATHLETE_DISPLAYED);
         return mockFieldOfPlay;
     }
 
@@ -880,7 +882,7 @@ public class MovingDownTest {
             logger.debug("calling lifter: {}", curLifter);
             fopState.fopEventPost(new FOPEvent.TimeStarted(null));
             fopState.fopEventPost(new FOPEvent.DownSignal(null));
-            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false, false));
+            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false));
             logger.debug("failed lift for {}", curLifter);
             fopState.fopEventPost(new FOPEvent.DecisionReset(null));
             return em.merge(curLifter);
@@ -911,7 +913,7 @@ public class MovingDownTest {
             logger.debug("calling lifter: {}", curLifter);
             fopState.fopEventPost(new FOPEvent.TimeStarted(null));
             fopState.fopEventPost(new FOPEvent.DownSignal(null));
-            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false, false));
+            fopState.fopEventPost(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false));
             logger.debug("successful lift for {}", curLifter);
             fopState.fopEventPost(new FOPEvent.DecisionReset(null));
             return em.merge(curLifter);
@@ -943,13 +945,12 @@ public class MovingDownTest {
 
         logger.setLevel(Level.INFO);
 
-        fopState.testBefore();
         fopState.loadGroup(gA, this, true);
         List<Athlete> groupAthletes = fopState.getDisplayOrder();
 
         // weigh-in
         JPAService.runInTransaction(em -> {
-            AthleteSorter.doAssignStartNumbers(groupAthletes);
+            AthleteSorter.testAssignStartNumbers(groupAthletes);
             final Athlete schneiderF = groupAthletes.get(0);
             final Athlete simpsonR = groupAthletes.get(1);
             final Athlete allisonR = groupAthletes.get(2);
@@ -960,7 +961,9 @@ public class MovingDownTest {
             em.flush();
             return null;
         });
+        fopState.testBefore();
         fopState.loadGroup(gA, this, true);
+        fopState.testStartLifting(gA, this);
     }
 
 	private void testPrepSnatchCheckProgression(FieldOfPlay fopState, int nbAthletes) {
@@ -972,11 +975,12 @@ public class MovingDownTest {
 
         fopState.testBefore();
         fopState.loadGroup(gA, this, true);
+        fopState.testStartLifting(gA, fopState);
         List<Athlete> groupAthletes = fopState.getDisplayOrder();
 
         // weigh-in
         JPAService.runInTransaction(em -> {
-            AthleteSorter.doAssignStartNumbers(groupAthletes);
+            AthleteSorter.testAssignStartNumbers(groupAthletes);
             final Athlete schneiderF = groupAthletes.get(0);
             final Athlete simpsonR = groupAthletes.get(1);
             final Athlete allisonR = groupAthletes.get(2);

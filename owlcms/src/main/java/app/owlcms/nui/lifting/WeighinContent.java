@@ -56,7 +56,6 @@ import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.components.GroupSelectionMenu;
-import app.owlcms.components.JXLSDownloader;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
@@ -64,8 +63,6 @@ import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.category.Category;
-import app.owlcms.data.category.Participation;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.jpa.JPAService;
@@ -75,14 +72,11 @@ import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.crudui.OwlcmsCrudGrid;
 import app.owlcms.nui.crudui.OwlcmsGridLayout;
+import app.owlcms.nui.preparation.DocumentsContent;
 import app.owlcms.nui.results.IFilterCascade;
 import app.owlcms.nui.shared.NAthleteRegistrationFormFactory;
 import app.owlcms.nui.shared.OwlcmsContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
-import app.owlcms.spreadsheet.JXLSCardsWeighIn;
-import app.owlcms.spreadsheet.JXLSJurySheet;
-import app.owlcms.spreadsheet.JXLSResultSheet;
-import app.owlcms.spreadsheet.JXLSWeighInSheet;
 import app.owlcms.spreadsheet.PAthlete;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.NaturalOrderComparator;
@@ -192,6 +186,9 @@ public class WeighinContent extends BaseContent
 	private Button juryButton;
 	private Button startingWeightsButton;
 	private Button weighInButton;
+	private Button introductionButton;
+	private Button generateStartNumbersButton;
+	private Button clearStartNumbersButton;
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
 	private ComboBox<String> teamFilter = new ComboBox<>();
 	private Boolean weighedIn;
@@ -232,26 +229,27 @@ public class WeighinContent extends BaseContent
 
 		this.cardsButton = createCardsButton();
 		this.startingWeightsButton = createStartingWeightsButton();
-		this.weighInButton = createWeighInButton();
-		this.juryButton = createJuryButton();
+	this.weighInButton = createWeighInButton();
+	this.juryButton = createJuryButton();
+	this.introductionButton = createIntroductionButton();
 
-		Button start = new Button(Translator.translate("GenerateStartNumbers"), (e) -> {
-			generateStartNumbers();
-		});
-		Button clear = new Button(Translator.translate("ClearStartNumbers"), (e) -> {
-			clearStartNumbers();
-		});
-
-		Hr hr = new Hr();
-		hr.setWidth("100%");
-		hr.getStyle().set("margin", "0");
-		hr.getStyle().set("padding", "0");
-		FlexLayout buttons = new FlexLayout(
-		        new NativeLabel(Translator.translate("WeighIn_StartNumbers")),
-		        start, clear,
-		        hr,
-		        new NativeLabel(Translator.translate("WeighIn_SessionDocuments")),
-		        this.weighInButton, this.cardsButton, this.startingWeightsButton, this.juryButton);
+	this.generateStartNumbersButton = new Button(Translator.translate("GenerateStartNumbers"), (e) -> {
+		generateStartNumbers();
+	});
+	this.clearStartNumbersButton = new Button(Translator.translate("ClearStartNumbers"), (e) -> {
+		clearStartNumbers();
+	});
+	
+	Hr hr = new Hr();
+	hr.setWidth("100%");
+	hr.getStyle().set("margin", "0");
+	hr.getStyle().set("padding", "0");
+	FlexLayout buttons = new FlexLayout(
+	        new NativeLabel(Translator.translate("WeighIn_StartNumbers")),
+	        this.generateStartNumbersButton, this.clearStartNumbersButton,
+	        hr,
+	        new NativeLabel(Translator.translate("WeighIn_SessionDocuments")),
+	        this.weighInButton, this.cardsButton, this.startingWeightsButton, this.juryButton, this.introductionButton);
 		buttons.getStyle().set("flex-wrap", "wrap");
 		buttons.getStyle().set("gap", "1ex");
 		buttons.getStyle().set("margin-left", "3em");
@@ -399,8 +397,10 @@ public class WeighinContent extends BaseContent
 		// athlete based on current order.
 
 		// quick workaround: a "no show" is indicated by removing the session.
-		Double curWeight = current.getBodyWeight();
-		if (curWeight != null || current.getGroup() == null) {
+		// current can't be null in practice, this is to keep the compiler happy
+		Double curWeight = current != null ? current.getBodyWeight() : null;
+		Group group2 = current != null ? current.getGroup() : null;
+		if (curWeight != null || group2 == null) {
 			for (Athlete next : all) {
 				if (next.getBodyWeight() == null) {
 					return next;
@@ -408,7 +408,7 @@ public class WeighinContent extends BaseContent
 			}
 		} else {
 			for (int i = 0; i < all.size() - 1; i++) {
-				if (all.get(i).getId().equals(current.getId())) {
+				if (all.get(i).getId().equals(current != null ? current.getId() : null)) {
 					return all.get(i + 1);
 				}
 			}
@@ -587,8 +587,8 @@ public class WeighinContent extends BaseContent
 		params.remove("fop");
 
 		// change the URL to reflect group
-		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
-		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(event.getUI().getPage().getHistory(),null, newLocation, getLocation());
 	}
 
 	public void setPlatform(Platform platform) {
@@ -631,7 +631,7 @@ public class WeighinContent extends BaseContent
 		        .collect(Collectors.toSet());
 
 		// we also need athletes with no participations (implies no category)
-		List<Athlete> noCat = AthleteRepository.findAthletesNoCategory();
+		List<Athlete> noCat = AthleteRepository.findAthletesNoParticipations();
 		List<Athlete> found2 = filterAthletes(noCat);
 		regCatAthletes.addAll(found2);
 
@@ -850,15 +850,34 @@ public class WeighinContent extends BaseContent
 
 		List<Athlete> found = filterAthletes(athletes);
 		// categoriesXlsWriter.setSortedAthletes(found);
-		updateURLLocations();
+	updateURLLocations();
 
-		// enable quick batch mode only when doing a session
-		boolean sessionSelected = this.getGroup() != null && !this.getGroup().getName().equals("*");
-		((NextCrudGrid) this.crudGrid).batchButton.setEnabled(sessionSelected);
-		return found;
+	// enable quick batch mode only when doing a session
+	boolean sessionSelected = this.getGroup() != null && !this.getGroup().getName().equals("*");
+	((NextCrudGrid) this.crudGrid).batchButton.setEnabled(sessionSelected);
+	if (this.introductionButton != null) {
+		this.introductionButton.setEnabled(sessionSelected);
 	}
-
-	protected void setContentGroup(ComponentValueChangeEvent<ComboBox<Group>, Group> e) {
+	if (this.weighInButton != null) {
+		this.weighInButton.setEnabled(sessionSelected);
+	}
+	if (this.cardsButton != null) {
+		this.cardsButton.setEnabled(sessionSelected);
+	}
+	if (this.startingWeightsButton != null) {
+		this.startingWeightsButton.setEnabled(sessionSelected);
+	}
+	if (this.juryButton != null) {
+		this.juryButton.setEnabled(sessionSelected);
+	}
+	if (this.generateStartNumbersButton != null) {
+		this.generateStartNumbersButton.setEnabled(sessionSelected);
+	}
+	if (this.clearStartNumbersButton != null) {
+		this.clearStartNumbersButton.setEnabled(sessionSelected);
+	}
+	return found;
+}	protected void setContentGroup(ComponentValueChangeEvent<ComboBox<Group>, Group> e) {
 		this.groupFilter.setValue(e.getValue());
 	}
 
@@ -882,22 +901,7 @@ public class WeighinContent extends BaseContent
 	}
 
 	private Button createCardsButton() {
-		String resourceDirectoryLocation = "/templates/cards";
-		String title = Translator.translate("AthleteCards");
-		JXLSDownloader cardsButtonFactory = new JXLSDownloader(
-		        () -> {
-			        JXLSCardsWeighIn rs = new JXLSCardsWeighIn();
-			        // group may have been edited since the page was loaded
-			        Group curGroup = getGroupFilter().getValue();
-			        rs.setGroup(curGroup != null ? GroupRepository.getById(curGroup.getId()) : null);
-			        return rs;
-		        },
-		        resourceDirectoryLocation,
-		        Competition::getComputedCardsTemplateFileName,
-		        Competition::setCardsTemplateFileName,
-		        title,
-		        Translator.translate("Download"));
-		return cardsButtonFactory.createDownloadButton();
+		return DocumentsContent.createCardsButtonForGroup(this::getCurrentGroupRefreshed);
 	}
 
 	/**
@@ -909,65 +913,28 @@ public class WeighinContent extends BaseContent
 	}
 
 	private Button createJuryButton() {
-		String resourceDirectoryLocation = "/templates/jury";
-		String title = Translator.translate("Jury");
-
-		JXLSDownloader juryButton = new JXLSDownloader(
-		        () -> {
-			        generateStartNumbers();
-			        JXLSJurySheet rs = new JXLSJurySheet();
-			        // group may have been edited since the page was loaded
-			        Group curGroup = getGroupFilter().getValue();
-			        rs.setGroup(curGroup != null ? GroupRepository.getById(curGroup.getId()) : null);
-			        return rs;
-		        },
-		        resourceDirectoryLocation,
-		        Competition::getComputedJuryTemplateFileName,
-		        Competition::setJuryTemplateFileName,
-		        title,
-		        Translator.translate("Download"));
-		return juryButton.createDownloadButton();
+		return DocumentsContent.createJuryButtonForGroup(this::getCurrentGroupRefreshed);
 	}
 
 	private Button createStartingWeightsButton() {
-		String resourceDirectoryLocation = "/templates/emptyProtocol";
-		String title = Translator.translate("EmptyProtocolSheet");
-
-		JXLSDownloader startingWeightsButton = new JXLSDownloader(
-		        () -> {
-			        generateStartNumbers();
-			        JXLSResultSheet rs = new JXLSResultSheet(false);
-			        // group may have been edited since the page was loaded
-			        Group curGroup = getGroupFilter().getValue();
-			        rs.setGroup(curGroup != null ? GroupRepository.getById(curGroup.getId()) : null);
-			        return rs;
-		        },
-		        resourceDirectoryLocation,
-		        Competition::getEmptyProtocolTemplateFileName,
-		        Competition::setEmptyProtocolTemplateFileName,
-		        title,
-		        Translator.translate("Download"));
-		return startingWeightsButton.createDownloadButton();
+		return DocumentsContent.createEmptyProtocolButtonForGroup(this::getCurrentGroupRefreshed);
 	}
 
 	private Button createWeighInButton() {
-		String resourceDirectoryLocation = "/templates/weighin";
-		String title = Translator.translate("WeighinForm");
+		return DocumentsContent.createWeighInButtonForGroup(this::getCurrentGroupRefreshed);
+	}
 
-		JXLSDownloader startingWeightsButton = new JXLSDownloader(
-		        () -> {
-			        JXLSWeighInSheet rs = new JXLSWeighInSheet();
-			        // group may have been edited since the page was loaded
-			        Group curGroup = getGroupFilter().getValue();
-			        rs.setGroup(curGroup != null ? GroupRepository.getById(curGroup.getId()) : null);
-			        return rs;
-		        },
-		        resourceDirectoryLocation,
-		        Competition::getWeighInFormTemplateFileName,
-		        Competition::setWeighInFormTemplateFileName,
-		        title,
-		        Translator.translate("Download"));
-		return startingWeightsButton.createDownloadButton();
+	private Button createIntroductionButton() {
+		return DocumentsContent.createIntroductionButtonForGroup(this::getCurrentGroupRefreshed);
+	}
+
+	/**
+	 * Helper method to get the current group from the filter, refreshed from database.
+	 * Used by document button factories to ensure we have the latest version.
+	 */
+	private Group getCurrentGroupRefreshed() {
+		Group curGroup = getGroupFilter().getValue();
+		return curGroup != null ? GroupRepository.getById(curGroup.getId()) : null;
 	}
 
 	private void doSwitchGroup(Group newCurrentGroup) {
@@ -1064,17 +1031,17 @@ public class WeighinContent extends BaseContent
 			if (compare != 0) {
 				return compare;
 			}
-			Participation mainRankings1 = a1.getMainRankings() != null ? a1.getMainRankings() : null;
-			Participation mainRankings2 = a2.getMainRankings() != null ? a2.getMainRankings() : null;
-			Category c1 = mainRankings1 != null ? mainRankings1.getCategory() : null;
-			Category c2 = mainRankings2 != null ? mainRankings2.getCategory() : null;
-			compare = ObjectUtils.compare(
-			        c1,
-			        c2,
-			        true);
+
+			// in the context of weigh-in and registration, the displayed category is the one from the wrapped athlete
+			// to guarantee sort stability, we use the most stable category object
+			Category mainCat1 = a1 instanceof PAthlete ? ((PAthlete) a1)._getAthlete().getCategory() : a1.getCategory();
+			Category mainCat2 = a2 instanceof PAthlete ? ((PAthlete) a2)._getAthlete().getCategory() : a2.getCategory();
+			// null may happen with athletes not fully registered or not eligible to any category.
+			compare = ObjectUtils.compare(mainCat1, mainCat2, true);
 			if (compare != 0) {
 				return compare;
 			}
+
 			compare = ObjectUtils.compare(a1.getEntryTotal(), a2.getEntryTotal());
 			return -compare;
 		};
@@ -1100,8 +1067,8 @@ public class WeighinContent extends BaseContent
 		} else {
 			params.remove("group");
 		}
-		URLUtils.replaceState(ui.getPage().getHistory(),null,
-		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(ui.getPage().getHistory(),null, newLocation, location);
 	}
 
 	private void updateURLLocations() {

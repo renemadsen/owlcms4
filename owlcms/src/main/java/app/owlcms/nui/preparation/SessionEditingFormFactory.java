@@ -351,6 +351,19 @@ public class SessionEditingFormFactory
 		        .withNullRepresentation("")
 		        .bind(Group::getReserveJury, Group::setReserveJury);
 
+		addRuler(juryLayout);
+		ComboBox<String> doctor = createOfficialComboBox("Doctor");
+		juryLayout.add(doctor);
+		this.binder.forField(doctor)
+		        .withNullRepresentation("")
+		        .bind(Group::getDoctor, Group::setDoctor);
+
+		ComboBox<String> doctor2 = createOfficialComboBox("Doctor2", "Doctor");
+		juryLayout.add(doctor2);
+		this.binder.forField(doctor2)
+		        .withNullRepresentation("")
+		        .bind(Group::getDoctor2, Group::setDoctor2);
+
 		return juryLayout;
 	}
 
@@ -360,7 +373,21 @@ public class SessionEditingFormFactory
 	// }
 
 	ComboBox<String> createOfficialComboBox(String label) {
-		ComboBox<String> box = new ComboBox<>(Translator.translate(label));
+		return createOfficialComboBox(label, null);
+	}
+
+	ComboBox<String> createOfficialComboBox(String label, String fallbackLabel) {
+		String translated = Translator.translate(label);
+		if ((translated == null || translated.isBlank() || translated.equals(label)) && fallbackLabel != null) {
+			String fallbackTranslated = Translator.translate(fallbackLabel);
+			if (fallbackTranslated != null && !fallbackTranslated.isBlank()) {
+				translated = fallbackTranslated;
+			}
+		}
+		if (translated == null || translated.isBlank()) {
+			translated = label;
+		}
+		ComboBox<String> box = new ComboBox<>(translated);
 		box.setAllowCustomValue(true);
 		box.addCustomValueSetListener(e -> box.setValue(e.getDetail()));
 		box.setItems(officials);

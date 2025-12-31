@@ -19,6 +19,19 @@ class DecisionElement extends LitElement {
           display: flex;
           height: 100%;
         }
+
+        :host([size="large"]) {
+          --attemptFontSize: 25vh;
+        }
+
+        :host([size="x-large"]) {
+          --attemptFontSize: 40vh;
+        }
+
+        :host(:not([size])),
+        :host([size="small"]) {
+          --attemptFontSize: 1.2em;
+        }
         .decisionWrapper {
           width: 100%;
           height: 100%;
@@ -47,10 +60,13 @@ class DecisionElement extends LitElement {
             border: 2px solid var(--lumo-contrast);
             margin: 0;
             padding: 0;
-            width: 1.2em;
-            height: 1.2em;
-            line-height: 1.2em;
-            font-size: 1.0em;
+            width: var(--attemptFontSize, 20vh);
+            height: var(--attemptFontSize, 20vh);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          font-size: calc(var(--attemptFontSize, 20vh) * 0.6);
+            line-height: 1;
             color: black;
             align-self: center;
         }
@@ -158,6 +174,10 @@ class DecisionElement extends LitElement {
       _showDecision: {
         type: Boolean,
         state: true,
+      },
+      size: {
+        type: String,
+        reflect: true
       }
     };
   }
@@ -177,6 +197,7 @@ class DecisionElement extends LitElement {
     this.silent = false;
     this._downShown = false;
     this._showDecision = false;
+    this.size = "small";
     // important - the handlers must be bound so "this" is the current DecisionElement instance.
     this._readRef = this._readRef.bind(this);
     this.initSounds = this.initSounds.bind(this)
@@ -235,23 +256,13 @@ class DecisionElement extends LitElement {
     console.warn("de key " + key);
     switch (e.key) {
       case "1":
-        if (this.singleRef) {
-          this.ref2 = true;
-          this.ref2Time = Date.now();
-        } else {
-          this.ref1 = true;
-          this.ref1Time = Date.now();
-        }
+        this.ref1 = true;
+        this.ref1Time = Date.now();
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "2":
-        if (this.singleRef) {
-          this.ref2 = false;
-          this.ref2Time = Date.now();
-        } else {
-          this.ref1 = false;
-          this.ref1Time = Date.now();
-        }
+        this.ref1 = false;
+        this.ref1Time = Date.now();
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "3":
@@ -265,23 +276,13 @@ class DecisionElement extends LitElement {
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "5":
-        if (this.singleRef) {
-          this.ref2 = true;
-          this.ref2Time = Date.now();
-        } else {
-          this.ref3= true;
-          this.ref3Time = Date.now();
-        }
+        this.ref3= true;
+        this.ref3Time = Date.now();
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       case "6":
-        if (this.singleRef) {
-          this.ref2 = false;
-          this.ref2Time = Date.now();
-        } else {
-          this.ref3= false;
-          this.ref3Time = Date.now();
-        }
+        this.ref3= false;
+        this.ref3Time = Date.now();
         this._majority(this.ref1, this.ref2, this.ref3);
         break;
       default:
@@ -319,6 +320,7 @@ class DecisionElement extends LitElement {
     var count = countWhite + countRed;
     if (!this._downShown && (countWhite == 2 || countRed == 2)) {
       this.decision = countWhite >= 2;
+      this.singleRef = false;
       if (!this.jury) this.showDown(true);
     }
     if (countWhite + countRed >= 3) {
@@ -409,10 +411,8 @@ class DecisionElement extends LitElement {
     }
     this._downShown = true;
 
-    // hide the down arrow after 2.75 seconds -- the decisions will show when available
-    // (there will be no decision lights for a little bit, more if last referee
-    // waits after the other two have given down.
-    if (!this.jury) setTimeout(this.hideDown.bind(this), 2750);
+    // Backend now controls when to hide down and show decisions
+    // No automatic timer - wait for backend showDecisions() or showSingleDecision() call
   }
 
   hideDown() {
@@ -453,7 +453,7 @@ class DecisionElement extends LitElement {
     this.singleRef = false;
     this.jury = true;
     this._showDecision = true;
-    console.debug("de showDecisionsForJury>");
+    console.warn("de showDecisionsForJury>");
   }
 
   showSingleDecisionForJury(decision) {
@@ -465,7 +465,7 @@ class DecisionElement extends LitElement {
     this.singleRef = true;
     this.jury = true;
     this._showDecision = true;
-    console.debug("de showSingleDecisionForJury");
+    console.warn("de showSingleDecisionForJury");
   }
 
   reset(isMaster) {

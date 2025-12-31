@@ -63,7 +63,7 @@ import ch.qos.logback.classic.Logger;
 @Entity
 @Cacheable
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
-@JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger" })
+@JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger", "code" })
 public class Category implements Serializable, Comparable<Category>, Cloneable {
 
 	public final static Double ROBI_B = 3.321928095;
@@ -103,7 +103,7 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 
 	public static String codeFromName(String catName) {
 		Category cat = CategoryRepository.codeFromName(catName);
-		return cat != null ? cat.getCode() : null;
+		return cat != null ? cat.getComputedCode() : null;
 	}
 
 	public static Comparator<Category> medalingComparator() {
@@ -128,7 +128,6 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	@Id
 	// @GeneratedValue(strategy = GenerationType.AUTO)
 	private Long id;
-	private String name;
 	@OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
 	private List<Participation> participations = new ArrayList<>();
 	/** minimum weight to be considered eligible */
@@ -168,7 +167,6 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 		this.setWrSr(wrSr);
 		this.setQualifyingTotal(qualifyingTotal);
 		this.setCode(getComputedCode());
-		this.setName(getDisplayName());
 		// logger.debug("{} Category({},{},{}) [{}]", getComputedCode(), gender,
 		// minimumWeight, maximumWeight,
 		// LoggerUtils.whereFrom(1));
@@ -186,12 +184,6 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 		}
 
 		int compare;
-
-		compare = ObjectUtils.compare(this.getCode(), o.getCode());
-		if (compare == 0) {
-			// shortcut. identical codes are identical
-			return compare;
-		}
 
 		compare = ObjectUtils.compare(this.getGender(), o.getGender());
 		if (compare != 0) {
@@ -263,8 +255,9 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 		return this.ageGroup;
 	}
 
+	@Transient
 	public String getCode() {
-		return this.code != null ? this.code : "";
+		return this.getComputedCode();// this.code != null ? this.code : "";
 	}
 
 	@Transient
@@ -389,10 +382,6 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 		return this.minimumWeight;
 	}
 
-	public String getName() {
-		return this.name;
-	}
-
 	@JsonIgnore
 	@Transient
 	public String getNameWithAgeGroup() {
@@ -427,10 +416,7 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	@JsonIgnore
 	@Transient
 	public String getSafeName() {
-		if (this.name == null || this.name.isBlank()) {
-			return getDisplayName();
-		}
-		return this.name;
+		return getDisplayName();
 	}
 
 	@JsonIgnore
@@ -606,8 +592,8 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 		this.ageGroup = ageGroup;
 	}
 
-	public void setCode(String cellValue) {
-		this.code = cellValue;
+	public void setCode(String code) {
+		this.code = code;
 	}
 
 	/**
@@ -644,10 +630,6 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	 */
 	public void setMinimumWeight(Double minimumWeight) {
 		this.minimumWeight = minimumWeight;
-	}
-
-	public void setName(String name) {
-		this.name = name;
 	}
 
 	public void setParticipations(List<Participation> participations) {
@@ -706,6 +688,22 @@ public class Category implements Serializable, Comparable<Category>, Cloneable {
 	private boolean isAlreadyGendered() {
 		boolean alreadyGendered = this.ageGroup != null ? this.ageGroup.isAlreadyGendered() : false;
 		return alreadyGendered;
+	}
+
+	@JsonIgnore
+	@Transient
+	public String getAgeGroupCode() {
+		return this.getAgeGroup() != null ? this.getAgeGroup().getCode() : null;
+	}
+
+	public static String canonicalName(String baseName) {
+		// ensure that "86+" becomes ">86" and "+86" becomes ">86"
+		String nc = baseName.replaceAll("(\\d+)[+]", ">$1");
+		if (!nc.contentEquals(baseName)) {
+			return nc;
+		}
+		nc = nc.replaceAll("[+](\\d+)", ">$1");
+		return nc;
 	}
 
 }

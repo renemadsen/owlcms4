@@ -8,13 +8,11 @@ package app.owlcms.data.agegroup;
 
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -78,7 +76,7 @@ public class AgeGroupRepository {
 			if (!activeOnly || ag.isActive()) {
 				if (ag.computeChampionshipName() != null && !ag.computeChampionshipName().isBlank()) {
 					ts.add(ag.computeChampionshipName());
-				} else if (ag.getAgeDivision() != null){
+				} else if (ag.getAgeDivision() != null) {
 					ts.add(ag.getAgeDivision());
 				}
 			}
@@ -139,7 +137,8 @@ public class AgeGroupRepository {
 				whereList.add("ag.code = :ageGroupPrefix");
 			}
 			if (championship != null) {
-				whereList.add("((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))");
+				// Match on championshipName first; only fall back to ageDivision if championshipName is not set
+				whereList.add("((lower(ag.championshipName) = lower(:championshipName)) or ((ag.championshipName IS NULL OR ag.championshipName = '') AND lower(ag.ageDivision) = lower(:championshipName)))");
 			}
 			String whereClause = "";
 			if (whereList.size() > 0) {
@@ -292,8 +291,9 @@ public class AgeGroupRepository {
 				List<String> resultSet = q.getResultList();
 				return resultSet;
 			} else {
+				// Match on championshipName first; only fall back to ageDivision if championshipName is not set
 				TypedQuery<String> q = em.createQuery(
-				        "select distinct ag.code from Participation p join p.category c join c.ageGroup ag where ((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))",
+				        "select distinct ag.code from Participation p join p.category c join c.ageGroup ag where ((lower(ag.championshipName) = lower(:championshipName)) or ((ag.championshipName IS NULL OR ag.championshipName = '') AND lower(ag.ageDivision) = lower(:championshipName)))",
 				        String.class);
 				q.setParameter("championshipName", championship.getName());
 				List<String> resultSet = q.getResultList();
@@ -533,35 +533,6 @@ public class AgeGroupRepository {
 		em.remove(nc);
 	}
 
-	static Category createCategoryFromTemplate(String catCode, AgeGroup ag, Map<String, Category> templates,
-	        double curMin, String qualTotal) throws Exception {
-		Category template = templates.get(catCode);
-		if (template == null) {
-			logger.trace("template {} not found", catCode);
-			return null;
-		} else {
-			try {
-				Category newCat = new Category(template);
-				newCat.setMinimumWeight(curMin);
-				newCat.setCode(ag.getCode() + "_" + template.getCode());
-				newCat.setAgeGroup(ag);
-				// logger.debug("code = {} {}",newCat.getCode(), newCat.getComputedCode());
-				ag.addCategory(newCat);
-				newCat.setActive(ag.isActive());
-				try {
-					newCat.setQualifyingTotal(Integer.parseInt(qualTotal));
-				} catch (NumberFormatException e) {
-					throw new Exception(e);
-				}
-				// logger.debug(newCat.dump());
-				return newCat;
-			} catch (IllegalAccessException | InvocationTargetException e) {
-				logger.error("cannot create category from template\n{}", LoggerUtils./**/stackTrace(e));
-				return null;
-			}
-		}
-	}
-
 	@SuppressWarnings("unchecked")
 	private static void cascadeAthleteCategoryDisconnect(EntityManager em, Category c) {
 		Category nc = em.merge(c);
@@ -612,7 +583,6 @@ public class AgeGroupRepository {
 			newC.setAgeGroup(ageGroup);
 			newC.setGender(ageGroup.getGender());
 			newC.setCode(newC.getComputedCode());
-			newC.setName(newC.getDisplayName());
 			em.merge(newC);
 		}
 
@@ -673,7 +643,8 @@ public class AgeGroupRepository {
 	        Boolean active) {
 		List<String> whereList = new LinkedList<>();
 		if (championship != null) {
-			whereList.add("((ag.championshipName = :championshipName) or (ag.ageDivision = :championshipName))");
+			// Match on championshipName first; only fall back to ageDivision if championshipName is not set
+			whereList.add("((LOWER(TRIM(ag.championshipName)) = :canonicalChampionshipName) or ((ag.championshipName IS NULL OR TRIM(ag.championshipName) = '') AND LOWER(TRIM(ag.ageDivision)) = :canonicalChampionshipName))");
 		}
 		if (name != null && name.trim().length() > 0) {
 			whereList.add("lower(ag.code) like :code");
@@ -719,11 +690,136 @@ public class AgeGroupRepository {
 			query.setParameter("age", age);
 		}
 		if (championship != null) {
-			query.setParameter("championshipName", championship.getName()); // is a string
+			// Canonicalize for parameter as well
+			String canonical = app.owlcms.data.agegroup.Championship.canonicalizeChampionshipName(championship.getName());
+			query.setParameter("canonicalChampionshipName", canonical != null ? canonical.trim().toLowerCase() : null);
 		}
 		if (gender != null) {
 			query.setParameter("gender", gender);
 		}
 	}
 
+	/**
+	 * Validate that all categories attached to age groups have consistent genders, codes and names.
+	 * 
+	 * Ensures:
+	 * 1. Each category's gender matches its parent age group's gender
+	 * 2. Each category's code complies with the naming rules:
+	 *    - If age group has a name: code = AGEGROUP_CODE + "_" + GENDER + WEIGHT_LIMIT
+	 *    - If age group has no name: code = GENDER + WEIGHT_LIMIT
+	 * 3. Each category has a proper name/code (not blank)
+	 * 
+	 * Fixes are applied in order: gender first, then code (based on corrected gender)
+	 * This is called at startup to detect and log any data inconsistencies.
+	 */
+	public static void validateCategoriesConsistency() {
+		JPAService.runInTransaction(em -> {
+			List<AgeGroup> ageGroups = doFindAll(em);
+			boolean hasErrors = false;
+			
+			for (AgeGroup ageGroup : ageGroups) {
+				List<Category> categories = ageGroup.getCategories();
+				Gender ageGroupGender = ageGroup.getGender();
+				String ageGroupCode = ageGroup.getCode();
+				String ageGroupName = ageGroup.getName();
+				
+				for (Category category : categories) {
+					// Check 1: Category gender must match age group gender
+					// FIX GENDER FIRST
+					Gender categoryGender = category.getGender();
+					if (categoryGender == null) {
+						logger.debug("Category {} (id={}) has null gender but is attached to age group {} with gender {}",
+							category.getCode(), category.getId(), 
+							ageGroup.getCode(), ageGroupGender);
+						hasErrors = true;
+						// Fix: Set category gender to match age group
+						category.setGender(ageGroupGender);
+						categoryGender = ageGroupGender;
+						em.merge(category);
+					} else if (!categoryGender.equals(ageGroupGender)) {
+						logger.debug("Category (id={}) has gender {} but is attached to age group {} with gender {}",
+							category.getId(), categoryGender,
+							ageGroup.getCode(), ageGroupGender);
+						hasErrors = true;
+						// Fix: Correct the category gender
+						category.setGender(ageGroupGender);
+						categoryGender = ageGroupGender;
+						em.merge(category);
+					}
+					
+					// Check 2: Category code must comply with naming rules
+					// USE THE CORRECTED GENDER FOR CODE COMPUTATION
+					String expectedCode = computeExpectedCategoryCode(ageGroupCode, ageGroupName, categoryGender, category);
+					String actualCode = category.getCode();
+					
+					if (actualCode == null || actualCode.isBlank()) {
+						logger.debug("Category (id={}) attached to age group {} has blank code. Expected: {}",
+							category.getId(), ageGroup.getCode(), expectedCode);
+						hasErrors = true;
+						// Fix: Set the computed code
+						category.setCode(expectedCode);
+						em.merge(category);
+					} else if (!actualCode.equals(expectedCode)) {
+						logger.debug("Category code mismatch. Age group: {} ({}), Category id: {}, Actual code: {}, Expected code: {}",
+							ageGroup.getCode(), ageGroupName, category.getId(), actualCode, expectedCode);
+						hasErrors = true;
+						// Fix: Correct the category code
+						category.setCode(expectedCode);
+						em.merge(category);
+					}
+				}
+			}
+			
+			if (hasErrors) {
+				em.flush();
+				logger.info("Fixed category consistency issues");
+			} else {
+				logger.debug("All categories are consistent with their age groups");
+			}
+			
+			return null;
+		});
+	}
+
+	/**
+	 * Compute the expected category code based on age group and category properties.
+	 * 
+	 * Rules:
+	 * - If age group has a name: AGEGROUP_CODE + "_" + GENDER + WEIGHT_LIMIT
+	 * - If age group has no name: GENDER + WEIGHT_LIMIT
+	 */
+	private static String computeExpectedCategoryCode(String ageGroupCode, String ageGroupName, Gender gender, Category category) {
+		String genderStr = gender != null ? gender.toString() : "?";
+		String weightLimit = getWeightLimitString(category);
+		
+		if (ageGroupName == null || ageGroupName.isBlank()) {
+			// No age group name: just GENDER + WEIGHT_LIMIT
+			return genderStr + weightLimit;
+		} else {
+			// Has age group name: AGEGROUP_CODE + "_" + GENDER + WEIGHT_LIMIT
+			return ageGroupCode + "_" + genderStr + weightLimit;
+		}
+	}
+
+	/**
+	 * Extract the weight limit string from a category.
+	 * Rules:
+	 * - If weight > 130: "999" (super heavyweight)
+	 * - Otherwise: rounded maximum weight as string
+	 * - If not saved or has decimals: "temp_MIN_MAX"
+	 */
+	private static String getWeightLimitString(Category category) {
+		Long categoryId = category.getId();
+		Double maxWeight = category.getMaximumWeight();
+		Double minWeight = category.getMinimumWeight();
+		
+		if (categoryId == null || maxWeight == null || maxWeight - Math.round(maxWeight) > 0.1) {
+			return "temp_" + minWeight + "_" + maxWeight;
+		}
+		if (maxWeight > 130) {
+			return "999";
+		} else {
+			return String.valueOf((int) (Math.round(maxWeight)));
+		}
+	}
 }

@@ -71,7 +71,7 @@ public class PlatformRepository {
 			groups.stream().forEach(g -> {
 				String platformName = g.getPlatform();
 				Group group = g.getGroup();
-				if (platformName != null && !checkPlatforms.contains(platformName)) {
+				if (platformName != null && !platformName.isBlank() && !checkPlatforms.contains(platformName)) {
 					Platform np = new Platform();
 					np.setName(platformName);
 					group.setPlatform(np);
@@ -95,31 +95,35 @@ public class PlatformRepository {
 	 * @param Platform
 	 */
 	public static void delete(Platform platform) {
-		if (OwlcmsFactory.getFopByName() == null) {
-			OwlcmsFactory.initFOPByName();
-		}
-		FieldOfPlay fop = OwlcmsFactory.getFOPByName(platform.getName());
-		MQTTMonitor mm = fop.getMqttMonitor();
-		JPAService.runInTransaction(em -> {
-			// this is the only case where platform needs to know its groups, so we do a
-			// query instead of adding a relationship.
-			Long pId = platform.getId();
-			// group is illegal as a table name; query uses the configured table name for
-			// entity.
-			Query gQ = em.createQuery("select g from CompetitionGroup g join g.platform p where p.id = :platformId");
-			gQ.setParameter("platformId", pId);
-			@SuppressWarnings("unchecked")
-			List<Group> gL = gQ.getResultList();
-			for (Group g : gL) {
-				g.setPlatform(null);
+		try {
+			if (OwlcmsFactory.getFopByName() == null) {
+				OwlcmsFactory.initFOPByName();
 			}
-			em.remove(em.contains(platform) ? platform : em.merge(platform));
-			return null;
-		});
-		if (mm != null) {
-			mm.publishMqttConfig();
+			FieldOfPlay fop = OwlcmsFactory.getFOPByName(platform.getName());
+			MQTTMonitor mm = fop != null ? fop.getMqttMonitor() : null;
+			JPAService.runInTransaction(em -> {
+				// this is the only case where platform needs to know its groups, so we do a
+				// query instead of adding a relationship.
+				Long pId = platform.getId();
+				// group is illegal as a table name; query uses the configured table name for
+				// entity.
+				Query gQ = em.createQuery("select g from CompetitionGroup g join g.platform p where p.id = :platformId");
+				gQ.setParameter("platformId", pId);
+				@SuppressWarnings("unchecked")
+				List<Group> gL = gQ.getResultList();
+				for (Group g : gL) {
+					g.setPlatform(null);
+				}
+				em.remove(em.contains(platform) ? platform : em.merge(platform));
+				return null;
+			});
+			if (mm != null) {
+				mm.publishMqttConfig();
+			}
+			OwlcmsFactory.setFirstFOPAsDefault();
+		} catch (Throwable t) {
+			t.printStackTrace();
 		}
-		OwlcmsFactory.setFirstFOPAsDefault();
 	}
 
 	public static void deleteUnusedPlatforms(Set<String> futurePlatforms) {
@@ -196,10 +200,10 @@ public class PlatformRepository {
 			} else {
 				fop = OwlcmsFactory.registerEmptyFOP(nPlatform);
 			}
-		}
-		MQTTMonitor mm = fop.getMqttMonitor();
-		if (mm != null) {
-			mm.publishMqttConfig();
+			MQTTMonitor mm = fop.getMqttMonitor();
+			if (mm != null) {
+				mm.publishMqttConfig();
+			}
 		}
 		return nPlatform;
 	}

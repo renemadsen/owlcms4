@@ -26,8 +26,8 @@ import app.owlcms.data.config.Config;
 import app.owlcms.displays.scoreboard.Results;
 import app.owlcms.displays.scoreboard.ResultsMedals;
 import app.owlcms.displays.scoreboard.ResultsRankingOrder;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.uievents.CeremonyType;
 import app.owlcms.uievents.UIEvent;
 import ch.qos.logback.classic.Logger;
@@ -51,7 +51,9 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("Scoreboard.RankingOrder") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("Scoreboard.RankingOrder") + suffix;
 	}
 
 	public final Results getResultsBoard() {
@@ -84,7 +86,7 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 			this.getMedalsBoard().setAbbreviatedName(((DisplayParameters) getBoard()).isAbbreviatedName());
 			this.getMedalsBoard().setTeamWidth(((DisplayParameters) getBoard()).getTeamWidth());
 			this.getMedalsBoard().setEmFontSize(((DisplayParameters) getBoard()).getEmFontSize());
-			checkVideo(this.getMedalsBoard());
+			computeStylesDir(this.getMedalsBoard());
 			getMedalsBoard().getStyle().set("display", "block");
 
 			getResultsBoard().getStyle().set("display", "none");
@@ -102,11 +104,9 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 		getMedalsBoard().setPublicDisplay(board.isPublicDisplay());
 		getMedalsBoard().setSingleReferee(board.isSingleReferee());
 		getMedalsBoard().setAbbreviatedName(board.isAbbreviatedName());
-		getMedalsBoard().setTeamWidth(board.getTeamWidth());
-		getMedalsBoard().setEmFontSize(board.getEmFontSize());
-		checkVideo(getMedalsBoard());
-
+		computeStylesDir(getMedalsBoard());
 		getMedalsBoard().getStyle().set("display", "none");
+
 		this.ui = UI.getCurrent();
 	}
 
@@ -142,7 +142,7 @@ public class PublicRankingOrderPage extends AbstractResultsDisplayPage {
 		        DisplayParameters.LEADERS, "true",
 		        DisplayParameters.RECORDS, "true",
 		        DisplayParameters.VIDEO, "false",
-		        DisplayParameters.PUBLIC, "false",
+		        DisplayParameters.PUBLIC, "true",
 		        SoundParameters.SINGLEREF, "false",
 		        DisplayParameters.ABBREVIATED, Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")));
 		var additionalMap = Map.of(

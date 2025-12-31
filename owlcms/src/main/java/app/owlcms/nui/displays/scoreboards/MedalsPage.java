@@ -18,8 +18,8 @@ import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.config.Config;
 import app.owlcms.displays.scoreboard.ResultsMedals;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
@@ -35,7 +35,9 @@ public class MedalsPage extends AbstractResultsDisplayPage {
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("CeremonyType.MEDALS") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("CeremonyType.MEDALS") + suffix;
 	}
 
 	@Override
@@ -66,5 +68,31 @@ public class MedalsPage extends AbstractResultsDisplayPage {
 		fullMap.putAll(additionalMap);
 		setDefaultParameters(QueryParameters.simple(fullMap));
 	}
+	
+	@Override
+	public void setEmFontSize(Double emFontSize) {
+		Double medalFontSize;
+		// subjective visual kludging.
+		if (emFontSize == null) {
+			emFontSize = 1.0;
+			medalFontSize = 1.5;
+		} else {
+			//medalFontSize = emFontSize * 1.5;
+			medalFontSize = emFontSize;
+		}
+		super.setEmFontSize(emFontSize);
+		pushEmSize(this.getBoard().getElement(), medalFontSize);
+
+	}
+	
+	@Override
+	final public void setTeamWidth(Double tw) {
+		if (tw == null) {
+			return;
+		}
+		super.setTeamWidth(tw);
+		pushTeamWidth(this.getBoard().getElement(),tw*1.4);
+	}
+
 
 }

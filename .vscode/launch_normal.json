@@ -1,34 +1,283 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
-    "version": "0.2.0",
-    "configurations": [  
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "🟨 owlcms no reset",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+        //"OWLCMS_VIDEODATA": "http://127.0.0.1:8082"
+      }
+    },
         {
-            "type": "java",
-            "name": "Launch owlcms",
-            "request": "launch",
-            "mainClass": "app.owlcms.Main",
-            "projectName": "owlcms",
-            "vmArgs": "-ea -Dlogback.configurationFile=logback-console.xml",
-            "env":{"OWLCMS_MEMORYMODE": "false", "OWLCMS_INITIALDATA": "LARGEGROUP_DEMO"},
-        },
-        {
-            "type": "java",
-            "name": "Launch publicresults",
-            "request": "launch",
-            "mainClass": "app.owlcms.publicresults.Main",
-            "projectName": "publicresults",
-            "vmArgs": "-ea -Dlogback.configurationFile=logback-console.xml",
-            "env":{"OWLCMS_PORT": "8082", "OWLCMS_UPDATEKEY":"mapetitevacheamalauxpattes"}
-        },
-        {
-            "type": "java",
-            "name": "Lauch - Current File",
-            "request": "launch",
-            "mainClass": "${file}",
-            "vmArgs": "-ea -Dlogback.configurationFile=logback-console.xml"
-        }
-
-    ]
+      "type": "java",
+      "name": "🟨 WS owlcms no reset",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+        "OWLCMS_VIDEODATA": "ws://127.0.0.1:8096/ws"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟨 EDIT owlcms no reset ",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "-Dvaadin.frontend.hotdeploy=true ${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟥 owlcms empty reset",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+        "OWLCMS_INITIALDATA": "EMPTY_COMPETITION",
+        "OWLCMS_RESETMODE": "true"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟥 large demo owlcms reset",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+        "OWLCMS_INITIALDATA": "LARGEGROUP_DEMO",
+        "OWLCMS_RESETMODE": "true",
+        //"OWLCMS_VIDEODATA": "http://127.0.0.1:8082"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟩 small demo owlcms memory",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "true",
+        "OWLCMS_INITIALDATA": "SINGLE_ATHLETE_GROUPS",
+        "OWLCMS_PORT": "8081",
+        //"OWLCMS_VIDEODATA": "http://127.0.0.1:8082"
+        //"OWLCMS_ENABLEEMBEDDEDMQTT": "false"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟩 large demo owlcms memory",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "true",
+        "OWLCMS_INITIALDATA": "LARGEGROUP_DEMO",
+        "OWLCMS_PORT": "8081",
+        "OWLCMS_VIDEODATA": "http://127.0.0.1:8082"
+        //"OWLCMS_ENABLEEMBEDDEDMQTT": "false"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟩 large demo owlcms memory edit",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "-Dvaadin.frontend.hotdeploy=true ${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "true",
+        "OWLCMS_INITIALDATA": "LARGEGROUP_DEMO",
+        "OWLCMS_PORT": "8081"
+        //"OWLCMS_ENABLEEMBEDDEDMQTT": "false"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟠 tandem owlcms",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.Main",
+      "projectName": "owlcms",
+      "cwd": "${workspaceFolder}/owlcms",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_MEMORYMODE": "false",
+        //"OWLCMS_INITIALDATA": "LARGEGROUP_DEMO",
+        "OWLCMS_PORT": "8081",
+        "OWLCMS_REMOTE": "http://localhost:8082"
+      }
+    },
+    {
+      "type": "java",
+      "name": "🟠 tandem publicresults",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.publicresults.Main",
+      "projectName": "publicresults",
+      "cwd": "${workspaceFolder}/publicresults",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "windows": {
+        "envFile": "${workspaceFolder}\\.vscode\\.env.windows"
+      },
+      "linux": {
+        "envFile": "${workspaceFolder}/.vscode/.env.linux"
+      },
+      "osx": {
+        "envFile": "${workspaceFolder}/.vscode/.env.mac"
+      },
+      "env": {
+        "OWLCMS_PORT": "8082"
+      }
+    },
+    {
+      "type": "java",
+      "name": "Launch - Current File",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "${file}",
+      "vmArgs": "${config:owlcms.vmArgs}"
+    },
+    {
+      "type": "java",
+      "name": "🔷 firmata UI (second folder)",
+      "request": "launch",
+      "console": "internalConsole",
+      "mainClass": "app.owlcms.firmata.ui.Main",
+      "projectName": "owlcms-firmata",
+      "cwd": "${workspaceFolder:owlcms-firmata}",
+      "vmArgs": "${config:owlcms.vmArgs}",
+      "env": {
+        "OWLCMS_MEMORYMODE": "false"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "🟠 tandem owlcms + publicresults",
+      "configurations": [
+        "🟠 tandem owlcms",
+        "🟠 tandem publicresults"
+      ]
+    },
+    {
+      "name": "🔷 tandem owlcms + firmata",
+      "configurations": [
+        "🟨 owlcms no reset",
+        "🔷 firmata UI (second folder)"
+      ]
+    }
+  ]
 }

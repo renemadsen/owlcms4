@@ -8,9 +8,17 @@
 		<version>4.9.0.1</version>
 	</parent>
 
-	<name>Olympic Weightlifting Competition Management System</name>
+	<name>owlcms</name>
 	<artifactId>owlcms</artifactId>
 	<version>${revision}</version>
+
+	<properties>
+		<!-- Versions aligned with Vaadin/plugin expectations to avoid enforcer conflicts -->
+		<commons.codec.version>1.17.1</commons.codec.version>
+		<commons.lang3.version>3.18.0</commons.lang3.version>
+		<vaadin.open.version>8.5.0.4</vaadin.open.version>
+		<maven.shared.utils.version>3.4.2</maven.shared.utils.version>
+	</properties>
 	<packaging>jar</packaging>
 
 	<dependencies>
@@ -172,17 +180,6 @@
 			<version>4.1.2</version>
 		</dependency>
 		<dependency>
-			<groupId>commons-beanutils</groupId>
-			<artifactId>commons-beanutils</artifactId>
-			<version>1.9.4</version>
-			<exclusions>
-				<exclusion>
-					<groupId>commons-logging</groupId>
-					<artifactId>commons-logging</artifactId>
-				</exclusion>
-			</exclusions>
-		</dependency>
-		<dependency>
 			<groupId>net.sf.supercsv</groupId>
 			<artifactId>super-csv</artifactId>
 			<version>2.4.0</version>
@@ -192,8 +189,7 @@
 		<dependency>
 			<groupId>commons-io</groupId>
 			<artifactId>commons-io</artifactId>
-			<version>2.14.0</version>
-		</dependency>
+			</dependency>
 		<dependency>
 			<groupId>commons-fileupload</groupId>
 			<artifactId>commons-fileupload</artifactId>
@@ -207,13 +203,9 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>
-			<version>1.10.0</version>
 		</dependency>
-		<dependency>
-			<groupId>org.apache.commons</groupId>
-			<artifactId>commons-compress</artifactId>
-			<version>1.26.0</version>
-		</dependency>
+
+		<!-- netty versions are managed by netty-bom in dependencyManagement -->
 
 		<!-- event bus -->
 		<dependency>
@@ -249,14 +241,6 @@
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>jul-to-slf4j</artifactId>
-		</dependency>
-
-		<!--
-		https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-annotations</artifactId>
-			<version>2.17.1</version>
 		</dependency>
 
 		<!-- testing -->
@@ -306,26 +290,50 @@
 			<version>4.5.13</version>
 		</dependency>
 
-		<!--
-		https://mvnrepository.com/artifact/org.eclipse.paho/org.eclipse.paho.client.mqttv3 -->
-		<dependency>
-			<groupId>org.eclipse.paho</groupId>
-			<artifactId>org.eclipse.paho.client.mqttv3</artifactId>
-			<version>1.2.5</version>
-		</dependency>
+	<!--
+	https://mvnrepository.com/artifact/org.eclipse.paho/org.eclipse.paho.client.mqttv3 -->
+	<dependency>
+		<groupId>org.eclipse.paho</groupId>
+		<artifactId>org.eclipse.paho.client.mqttv3</artifactId>
+		<version>1.2.5</version>
+	</dependency>
 
-		<!-- temporary files -->
+	<!--
+	https://mvnrepository.com/artifact/org.java-websocket/Java-WebSocket -->
+	<dependency>
+		<groupId>org.java-websocket</groupId>
+		<artifactId>Java-WebSocket</artifactId>
+		<version>1.5.7</version>
+	</dependency>		<!-- temporary files -->
 		<dependency>
 			<groupId>com.google.jimfs</groupId>
 			<artifactId>jimfs</artifactId>
 			<version>1.2</version>
 		</dependency>
 
-		<!-- mqtt server -->
+		<!-- mqtt server 
 		<dependency>
 			<groupId>io.moquette</groupId>
 			<artifactId>moquette-broker</artifactId>
 			<version>0.17</version>
+			<exclusions>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-reload4j</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.h2database</groupId>
+					<artifactId>h2-mvstore</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		-->
+
+		<!-- https://mvnrepository.com/artifact/de.fraunhofer.iosb.io.moquette/moquette-broker -->
+		<dependency>
+		    <groupId>de.fraunhofer.iosb.io.moquette</groupId>
+		    <artifactId>moquette-broker</artifactId>
+		    <version>0.18.3</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.slf4j</groupId>
@@ -348,7 +356,106 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+		
+		<!-- Jakarta WebSocket API -->
+		<dependency>
+			<groupId>jakarta.websocket</groupId>
+			<artifactId>jakarta.websocket-api</artifactId>
+			<version>2.1.1</version>
+		</dependency>
+
+		<!-- Jetty implementation: WebSocket server -->
+		<dependency>
+			<groupId>org.eclipse.jetty.ee10.websocket</groupId>
+			<artifactId>jetty-ee10-websocket-jakarta-server</artifactId>
+			<version>12.0.4</version>
+		</dependency>
+
+		<!-- Jetty implementation: WebSocket client -->
+		<dependency>
+			<groupId>org.eclipse.jetty.ee10.websocket</groupId>
+			<artifactId>jetty-ee10-websocket-jakarta-client</artifactId>
+			<version>12.0.4</version>
+		</dependency>
+
+		<!-- Jetty Servlet support (needed for @ServerEndpoint) -->
+		<dependency>
+			<groupId>org.eclipse.jetty.ee10</groupId>
+			<artifactId>jetty-ee10-servlet</artifactId>
+			<version>12.0.4</version>
+		</dependency>
+
+		<!-- Jetty Annotations (you already have this) -->
+		<dependency>
+			<groupId>org.eclipse.jetty.ee10</groupId>
+			<artifactId>jetty-ee10-annotations</artifactId>
+			<version>12.0.4</version>
+		</dependency>
 	</dependencies>
+
+	<dependencyManagement>
+		<dependencies>
+			<!-- keep commons-compress at Vaadin's requested version (and other callers) -->
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-compress</artifactId>
+				<version>1.27.1</version>
+			</dependency>
+
+			<!-- Vaadin prefers a newer commons-text -->
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-text</artifactId>
+				<version>1.13.1</version>
+			</dependency>
+
+			<!-- Vaadin-requested commons-lang3 versions appear as 3.17/3.18 in its modules; prefer the newer Vaadin flavor -->
+			<dependency>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-lang3</artifactId>
+				<version>${commons.lang3.version}</version>
+			</dependency>
+
+			<!-- Force commons-beanutils to secure version -->
+			<dependency>
+				<groupId>commons-beanutils</groupId>
+				<artifactId>commons-beanutils</artifactId>
+				<version>1.11.0</version>
+			</dependency>
+
+			<!-- Use Netty BOM to manage all Netty module versions consistently -->
+			<dependency>
+				<groupId>io.netty</groupId>
+				<artifactId>netty-bom</artifactId>
+				<version>4.2.6.Final</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<!-- Pins to match Vaadin/plugin expectations to avoid enforcer conflicts -->
+			<dependency>
+				<groupId>commons-io</groupId>
+				<artifactId>commons-io</artifactId>
+				<version>${commons.io.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>commons-codec</groupId>
+				<artifactId>commons-codec</artifactId>
+				<version>${commons.codec.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.vaadin</groupId>
+				<artifactId>open</artifactId>
+				<version>${vaadin.open.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.maven.shared</groupId>
+				<artifactId>maven-shared-utils</artifactId>
+				<version>${maven.shared.utils.version}</version>
+			</dependency>
+
+		</dependencies>
+	</dependencyManagement>
 
 	<build>
 		<resources>
@@ -367,6 +474,32 @@
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-install-plugin</artifactId>
 					<version>3.0.0-M1</version>
+				</plugin>
+
+				<!-- m2e lifecycle mapping: tell Eclipse to ignore flatten plugin execution -->
+				<plugin>
+					<groupId>org.eclipse.m2e</groupId>
+					<artifactId>lifecycle-mapping</artifactId>
+					<version>1.0.0</version>
+					<configuration>
+						<lifecycleMappingMetadata>
+							<pluginExecutions>
+								<pluginExecution>
+									<pluginExecutionFilter>
+										<groupId>org.codehaus.mojo</groupId>
+										<artifactId>flatten-maven-plugin</artifactId>
+										<versionRange>[1.0,)</versionRange>
+										<goals>
+											<goal>flatten</goal>
+										</goals>
+									</pluginExecutionFilter>
+									<action>
+										<ignore />
+									</action>
+								</pluginExecution>
+							</pluginExecutions>
+						</lifecycleMappingMetadata>
+					</configuration>
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>

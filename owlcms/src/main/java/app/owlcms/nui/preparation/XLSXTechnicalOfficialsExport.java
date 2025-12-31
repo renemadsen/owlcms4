@@ -3,6 +3,7 @@ package app.owlcms.nui.preparation;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -13,14 +14,38 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.LoggerFactory;
 
+import com.vaadin.flow.component.UI;
+
 import app.owlcms.data.technicalofficial.TechnicalOfficial;
 import app.owlcms.data.technicalofficial.TechnicalOfficialRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.spreadsheet.XLSXWorkbookStreamSource;
+import app.owlcms.servlet.StopProcessingException;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
 public class XLSXTechnicalOfficialsExport extends XLSXWorkbookStreamSource {
+
+    public XLSXTechnicalOfficialsExport(UI ui) {
+        super(ui);
+    }
+
+    public Optional<Exception> preCheck() {
+        try {
+            List<TechnicalOfficial> officials = TechnicalOfficialRepository.findAll();
+            if (officials == null || officials.isEmpty()) {
+                return Optional.of(new StopProcessingException(Translator.translate("export.noTechnicalOfficials"), null));
+            }
+            return Optional.empty();
+        } catch (Exception e) {
+            return Optional.of(e);
+        }
+    }
+
+    @Override
+    public Optional<Exception> prepare() {
+        return preCheck();
+    }
 
     final private static Logger logger = (Logger) LoggerFactory.getLogger(XLSXTechnicalOfficialsExport.class);
 
@@ -38,10 +63,16 @@ public class XLSXTechnicalOfficialsExport extends XLSXWorkbookStreamSource {
 
             // Create headers
             Row headerRow = sheet.createRow(0);
-            String[] headers = {"LastName", "FirstName", "Level", "Federation", "FederationId", "Affiliation", "IWFId",};
+            String[] headers = {"Active", "Role", "LastName", "FirstName", "Level", "Federation", "FederationId", "Affiliation", "IWFId"};
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 switch (headers[i]) {
+                    case "Active":
+                        cell.setCellValue(Translator.translate("TechnicalOfficial.Active"));
+                        break;
+                    case "Role":
+                        cell.setCellValue(Translator.translate("TechnicalOfficial.Role"));
+                        break;
                     case "LastName":
                         cell.setCellValue(Translator.translate("TechnicalOfficial.LastName"));
                         break;
@@ -74,13 +105,15 @@ public class XLSXTechnicalOfficialsExport extends XLSXWorkbookStreamSource {
             int rowNum = 1;
             for (TechnicalOfficial official : officials) {
                 Row row = sheet.createRow(rowNum++);
-                row.createCell(0).setCellValue(official.getLastName() != null ? official.getLastName() : "");
-                row.createCell(1).setCellValue(official.getFirstName() != null ? official.getFirstName() : "");
-                row.createCell(2).setCellValue(official.getLevel() != null ? Translator.translate("TOLevel."+official.getLevel().toString()) : "");
-                row.createCell(3).setCellValue(official.getFederation() != null ? official.getFederation() : "");
-                row.createCell(4).setCellValue(official.getFederationId() != null ? official.getFederationId() : "");
-                row.createCell(5).setCellValue(official.getAffiliation() != null ? official.getAffiliation() : "");
-                row.createCell(6).setCellValue(official.getIwfId() != null ? official.getIwfId() : "");
+                row.createCell(0).setCellValue(official.isActive() ? "TRUE" : "FALSE");
+                row.createCell(1).setCellValue(official.getRole() != null ? Translator.translate("TO.Role."+official.getRole().toString()) : "");
+                row.createCell(2).setCellValue(official.getLastName() != null ? official.getLastName() : "");
+                row.createCell(3).setCellValue(official.getFirstName() != null ? official.getFirstName() : "");
+                row.createCell(4).setCellValue(official.getLevel() != null ? Translator.translate("TOLevel."+official.getLevel().toString()) : "");
+                row.createCell(5).setCellValue(official.getFederation() != null ? official.getFederation() : "");
+                row.createCell(6).setCellValue(official.getFederationId() != null ? official.getFederationId() : "");
+                row.createCell(7).setCellValue(official.getAffiliation() != null ? official.getAffiliation() : "");
+                row.createCell(8).setCellValue(official.getIwfId() != null ? official.getIwfId() : "");
             }
 
             // Autosize columns

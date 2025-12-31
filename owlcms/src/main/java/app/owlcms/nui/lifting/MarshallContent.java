@@ -37,7 +37,6 @@ import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.AthleteGridContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.uievents.UIEvent;
@@ -81,7 +80,7 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 	 */
 	@Override
 	public Collection<Athlete> findAll() {
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = getFop();
 		if (fop != null) {
 			logger.trace("{}findAll {} {} {}", FieldOfPlay.getLoggingName(fop),
 			        fop.getGroup() == null ? null : fop.getGroup().getName(),
@@ -111,7 +110,9 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 	 */
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("Marshall") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("Marshall") + suffix;
 	}
 
 	@Override
@@ -141,7 +142,7 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 			hideLiveDecisions();
 
 			int d = e.decision ? 1 : 0;
-			String text = Translator.translate("NoLift_GoodLift", d, e.getAthlete().getFullName());
+			String text = "["+e.getAthlete().getStartNumber()+"] "+Translator.translate("NoLift_GoodLift", d, e.getAthlete().getFullName());
 
 			Notification n = new Notification();
 			String themeName = e.decision ? "success" : "error";

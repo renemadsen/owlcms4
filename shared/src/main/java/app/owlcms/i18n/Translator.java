@@ -64,6 +64,14 @@ public class Translator implements I18NProvider {
 	private static int line;
 	private static long resetTimeStamp = System.currentTimeMillis();
 	private static Supplier<Locale> localeSupplier;
+	
+	// Static storage for Properties data to use with ResourceBundle.Control
+	private static Properties[] storedLanguageProperties = null;
+	private static List<Locale> storedLocales = null;
+	private static String storedBaseName = null;
+	
+	// Cache for created ResourceBundles to avoid recreating them
+	private static final Map<String, ResourceBundle> bundleCache = new HashMap<>();
 
 	public static Locale createLocale(String localeString) {
 		if (localeString == null) {
@@ -129,6 +137,31 @@ public class Translator implements I18NProvider {
 		return translations;
 	}
 
+	/**
+	 * Get all translations for a specific locale as a map.
+	 * This safely accesses the internal Properties objects without exposing them.
+	 * Uses getBundleFromCSV internally (cached by Java's ResourceBundle).
+	 * 
+	 * @param locale the locale to get translations for
+	 * @return Map of all translations for the given locale, empty map if locale not found
+	 */
+	public static Map<String, String> getMapForLocale(Locale locale) {
+		try {
+			final PropertyResourceBundle bundle = (PropertyResourceBundle) getBundleFromCSV(locale);
+			Map<String, String> translations = new HashMap<>();
+			Enumeration<String> keys = bundle.getKeys();
+			String key;
+			while (keys.hasMoreElements()) {
+				key = keys.nextElement();
+				translations.put(key, bundle.getString(key));
+			}
+			return translations;
+		} catch (Exception e) {
+			// Return empty map if locale not found or error occurs
+			return new HashMap<>();
+		}
+	}
+
 	public static long getResetTimeStamp() {
 		return resetTimeStamp;
 	}
@@ -142,11 +175,16 @@ public class Translator implements I18NProvider {
 	 * Force a reload of the translation files
 	 */
 	public static void reset() {
+		logger.info("TRANSLATOR: reset() called - clearing caches and reloading translations");
 		resetTimeStamp = System.currentTimeMillis();
 		locales = null;
 		i18nloader = null;
 		helper = new Translator();
-		logger.debug("cleared translation class loader");
+		bundleCache.clear(); // Clear our custom ResourceBundle cache
+		storedLanguageProperties = null; // Clear stored Properties
+		storedLocales = null;
+		storedBaseName = null;
+		logger.info("TRANSLATOR: cleared translation class loader and custom cache");
 	}
 
 	public static void setForcedLocale(Locale locale) {
@@ -315,17 +353,28 @@ public class Translator implements I18NProvider {
 								if (input != null) {
 									input = input.trim();
 									// "\ " is not valid, \u0020 is needed.
-									String unescapeJava = StringEscapeUtils.unescapeJava(input.trim());
-									if (!unescapeJava.isEmpty()) {
-										Properties properties = languageProperties[i];
-										if (properties == null) {
-											String message = MessageFormat
-											        .format("{0} line {1}: languageProperties[{2}] is null", csvName, line,
-											                i);
-											logger.error(message);
-											throw new RuntimeException(message);
+									try {
+										String unescapeJava = StringEscapeUtils.unescapeJava(input.trim());
+										if (!unescapeJava.isEmpty()) {
+											Properties properties = languageProperties[i];
+											if (properties == null) {
+												String message = MessageFormat
+												        .format("{0} line {1}: languageProperties[{2}] is null", csvName, line,
+												                i);
+												logger.error(message);
+												throw new RuntimeException(message);
+											}
+											properties.setProperty(key, unescapeJava);
 										}
-										properties.setProperty(key, unescapeJava);
+									} catch (RuntimeException e) {
+										// Convert column index to Excel-style letter (i-1 because i starts at 1)
+										String cellCol = columnIndexToExcelLetter(i - 1);
+										String cellRef = cellCol + line;
+										String message = MessageFormat
+										        .format("{0} cell {1}: Invalid unicode escape in key ''{2}''. Content: {3}. Error: {4}",
+										                csvName, cellRef, key, input, e.getMessage());
+										logger.error(message);
+										throw new RuntimeException(message, e);
 									}
 								}
 							}
@@ -342,6 +391,12 @@ public class Translator implements I18NProvider {
 
 					// reload the files
 					ResourceBundle.clearCache();
+					bundleCache.clear(); // Clear our custom cache too
+					
+					// Store Properties for use with custom ResourceBundle.Control
+					storedLanguageProperties = languageProperties;
+					storedLocales = locales;
+					storedBaseName = baseName;
 
 				} catch (IOException e) {
 					LoggerUtils.logError(logger, e);
@@ -358,7 +413,77 @@ public class Translator implements I18NProvider {
 
 			}
 
-			ResourceBundle bundle = ResourceBundle.getBundle(baseName, locale, i18nloader);
+			// Use a custom ResourceBundle.Control to handle our in-memory Properties
+			ResourceBundle.Control customControl = new ResourceBundle.Control() {
+				@Override
+				public ResourceBundle newBundle(String baseName, Locale locale, String format, ClassLoader loader, boolean reload)
+						throws IllegalAccessException, InstantiationException, IOException {
+					
+					if ("java.properties".equals(format) && storedLanguageProperties != null) {
+						String bundleName = toBundleName(baseName, locale);
+						String resourceName = toResourceName(bundleName, "properties");
+						
+						// Check cache first (unless reload is forced)
+						String cacheKey = resourceName;
+						if (!reload && bundleCache.containsKey(cacheKey)) {
+							return bundleCache.get(cacheKey);
+						}
+						
+						// Check if we have this resource in our Properties
+						for (int i = 1; i < storedLanguageProperties.length; i++) {
+							if (storedLanguageProperties[i] != null && i <= storedLocales.size()) {
+								Locale propLocale = storedLocales.get(i - 1);
+								String expectedFileName = storedBaseName + "_" + propLocale.toString() + ".properties";
+								if (resourceName.equals(expectedFileName)) {
+									try {
+										java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+										storedLanguageProperties[i].store(baos, "Generated from CSV");
+										java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(baos.toByteArray());
+										ResourceBundle bundle = new PropertyResourceBundle(bais);
+										// Cache the bundle
+										bundleCache.put(cacheKey, bundle);
+										return bundle;
+									} catch (Exception e) {
+										logger.error("Error creating PropertyResourceBundle: {}", e.getMessage());
+									}
+								}
+							}
+						}
+						
+						// Check for root bundle
+						if (resourceName.equals(storedBaseName + ".properties") && storedLanguageProperties.length > 1 && storedLanguageProperties[1] != null) {
+							try {
+								java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+								storedLanguageProperties[1].store(baos, "Generated from CSV - root bundle");
+								java.io.ByteArrayInputStream bais = new java.io.ByteArrayInputStream(baos.toByteArray());
+								ResourceBundle bundle = new PropertyResourceBundle(bais);
+								// Cache the bundle
+								bundleCache.put(cacheKey, bundle);
+								return bundle;
+							} catch (Exception e) {
+								logger.error("Error creating root PropertyResourceBundle: {}", e.getMessage());
+							}
+						}
+					}
+					
+					return null; // Let default handling take over
+				}
+				
+				@Override
+				public long getTimeToLive(String baseName, Locale locale) {
+					// Cache bundles indefinitely until explicitly cleared
+					return TTL_DONT_CACHE; // Use our own caching mechanism
+				}
+				
+				@Override
+				public boolean needsReload(String baseName, Locale locale, String format,
+						ClassLoader loader, ResourceBundle bundle, long loadTime) {
+					// Only reload if the stored properties timestamp is newer
+					return resetTimeStamp > loadTime;
+				}
+			};
+			
+			ResourceBundle bundle = ResourceBundle.getBundle(baseName, locale, customControl);
 			return bundle;
 		} catch (IOException e) {
 			logger.error("cannot create bundles directory {}", e.getMessage());
@@ -520,6 +645,21 @@ public class Translator implements I18NProvider {
 			locale = getForcedLocale();
 		}
 		return locale;
+	}
+
+	/**
+	 * Convert a column index (0-based) to Excel-style letter(s).
+	 * Examples: 0 -> A, 1 -> B, 25 -> Z, 26 -> AA, 27 -> AB
+	 */
+	private static String columnIndexToExcelLetter(int colIndex) {
+		StringBuilder result = new StringBuilder();
+		int col = colIndex + 1; // Convert to 1-based
+		while (col > 0) {
+			col--; // Adjust for 0-based Excel column letters
+			result.insert(0, (char) ('A' + (col % 26)));
+			col /= 26;
+		}
+		return result.toString();
 	}
 
 }
