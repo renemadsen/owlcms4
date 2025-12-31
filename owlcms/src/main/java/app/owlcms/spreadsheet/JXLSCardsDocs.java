@@ -47,11 +47,6 @@ public class JXLSCardsDocs extends JXLSWorkbookStreamSource {
 		return 200;
 	}
 
-	@Override
-	public int getSizeLimit() {
-		return 200;
-	}
-
 	/*
 	 * (non-Javadoc)
 	 *

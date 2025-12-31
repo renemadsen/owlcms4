@@ -136,27 +136,6 @@ public class MarshallContent extends AthleteGridContent implements HasDynamicTit
 		this.startOrder = useStartOrder;
 	}
 
-	@Override
-	public boolean isLiveLights() {
-		// logger.debug("is live lights {} -- {}",this.liveLights, LoggerUtils.whereFrom());
-		return this.liveLights;
-	}
-
-	@Override
-	public boolean isStartOrder() {
-		return this.startOrder;
-	}
-
-	@Override
-	public void setLiveLights(boolean showLiveLights) {
-		this.liveLights = showLiveLights;
-	}
-
-	@Override
-	public void setStartOrder(boolean useStartOrder) {
-		this.startOrder = useStartOrder;
-	}
-
 	@Subscribe
 	public void slaveRefereeDecision(UIEvent.Decision e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
