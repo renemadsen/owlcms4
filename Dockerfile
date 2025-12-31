@@ -14,20 +14,14 @@ COPY pom.xml .
 COPY ./src ./src
 COPY owlcms/pom.xml owlcms/
 COPY ./owlcms/src ./owlcms/src
-COPY ./owlcms/frontend ./owlcms/frontend
 COPY shared/pom.xml shared/
 COPY ./shared/src ./shared/src
 COPY ./publicresults/pom.xml ./publicresults/
 COPY ./publicresults/src ./publicresults/src
 COPY ./owlcms-docker/pom.xml ./owlcms-docker/
 COPY ./owlcms-docker/src ./owlcms-docker/src
-COPY ./owlcms-windows/pom.xml ./owlcms-windows/
-COPY ./owlcms-windows/src ./owlcms-windows/src
-COPY ./publicresults-windows/pom.xml ./publicresults-windows/
-COPY ./publicresults-windows/src ./publicresults-windows/src
 COPY ./playwright/pom.xml ./playwright/
 COPY ./playwright/src ./playwright/src
-COPY ./installtools/pom.xml ./installtools/
 
 # Ensure Node.js >=20 is available so Vaadin won't attempt to download it during builds
 RUN apt-get update && apt-get install -y curl gnupg ca-certificates --no-install-recommends \
