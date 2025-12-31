@@ -11,6 +11,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 
 import org.junit.AfterClass;
@@ -41,10 +42,10 @@ public class AthleteSorterTest {
 
     @BeforeClass
     public static void setupTests() {
-        JPAService.close(); // We need to close the database connection so that we can reload the database.
         Main.injectSuppliers();
         JPAService.init(true, true);
         Config.initConfig();
+        Gender.initPublicGenderCodeMapString(Locale.ENGLISH);
         TestData.insertInitialData(5, true);
     }
 
@@ -59,7 +60,7 @@ public class AthleteSorterTest {
     public void initialCheck() {
         final String resName = "/initialCheck.txt";
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.doAssignStartNumbers(athletes);
+        AthleteSorter.testAssignStartNumbers(athletes);
 
         // Collections.shuffle(athletes);
 
@@ -77,7 +78,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.doAssignStartNumbers(athletes);
+        AthleteSorter.testAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -118,7 +119,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.doAssignStartNumbers(athletes);
+        AthleteSorter.testAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -162,7 +163,7 @@ public class AthleteSorterTest {
         // EventBus fopBus = fopState.getFopEventBus();
 
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.doAssignStartNumbers(athletes);
+        AthleteSorter.testAssignStartNumbers(athletes);
 
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
@@ -519,6 +520,7 @@ public class AthleteSorterTest {
     /**
      * Current lifter fails.
      *
+     * @param lifter
      * @param lifters1
      */
     private void failedLift(List<Athlete> lifters1) {
@@ -536,7 +538,7 @@ public class AthleteSorterTest {
     /**
      * Current lifter has successul lift
      *
-     * @param lifters1
+     * @param lifter
      */
     private void successfulLift(List<Athlete> lifters1) {
         final Athlete lifter = lifters1.get(0);

@@ -13,7 +13,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -71,6 +70,7 @@ import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.spreadsheet.JXLSCompetitionBook;
 import app.owlcms.spreadsheet.JXLSWinningSheet;
 import app.owlcms.spreadsheet.JXLSWorkbookStreamSource;
+import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -169,8 +169,8 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		boolean allCategories = Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue());
 		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
 		@SuppressWarnings("unchecked")
-		Set<String> unfinishedCategories = AthleteRepository.allUnfinishedCategories();
-		logger.info("unfinished categories {}", unfinishedCategories);
+		String unfinishedCategories = AthleteRepository.allUnfinishedCategories().toString();
+		logger.info("unfinished categories {} {}", unfinishedCategories, LoggerUtils.whereFrom());
 
 		if (ranked == null || ranked.isEmpty()) {
 			return new ArrayList<>();
@@ -406,8 +406,8 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		} else {
 			params.remove("group");
 		}
-		URLUtils.replaceState(ui.getPage().getHistory(),null,
-		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(ui.getPage().getHistory(),null, newLocation, location);
 	}
 
 	@Override
@@ -466,18 +466,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		this.reset = new Button(Translator.translate("RecomputeRanks"), new Icon(VaadinIcon.REFRESH),
 		        (e) -> {
 			        // resetRanks();
-			        JPAService.runInTransaction(em -> {
-				        // assign ranks to all categories, recompute global
-				        List<Athlete> l = AthleteRepository.findAllByGroupAndWeighIn(null, true);
-
-				        Competition.getCurrent().computeMedalsByCategory(l);
-				        Competition.getCurrent().doGlobalRankings(l, true);
-				        for (Athlete a : l) {
-					        em.merge(a);
-				        }
-				        em.flush();
-				        return null;
-			        });
+			        Competition.recomputeAllAthleteRanks();
 			        refresh();
 		        });
 
@@ -604,6 +593,16 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		return ranking;
 	}
 
+	private Ranking computeScoringSystemForBook() {
+		Ranking ranking;
+		if (getRankingSelector() != null && getRankingSelector().getValue() != null) {
+			ranking = getRankingSelector().getValue();
+		} else {
+			ranking = Competition.getCurrent().getScoringSystem();
+		}
+		return ranking;
+	}
+
 	private Button createCategoryResultsDownloadButton() {
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
@@ -635,23 +634,24 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 
 	private Button createFinalPackageDownloadButton() {
 		this.downloadDialog = new JXLSDownloader(
-		        () -> {
-			        JXLSCompetitionBook rs = new JXLSCompetitionBook(this.locationUI);
-			        rs.setChampionship(this.championship);
-			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
-			        rs.setCategory(this.categoryValue);
-			        rs.setIncludeUnfinished(Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue()));
-			        rs.setWinnersOnly(this.winnersOnly);
-			        Ranking computeScoringSystem = computeScoringSystem();
-			        logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem);
-			        rs.setBestLifterScoringSystem(computeScoringSystem);
-			        return rs;
-		        },
-		        "/templates/competitionBook",
-		        Competition::getComputedFinalPackageTemplateFileName,
-		        Competition::setFinalPackageTemplateFileName,
-		        Translator.translate("FinalResultsPackage"),
-		        Translator.translate("Download"));
+				() -> {
+					JXLSCompetitionBook rs = new JXLSCompetitionBook(this.locationUI);
+					rs.setChampionship(this.championship);
+					rs.setAgeGroupPrefix(this.ageGroupPrefix);
+					rs.setCategory(this.categoryValue);
+					rs.setIncludeUnfinished(Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue()));
+					rs.setWinnersOnly(this.winnersOnly);
+					Ranking computeScoringSystem = computeScoringSystemForBook();
+					logger.debug("setBestLifterScoringSystem {} {}", computeScoringSystem);
+					rs.setBestLifterScoringSystem(computeScoringSystem);
+					JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(computeScoringSystem);
+					return rs;
+				},
+				"/templates/competitionBook",
+				Competition::getComputedFinalPackageTemplateFileName,
+				Competition::setFinalPackageTemplateFileName,
+				Translator.translate("FinalResultsPackage"),
+				Translator.translate("Download"));
 		this.downloadDialog.setProcessingMessage(Translator.translate("LongProcessing"));
 		Button resultsButton = this.downloadDialog.createDownloadButton();
 		highlight(resultsButton);

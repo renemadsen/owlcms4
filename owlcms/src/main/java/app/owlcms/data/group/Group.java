@@ -308,6 +308,7 @@ public class Group implements Comparable<Group> {
 	private String reserve;
 	private String technicalController;
 	private String technicalController2;
+	private String technicalController3;
 	private String timeKeeper;
 	private String weighIn1;
 	private String weighIn2;
@@ -325,6 +326,9 @@ public class Group implements Comparable<Group> {
 	private LocalDateTime lastSnatchDecisionTime;
 	private LocalDateTime lastCJDecisionTime;
 	private String reserveJury;
+	private String doctor;
+	private String doctor2;
+	private String doctor3;
 
 	/**
 	 * Instantiates a new group.
@@ -368,7 +372,7 @@ public class Group implements Comparable<Group> {
 		Group cGroup = fieldOfPlay.getGroup();
 		// reload the group from database to get changed break time
 		cGroup = GroupRepository.getById(cGroup.getId());
-		
+
 		int millisRemaining;
 		Competition cCur = Competition.getCurrent();
 		Integer cleanJerkBreakDuration = cGroup.getCleanJerkBreakDuration();
@@ -571,25 +575,28 @@ public class Group implements Comparable<Group> {
 		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getAnnouncer());
 		return to;
 	}
-	public void setAnnouncerAsTO(TechnicalOfficial ignored) {}
+
+	public void setAnnouncerAsTO(TechnicalOfficial ignored) {
+	}
 
 	@Transient
 	@JsonIgnore
 	public List<Athlete> getAthletes() {
 		return AthleteRepository.findAllByGroupAndWeighIn(this, null);
 	}
-	
+
 	@Transient
 	@JsonIgnore
 	public List<RecordEvent> getRecords() {
-		return RecordRepository.findFiltered(null, null, null, this.name, true);
+		// return RecordRepository.findFiltered(null, null, null, this.name, true);
+		return RecordRepository.findWithFilters(null, null, null, null,
+		        "PROVISIONAL", "HISTORY", this.getName());
 	}
-	
+
 	@Transient
 	@JsonIgnore
 	public void setRecords(List<RecordEvent> ignored) {
 	}
-	
 
 	public Integer getCleanJerkBreakDuration() {
 		return cleanJerkBreakDuration;
@@ -997,7 +1004,7 @@ public class Group implements Comparable<Group> {
 		}
 		return formatted;
 	}
-	
+
 	@Transient
 	@JsonIgnore
 	public String getLocalStartHour() {
@@ -1167,6 +1174,54 @@ public class Group implements Comparable<Group> {
 	}
 
 	/**
+	 * @return the doctor
+	 */
+	public String getDoctor() {
+		return this.doctor;
+	}
+
+	public void setDoctor(String doctor) {
+		this.doctor = doctor;
+	}
+
+	public String getDoctor2() {
+		return this.doctor2;
+	}
+
+	public void setDoctor2(String doctor2) {
+		this.doctor2 = doctor2;
+	}
+
+	public String getDoctor3() {
+		return this.doctor3;
+	}
+
+	public void setDoctor3(String doctor3) {
+		this.doctor3 = doctor3;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getDoctorAsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.doctor);
+		return to;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getDoctor2AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.doctor2);
+		return to;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getDoctor3AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.doctor3);
+		return to;
+	}
+
+	/**
 	 * @return the reserve
 	 */
 	public String getReserve() {
@@ -1228,10 +1283,21 @@ public class Group implements Comparable<Group> {
 		return this.technicalController2;
 	}
 
+	public String getTechnicalController3() {
+		return this.technicalController3;
+	}
+
 	@Transient
 	@JsonIgnore
 	public TechnicalOfficial getTechnicalController2AsTO() {
 		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getTechnicalController2());
+		return to;
+	}
+
+	@Transient
+	@JsonIgnore
+	public TechnicalOfficial getTechnicalController3AsTO() {
+		TechnicalOfficial to = TechnicalOfficialRepository.safeFindByName(this.getTechnicalController3());
 		return to;
 	}
 
@@ -1504,6 +1570,10 @@ public class Group implements Comparable<Group> {
 		this.technicalController2 = technicalController2;
 	}
 
+	public void setTechnicalController3(String technicalController3) {
+		this.technicalController3 = technicalController3;
+	}
+
 	/**
 	 * Sets the time keeper.
 	 *
@@ -1682,5 +1752,43 @@ public class Group implements Comparable<Group> {
 
 	public void setReserveJury(String reserveJury) {
 		this.reserveJury = reserveJury;
+	}
+
+	/**
+	 * Find all technical officials assigned to this group. Returns a list of all TOs in various roles (announcer, jury, technical controllers, etc.)
+	 * 
+	 * @return List of TechnicalOfficials assigned to this group (may contain duplicates if a TO has multiple roles)
+	 */
+	public List<TechnicalOfficial> findAssignedTechnicalOfficials() {
+		List<TechnicalOfficial> officials = new java.util.ArrayList<>();
+
+		addIfNotNull(officials, getAnnouncerAsTO());
+		addIfNotNull(officials, getCompetitionDirectorAsTO());
+		addIfNotNull(officials, getCompetitionSecretaryAsTO());
+		addIfNotNull(officials, getCompetitionSecretary2AsTO());
+		addIfNotNull(officials, getJury1AsTO());
+		addIfNotNull(officials, getJury2AsTO());
+		addIfNotNull(officials, getJury3AsTO());
+		addIfNotNull(officials, getJury4AsTO());
+		addIfNotNull(officials, getJury5AsTO());
+		addIfNotNull(officials, getMarshallAsTO());
+		addIfNotNull(officials, getTechnicalControllerAsTO());
+		addIfNotNull(officials, getTechnicalController2AsTO());
+		addIfNotNull(officials, getTechnicalController3AsTO());
+		addIfNotNull(officials, getDoctorAsTO());
+		addIfNotNull(officials, getDoctor2AsTO());
+		addIfNotNull(officials, getDoctor3AsTO());
+		addIfNotNull(officials, getTimeKeeperAsTO());
+
+		return officials;
+	}
+
+	/**
+	 * Helper method to add a technical official to the list if not null and has a valid ID
+	 */
+	private void addIfNotNull(List<TechnicalOfficial> list, TechnicalOfficial to) {
+		if (to != null && to.getId() != null) {
+			list.add(to);
+		}
 	}
 }

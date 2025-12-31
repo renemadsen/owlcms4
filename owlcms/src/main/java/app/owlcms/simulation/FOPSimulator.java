@@ -16,10 +16,12 @@ import com.google.common.eventbus.EventBus;
 import com.google.common.eventbus.Subscribe;
 
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.group.Group;
 import app.owlcms.fieldofplay.FOPEvent;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.monitors.MQTTMonitor;
+import app.owlcms.nui.shared.SafeEventBusRegistration;
 import app.owlcms.uievents.UIEvent;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
@@ -35,7 +37,7 @@ import ch.qos.logback.classic.Logger;
  * @author Jean-François Lamy
  *
  */
-public class FOPSimulator {
+public class FOPSimulator implements SafeEventBusRegistration {
 
 	private static final boolean USE_MQTT_TIMER = true;
 	static private Random r = new Random(0);
@@ -55,8 +57,8 @@ public class FOPSimulator {
 	}
 
 	public void go() throws InterruptedException {
-		this.uiEventBus = this.fop.getUiEventBus();
-		this.uiEventBus.register(this);
+		// explicitly use the generic subscriber overload (not a Vaadin Component)
+		this.uiEventBus = uiEventBusRegister((Object) this, this.fop);
 		this.setOrigin(this);
 
 		this.logger.info("simulating fop {}", this.fop.getName());
@@ -318,6 +320,26 @@ public class FOPSimulator {
 			}
 			this.logger.info("{}########## switching to group {} of {}", FieldOfPlay.getLoggingName(this.fop), g, curGs);
 			this.fop.fopEventPost(new FOPEvent.SwitchGroup(g, this));
+			
+			// Assign start numbers to athletes in the group for simulation
+			List<Athlete> athletes = g.getAthletes();
+			if (athletes != null && !athletes.isEmpty()) {
+				this.logger.debug("{}########## About to assign start numbers. Athletes in group: {}", 
+					FieldOfPlay.getLoggingName(this.fop), athletes.size());
+				for (Athlete a : athletes) {
+					this.logger.debug("{}########## Athlete: {} {} - bodyWeight: {} startNumber: {}", 
+						FieldOfPlay.getLoggingName(this.fop), 
+						a.getLastName(), a.getFirstName(), a.getBodyWeight(), a.getStartNumber());
+				}
+				AthleteSorter.testAssignStartNumbers(athletes);
+				this.logger.info("{}########## assigned start numbers for group {}", FieldOfPlay.getLoggingName(this.fop), g);
+				for (Athlete a : athletes) {
+					this.logger.debug("{}########## After assignment - Athlete: {} {} - bodyWeight: {} startNumber: {}", 
+						FieldOfPlay.getLoggingName(this.fop), 
+						a.getLastName(), a.getFirstName(), a.getBodyWeight(), a.getStartNumber());
+				}
+			}
+			
 			this.logger.info("{}########## starting group {}", FieldOfPlay.getLoggingName(this.fop), g);
 			this.groupDone = false;
 			this.fop.fopEventPost(new FOPEvent.StartLifting(this));

@@ -8,7 +8,6 @@ package app.owlcms.spreadsheet;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ObjectUtils;
@@ -23,6 +22,7 @@ import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
+import app.owlcms.data.category.UnfinishedCategories;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import ch.qos.logback.classic.Level;
@@ -55,21 +55,27 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 	}
 
 	@Override
-	public List<Athlete> getSortedAthletes() {
+	public List<Athlete> computeSortedAthletes() {
+		var sa = this.getSortedAthletes();
 		// Championship championship = getChampionship();
-		if (this.sortedAthletes != null) {
-			 logger.trace("%%% sortedAthletes.size()={}",sortedAthletes.size());
+		if (sa != null) {
+			 logger.trace("%%% sortedAthletes.size()={}",sa.size());
 			// we are provided with an externally computed list.
 			if (this.resultsByCategory) {
-				logger.trace("YYYYYYYYYYYY provided athletes {}", sortedAthletes.get(0).getClass().getSimpleName());
+				if (!sa.isEmpty()) {
+					logger.trace("YYYYYYYYYYYY provided athletes {}", sa.get(0).getClass().getSimpleName());
+				}
 				Ranking rankingOrder = Ranking.CATEGORY_SCORE;
-				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder, ORDER_BY_CATEGORIES);
-				logger.trace("ZZZZZZZZZZZZ sorted provided athletes {}", sortedAthletes.get(0).getClass().getSimpleName());
-				return this.sortedAthletes;
+				AthleteSorter.resultsOrder(sa, rankingOrder, ORDER_BY_CATEGORIES);
+				if (!sa.isEmpty()) {
+					logger.trace("ZZZZZZZZZZZZ sorted provided athletes {}", sa.get(0).getClass().getSimpleName());
+				}
+				this.setSortedAthletes(sa);
+				return sa;
 			} else {
 				 logger.trace("YYYYYYYYYYYY unique athletes");
 				// we need to expand all the participations before we filter down.
-				List<Athlete> allParticipations = Competition.getCurrent().mapToParticipations(this.sortedAthletes, this.resultsByCategory);
+				List<Athlete> allParticipations = Competition.getCurrent().mapToParticipations(sa, this.resultsByCategory);
 
 				// keep the the most specific category from the championship
 				List<Athlete> uniqueAthletes = allParticipations.stream()
@@ -97,10 +103,11 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 				        .collect(Collectors.toList());
 
 				// re-sort the athletes
-				this.sortedAthletes = new ArrayList<>(uniqueAthletes);
-				AthleteSorter.resultsOrder(this.sortedAthletes, rankingOrder(), ORDER_BY_CATEGORIES);
-				logger.debug("registration getSortedAthletes {}", this.sortedAthletes.size());
-				return this.sortedAthletes;
+				sa = new ArrayList<>(uniqueAthletes);
+				AthleteSorter.resultsOrder(sa, rankingOrder(), ORDER_BY_CATEGORIES);
+				logger.debug("registration getSortedAthletes {}", sa.size());
+				this.setSortedAthletes(sa);
+				return sa;
 			}
 		}
 		logger.debug("XXXXXXXXXXXXXXXXXXXX  no sorted athletes");
@@ -116,8 +123,8 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
 
 		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
 		@SuppressWarnings("unchecked")
-		Set<String> unfinishedCategories = AthleteRepository.allUnfinishedCategories();
-		logger.debug("JXLSWinningSheet unfinished categories {}", unfinishedCategories);
+		UnfinishedCategories unfinishedCategories = AthleteRepository.allUnfinishedCategories();
+		logger.debug("JXLSWinningSheet unfinished categories {}", unfinishedCategories.toString());
 
 		// @formatter:off
         List<Athlete> athletes = AthleteSorter.resultsOrderCopy(pAthletes, rankingOrder(), false).stream()
@@ -158,7 +165,7 @@ public class JXLSWinningSheet extends JXLSWorkbookStreamSource {
                             : true);
 				})
 				.map(a -> {
-					if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+					if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory())) {
 						a.setCategoryFinished(false);
 					} else {
 						a.setCategoryFinished(true);

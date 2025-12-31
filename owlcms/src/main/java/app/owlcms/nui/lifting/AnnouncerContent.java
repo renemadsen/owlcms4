@@ -7,8 +7,6 @@
 
 package app.owlcms.nui.lifting;
 
-import static app.owlcms.uievents.JuryDeliberationEventType.GOOD_LIFT;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -21,15 +19,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.eventbus.Subscribe;
 import com.vaadin.flow.component.AttachEvent;
 import com.vaadin.flow.component.Component;
-import com.vaadin.flow.component.Html;
 import com.vaadin.flow.component.Key;
 import com.vaadin.flow.component.KeyModifier;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.confirmdialog.ConfirmDialog;
 import com.vaadin.flow.component.contextmenu.MenuItem;
 import com.vaadin.flow.component.contextmenu.SubMenu;
 import com.vaadin.flow.component.dependency.CssImport;
+import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
@@ -96,7 +93,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	private HorizontalLayout timerButtons;
 	private boolean singleReferee;
 	Map<String, List<String>> urlParameterMap = new HashMap<>();
-	private ConfirmDialog juryConfirmationDialog;
+	private Dialog juryConfirmationDialog;
 	private boolean liveLights;
 	private boolean declarations;
 	private boolean centerNotifications;
@@ -114,7 +111,6 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
 		        SoundParameters.START_ORDER, "false")));
-
 	}
 
 	/**
@@ -134,7 +130,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	 */
 	@Override
 	public Collection<Athlete> findAll() {
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = getFop();
 		if (fop != null) {
 			logger.trace("{}findAll {} {}", FieldOfPlay.getLoggingName(fop),
 			        fop.getGroup() == null ? null : fop.getGroup().getName(),
@@ -164,7 +160,9 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	 */
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("Announcer") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("Announcer") + suffix;
 	}
 
 	@Override
@@ -236,20 +234,11 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	public void slaveJuryNotification(UIEvent.JuryNotification e) {
 		ui.access(() -> {
 			JuryDeliberationEventType et = e.getDeliberationEventType();
-			if (e.isWaitForAnnouncer() && (et == JuryDeliberationEventType.GOOD_LIFT || et == JuryDeliberationEventType.BAD_LIFT)) {
-				juryDecisionAnnounce(e);
-				return;
-			}
+			
 			String text = "";
-			String reversalText = "";
-			if (e.getReversal() != null) {
-				reversalText = e.getReversal() ? Translator.translate("JuryNotification.Reversal")
-				        : Translator.translate("JuryNotification.Confirmed");
-			}
 			String style = "warning";
-			int previousAttemptNo;
 
-			// logger.debug("slaveJuryNotification {} {} {}", et, e.getDeliberationEventType(), e.getTrace());
+			logger.debug("slaveJuryNotification {} sent={} {}", et, this.deliberationNotificationSent, LoggerUtils.whereFrom());
 			switch (et) {
 				case CALL_REFEREES:
 					text = Translator.translate("JuryNotification." + et.name());
@@ -259,19 +248,21 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 					this.summonNotificationSent = true;
 					return;
 				case START_DELIBERATION:
-					text = Translator.translate("JuryNotification." + et.name());
-					if (!this.deliberationNotificationSent) {
-						doStoppageDialog(text, style);
-					}
-					this.deliberationNotificationSent = true;
-					return;
 				case CHALLENGE:
-					text = Translator.translate("JuryNotification." + et.name());
+					// Show jury decision dialog immediately with Good Lift/No Lift buttons
 					if (!this.deliberationNotificationSent) {
-						doStoppageDialog(text, style);
+						juryDecisionDialog(e, null);
 					}
 					this.deliberationNotificationSent = true;
 					return;
+			case GOOD_LIFT:
+			case BAD_LIFT:
+				// Only update dialog if waiting for announcer (decision from jury)
+				// Don't reopen if announcer gave the decision themselves
+				if (e.isWaitForAnnouncer()) {
+					juryDecisionDialog(e, et);
+				}
+				return;
 				case END_CALL_REFEREES:
 				case END_DELIBERATION:
 				case END_TECHNICAL_PAUSE:
@@ -281,30 +272,23 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 						this.stoppageAckNotification.close();
 					}
 					break;
-				case BAD_LIFT:
-					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-					text = Translator.translate("JuryNotification.BadLift", reversalText, e.getAthlete().getFullName(),
-					        previousAttemptNo % 3 + 1);
-					style = "primary error";
-					break;
 				case CALL_TECHNICAL_CONTROLLER:
 					text = Translator.translate("JuryNotification.CallTechnicalController");
 					doStoppageDialog(text, style);
 					break;
-				case GOOD_LIFT:
-					previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-					text = Translator.translate("JuryNotification.GoodLift", reversalText, e.getAthlete().getFullName(),
-					        previousAttemptNo % 3 + 1);
-					style = "primary success";
-					break;
 				case LOADING_ERROR:
 					text = Translator.translate("JuryNotification.LoadingError");
 					break;
-				case END_JURY_BREAK:
-					this.summonNotificationSent = false;
-					this.deliberationNotificationSent = false;
-					text = Translator.translate("JuryNotification.END_JURY_BREAK");
-					break;
+			case END_JURY_BREAK:
+				this.summonNotificationSent = false;
+				this.deliberationNotificationSent = false;
+				// Close jury decision dialog when competition resumes
+				if (this.juryConfirmationDialog != null) {
+					this.juryConfirmationDialog.close();
+					this.juryConfirmationDialog = null;
+				}
+				text = Translator.translate("JuryNotification.END_JURY_BREAK");
+				break;
 				case TECHNICAL_PAUSE:
 					text = Translator.translate("BreakType.TECHNICAL");
 					doStoppageDialog(text, style);
@@ -322,32 +306,32 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 
 	private void doStoppageDialog(String text, String style) {
 
-		if (this.stoppageAckNotification != null)  {
+		if (this.stoppageAckNotification != null) {
 			this.stoppageAckNotification.close();
 		}
 		this.stoppageAckNotification = new Notification();
 		this.stoppageAckNotification.getElement().getThemeList().add("warning");
 		this.stoppageAckNotification.setDuration(6000);
-		
+
 		Div label = new Div(text);
-		
+
 		NativeButton ackButton = new NativeButton(Translator.translate("JuryNotification.ACK"));
 		ackButton.getStyle().set("margin-left", "1em");
 		ackButton.addClickListener((event) -> {
 			this.stoppageAckNotification.close();
 			this.stoppageAckNotification = null;
 		});
-		
+
 		NativeButton resumeButton = new NativeButton(Translator.translate("JuryNotification.END_JURY_BREAK"));
 		resumeButton.getStyle().set("background-color", "darkgreen");
 		resumeButton.getStyle().set("color", "white");
 		resumeButton.getStyle().set("margin-left", "1em");
 		resumeButton.addClickListener((event) -> {
-			OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(null));
+			getFop().fopEventPost(new FOPEvent.StartLifting(null));
 			this.stoppageAckNotification.close();
 			this.stoppageAckNotification = null;
 		});
-		
+
 		if (isCenterNotifications()) {
 			label.getStyle().set("font-size", "x-large");
 			ackButton.getStyle().set("font-size", "large");
@@ -359,7 +343,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 			resumeButton.getStyle().set("font-size", "normal");
 			this.stoppageAckNotification.setPosition(Position.TOP_START);
 		}
-		
+
 		this.stoppageAckNotification.setDuration(0);
 		this.stoppageAckNotification.add(label);
 		this.stoppageAckNotification.add(ackButton);
@@ -486,7 +470,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 
 		this.introCountdownButton = new Button(Translator.translate("introCountdown"), new Icon(VaadinIcon.TIMER),
 		        (e) -> {
-			        BreakDialog dialog = new BreakDialog(BreakType.BEFORE_INTRODUCTION, CountdownType.TARGET, null,
+		        	BreakDialog dialog = new BreakDialog(getFop(), BreakType.BEFORE_INTRODUCTION, CountdownType.TARGET, null,
 			                this);
 			        dialog.open();
 		        });
@@ -515,14 +499,19 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		this.warning.getStyle().set("margin-top", "0").set("margin-bottom", "0");
 
 		HorizontalLayout topBarRight = new HorizontalLayout();
-		topBarRight.add(this.warning, this.introCountdownButton, this.startLiftingButton, this.showResultsButton);
+		this.breaks = breakButtons(topBar);
+		this.breaks.setPadding(true);
+
+		topBarRight.add(this.warning, this.introCountdownButton, this.startLiftingButton, this.showResultsButton, this.breaks);
+		topBarRight.setWidthFull();
 		topBarRight.setSpacing(true);
 		topBarRight.setPadding(true);
 		topBarRight.setAlignItems(FlexComponent.Alignment.CENTER);
+		topBarRight.setAlignSelf(Alignment.CENTER, this.breaks);
 
 		this.topBar.removeAll();
 		this.topBar.setSizeFull();
-		this.topBar.add(getTopBarLeft(), topBarRight);
+		this.topBar.add(getTopBarLeft(), topBarRight, this.breaks);
 
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
@@ -620,6 +609,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		if (this.timer == null) {
 			this.timer = new AthleteTimerElement(this);
 		}
+		this.timer.setFop(getFop());
 		this.timer.setSilenced(this.isSilenced());
 		H1 time = new H1(this.timer);
 		clearVerticalMargins(this.attempt);
@@ -733,7 +723,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		        Translator.translate("DisplayParameters.showDecisionLights"),
 		        e -> {
 			        switchLiveLightsMode(this, !this.isLiveLights(), true);
-			        FieldOfPlay fop2 = OwlcmsSession.getFop();
+			        FieldOfPlay fop2 = getFop();
 			        if (fop2 != null) {
 				        fop2.setAnnouncerDecisionImmediate(false);
 				        fop2.setSingleReferee(false);
@@ -777,7 +767,7 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		subItemSingleRef.addClickListener(e -> {
 			boolean singleReferee2 = !this.isSingleReferee();
 			switchSingleRefereeMode(this, singleReferee2, true);
-			FieldOfPlay fop2 = OwlcmsSession.getFop();
+			FieldOfPlay fop2 = getFop();
 			if (fop2 != null) {
 				// fop2.setAnnouncerDecisionImmediate(false);
 				fop2.setSingleReferee(singleReferee2);
@@ -802,11 +792,14 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 	protected HorizontalLayout decisionButtons(FlexLayout announcerBar) {
 		Button good = new Button(new Icon(VaadinIcon.CHECK), (e) -> goodLift());
 		good.getElement().setAttribute("theme", "success icon");
-		currentUI.addShortcutListener(() -> goodLift(), Key.F2);
 
 		Button bad = new Button(new Icon(VaadinIcon.CLOSE), (e) -> badLift());
 		bad.getElement().setAttribute("theme", "error icon");
-		currentUI.addShortcutListener(() -> badLift(), Key.F4);
+
+		currentUI.access(() -> {
+			currentUI.addShortcutListener(() -> goodLift(), Key.F2);
+			currentUI.addShortcutListener(() -> badLift(), Key.F4);
+		});
 
 		HorizontalLayout decisions = new HorizontalLayout(good, bad);
 		return decisions;
@@ -861,65 +854,35 @@ public class AnnouncerContent extends AthleteGridContent implements HasDynamicTi
 		this.previousGoodMillis = now;
 	}
 
-	private void juryDecisionAnnounce(UIEvent.JuryNotification e) {
+	private void juryDecisionDialog(UIEvent.JuryNotification e, JuryDeliberationEventType juryDecision) {
+		logger.debug("juryDecisionDialog called: juryDecision={} existingDialog={} {}", 
+			juryDecision, (this.juryConfirmationDialog != null), LoggerUtils.whereFrom());
+		if (this.juryConfirmationDialog != null && juryDecision == null) {
+			// Dialog already exists, don't recreate it on START_DELIBERATION
+			logger.debug("Dialog already exists, not recreating for START_DELIBERATION");
+			return;
+		}
+		
 		if (this.juryConfirmationDialog != null) {
-			// jury can send multiple decisions.
+			// Jury made a decision, close existing dialog
+			logger.debug("Closing existing dialog for jury decision update");
 			this.juryConfirmationDialog.close();
 		}
 		if (this.stoppageAckNotification != null) {
 			this.stoppageAckNotification.close();
 		}
-		this.juryConfirmationDialog = new ConfirmDialog();
-		this.juryConfirmationDialog.setHeader(Translator.translate("Announcer.JuryDecisionTitle"));
-
-		String reversalText = "";
-		if (e.getReversal() != null) {
-			reversalText = e.getReversal() ? Translator.translate("JuryNotification.Reversal")
-			        : Translator.translate("JuryNotification.Confirmed");
-		}
-		JuryDeliberationEventType et = e.getDeliberationEventType();
-		int previousAttemptNo;
-		String text = "";
-		String style = "";
-		switch (et) {
-			case BAD_LIFT:
-				previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-				text = Translator.translate("JuryNotification.BadLift", reversalText, e.getAthlete().getFullName(),
-				        previousAttemptNo % 3 + 1);
-				style = "color: red; font-size: large";
-				break;
-			case GOOD_LIFT:
-				previousAttemptNo = e.getAthlete().getAttemptsDone() - 1;
-				text = Translator.translate("JuryNotification.GoodLift", reversalText, e.getAthlete().getFullName(),
-				        previousAttemptNo % 3 + 1);
-				style = "color: green; font-size: large";
-				break;
-			default:
-				break;
-		}
-		this.juryConfirmationDialog.setText(new Html(
-		        """
-		        <div>
-		        <div style="%s">%s</div>
-		        <br/>
-		        <div>%s</div>
-		        <div>
-		        """.formatted(style, text, Translator.translate("Announcer.JuryDecisionExplanation"))));
-
-		this.juryConfirmationDialog.setCloseOnEsc(false);
-		this.juryConfirmationDialog.setConfirmText(Translator.translate("Announcer.PerformJuryDecision"));
-		this.juryConfirmationDialog.setCancelable(true);
-		this.juryConfirmationDialog.setCancelText(Translator.translate("Announcer.IgnoreJuryDecision"));
-		// the last parameter to the event will trigger the processing of the pending jury decision.
-		// false indicates that the decision event comes from the announcer and not from the jury.
-		if (e.getAthlete() != null) {
-			this.juryConfirmationDialog.addConfirmListener(c -> OwlcmsSession.getFop()
-			        .fopEventPost(new FOPEvent.JuryDecision(e.getAthlete(), e.getOrigin(), et == GOOD_LIFT, false)));
-		}
-		this.juryConfirmationDialog
-		        .addCancelListener(c -> OwlcmsSession.getFop().fopEventPost(new FOPEvent.StartLifting(this)));
-		this.juryConfirmationDialog.open();
-
+		
+		// Create custom dialog with proper footer
+		logger.debug("Creating new JuryDecisionDialog");
+		JuryDecisionDialog dialog = new JuryDecisionDialog(e, juryDecision, () -> {
+			this.deliberationNotificationSent = false;
+			this.juryConfirmationDialog = null;
+		});
+		
+		this.juryConfirmationDialog = dialog;
+		dialog.open();
+		logger.debug("Dialog opened");
 	}
 
 }
+

@@ -6,12 +6,14 @@
  *******************************************************************************/
 package app.owlcms.components.elements;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import org.slf4j.LoggerFactory;
 
@@ -23,13 +25,21 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.dom.DomEvent;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.server.InputStreamFactory;
-import com.vaadin.flow.server.StreamResource;
+import com.vaadin.flow.server.streams.DownloadHandler;
+import com.vaadin.flow.server.streams.DownloadResponse;
+import com.vaadin.flow.server.streams.TransferContext;
+import com.vaadin.flow.server.streams.TransferProgressListener;
 import com.vaadin.flow.shared.Registration;
 
-import app.owlcms.servlet.StopProcessingException;
+import app.owlcms.i18n.Translator;
+import app.owlcms.spreadsheet.InputStreamWrapper;
+import app.owlcms.spreadsheet.JXLSWorkbookStreamSource;
+import app.owlcms.spreadsheet.XLSXWorkbookStreamSource;
+import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -62,6 +72,35 @@ public class LazyDownloadButton extends Button {
 		}
 	}
 
+	/**
+	 * Run preCheck() on known workbook stream sources. Returns Optional.empty() when no error.
+	 */
+	private Optional<Exception> runPreCheck() {
+		logger.debug("*** LazyDownloadButton.runPreCheck");
+		InputStreamFactory cb = getInputStreamCallback();
+		if (cb instanceof XLSXWorkbookStreamSource) {
+			logger.debug("*** LazyDownloadButton.runPreCheck: XLSXWorkbookStreamSource");
+			try {
+				return ((XLSXWorkbookStreamSource) cb).prepare();
+			} catch (Exception e) {
+				// Convert thrown exception into Optional to let the caller show a notification
+				LoggerUtils.logError(logger, e);
+				return Optional.of(e);
+			}
+		}
+		if (cb instanceof JXLSWorkbookStreamSource) {
+			logger.debug("*** LazyDownloadButton.runPreCheck: JXLSWorkbookStreamSource");
+			try {
+				return ((JXLSWorkbookStreamSource) cb).prepare();
+			} catch (Exception e) {
+				LoggerUtils.logError(logger, e);
+				return Optional.of(e);
+			}
+		}
+		logger.debug("*** LazyDownloadButton.runPreCheck: no preCheck {}", LoggerUtils.whereFrom());
+		return Optional.empty();
+	}
+
 	private static final String DEFAULT_FILE_NAME = "download";
 	private static final Supplier<String> DEFAULT_FILE_NAME_SUPPLIER = () -> DEFAULT_FILE_NAME;
 	Logger logger = (Logger) LoggerFactory.getLogger(LazyDownloadButton.class);
@@ -69,6 +108,12 @@ public class LazyDownloadButton extends Button {
 	private Supplier<String> fileNameCallback;
 	private InputStreamFactory inputStreamCallback;
 	private Notification notification;
+	// Optional callbacks for transfer completion/error
+	private BiConsumer<TransferContext, Long> doneCallback;
+	private BiConsumer<TransferContext, IOException> errorCallback;
+	// Optional UI-thread precheck hook. If present and returns an exception the
+	// download is aborted. The supplier is executed on the UI thread.
+	private Supplier<Optional<Exception>> uiPreCheck;
 
 	public LazyDownloadButton() {
 	}
@@ -126,14 +171,7 @@ public class LazyDownloadButton extends Button {
 		}
 
 		super.addClickListener(event -> {
-			// we add the anchor to download in the parent of the button - if there are
-			// scenarios where the anchor
-			// should be placed somewhere else, this needs to be extended. Cannot be placed
-			// inside of the button
-			// since the button might be disabled or invisible thus makes the anchor not
-			// usable.
-			// The anchor must not be removed by this component, since the download failes
-			// otherwise
+			// We are in the Vaadin UI thread here.
 			getParent().ifPresent(component -> {
 				Objects.requireNonNull(getFileNameCallback(), "File name callback must not be null");
 				Objects.requireNonNull(getInputStreamCallback(), "Input stream callback must not be null");
@@ -149,33 +187,184 @@ public class LazyDownloadButton extends Button {
 				}
 
 				Optional<UI> optionalUI = getUI();
-				ExecutorService newSingleThreadExecutor = Executors.newSingleThreadExecutor();
-				newSingleThreadExecutor.execute(() -> {
-					try {
-						InputStream inputStream = getInputStreamCallback().createInputStream();
-						optionalUI.ifPresent(ui -> ui.access(() -> {
-							if (this.notification != null) {
-								this.notification.open();
+				try {
+					// Run an optional UI-thread precheck provided by callers. If it returns
+					// an exception, abort the download. The caller should present any UI
+					// feedback (dialog paragraph, disable button) itself.
+					if (this.uiPreCheck != null) {
+						try {
+							java.util.Optional<java.lang.Exception> preUi = this.uiPreCheck.get();
+							if (preUi != null && preUi.isPresent()) {
+								// Caller handled UI feedback; simply abort without showing the default notification
+								return;
 							}
-
-							StreamResource href = new StreamResource(getFileNameCallback().get(), () -> inputStream);
-							href.setCacheTime(0);
-							this.anchor.setHref(href);
-							try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-							}
-							this.anchor.getElement().callJsFunction("click");
-						}));
-					} catch (Exception e) {
-						if (!(e instanceof StopProcessingException)) {
-							throw new RuntimeException(e);
+						} catch (Throwable t) {
+							// If the precheck hook itself throws, log and abort
+							LoggerUtils.logError(logger, t);
+							return;
 						}
 					}
-				});
-				newSingleThreadExecutor.shutdown();
+					// Shared flag to ensure we only show one error notification per download attempt
+					final AtomicBoolean errorNotified = new AtomicBoolean(false);
+
+					// Run the pre-check on the UI thread BEFORE creating the DownloadHandler so we can
+					// show a notification (via UI.access) and abort without creating the handler/anchor.
+					java.util.Optional<java.lang.Exception> pre = runPreCheck();
+					if (pre.isPresent()) {
+						Exception e = pre.get();
+						// If the input source is a known workbook stream source and it has a doneCallback,
+						// delegate the error notification to that doneCallback (it will show the top-right
+						// notification). For other input sources, show the local notification here.
+						InputStreamFactory cb = getInputStreamCallback();
+						boolean delegatedToDoneCallback = false;
+						try {
+							if (cb instanceof XLSXWorkbookStreamSource) {
+								Consumer<Throwable> done = ((XLSXWorkbookStreamSource) cb).getDoneCallback();
+								if (done != null) {
+									try {
+										done.accept(e);
+									} catch (Throwable ignore) {
+										/* swallow */ }
+									delegatedToDoneCallback = true;
+								}
+							} else if (cb instanceof JXLSWorkbookStreamSource) {
+								Consumer<Throwable> done = ((JXLSWorkbookStreamSource) cb).getDoneCallback();
+								if (done != null) {
+									try {
+										done.accept(e);
+									} catch (Throwable ignore) {
+										/* swallow */ }
+									delegatedToDoneCallback = true;
+								}
+							}
+						} catch (Throwable ignore) {
+						}
+
+						if (!delegatedToDoneCallback) {
+							optionalUI.ifPresent(ui -> {
+								showDownloadErrorNotification(ui, e.getMessage() == null ? e.toString() : e.getMessage(), e);
+								errorNotified.set(true);
+							});
+						}
+						return;
+					}
+					logger.debug("*** LazyDownloadButton creating DownloadHandler");
+					DownloadHandler downloadHandler = DownloadHandler.fromInputStream(
+					        (downloadEvent) -> {
+						        try {
+							        InputStream downloadStream = getInputStreamCallback().createInputStream();
+							        logger.debug("*** LazyDownloadButton created download stream: {}", downloadStream);
+
+							        // If the stream is our wrapper, poll briefly for a fast writer failure and
+							        // return an error response immediately if one occurred.
+							        if (downloadStream instanceof InputStreamWrapper) {
+								        InputStreamWrapper wrapper = (InputStreamWrapper) downloadStream;
+								        // Poll up to 200ms (in 50ms increments) for an immediate failure
+								        IOException fastEx = null;
+								        for (int i = 0; i < 4; i++) {
+									        fastEx = wrapper.getWriterException();
+									        if (fastEx != null)
+										        break;
+									        try {
+										        Thread.sleep(50);
+									        } catch (InterruptedException ie) {
+										        Thread.currentThread().interrupt();
+										        break;
+									        }
+								        }
+								        if (fastEx != null) {
+									        final IOException ex = fastEx;
+									        final String msg = ex.getMessage() == null ? ex.toString() : ex.getMessage();
+									        optionalUI.ifPresent(ui -> {
+										        showDownloadErrorNotification(ui, msg, ex);
+										        errorNotified.set(true);
+									        });
+									        return DownloadResponse.error(500, msg);
+								        }
+							        }
+
+							        return new DownloadResponse(
+							                downloadStream,
+							                getFileNameCallback().get(),
+							                null, // content type - let Vaadin determine it
+							                -1 // content length - unknown
+							        );
+						        } catch (Exception e) {
+							        return DownloadResponse.error(500, e.getMessage());
+						        }
+					        }, new TransferProgressListener() {
+						        @Override
+						        public void onStart(TransferContext tc) {
+							        //logger.debug("download starting in UI {}", optionalUI.get());
+							        if (notification != null && !notification.isOpened()) {
+								        notification.open();
+							        }
+						        }
+
+						        @Override
+						        public void onComplete(TransferContext tc, long transferredBytes) {
+							        if (notification != null && notification.isOpened()) {
+								        notification.close();
+							        }
+							        logger.info("Download succeeded: {} bytes", transferredBytes);
+							        if (doneCallback != null) {
+								        try {
+									        doneCallback.accept(tc, Long.valueOf(transferredBytes));
+								        } catch (Throwable t) {
+									        LoggerUtils.logError(logger, t);
+								        }
+							        }
+						        }
+
+						        @Override
+						        public void onError(TransferContext tc, IOException error) {
+							        // Only show the notification if we haven't already (preCheck or fast-fail)
+							        if (!errorNotified.getAndSet(true)) {
+								        try {
+									        UI ui = tc.getUI();
+									        if (ui != null) {
+										        ui.access(() -> showDownloadErrorNotification(ui, error.getMessage(), error));
+									        } else {
+										        // No UI available on context; fall back to logging
+										        logger.error("Download failed: {}", error.getMessage(), error);
+									        }
+								        } catch (Exception e) {
+									        // Ensure we still log the original error even if UI access fails
+									        logger.error("Download failed (notify failed): {}", error.getMessage(), error);
+								        }
+							        } else {
+								        // Still log the error even if notification was already shown
+								        logger.error("Download failed (already notified): {}", error.getMessage(), error);
+							        }
+							        if (errorCallback != null) {
+								        try {
+									        errorCallback.accept(tc, error);
+								        } catch (Throwable t) {
+									        LoggerUtils.logError(logger, t);
+								        }
+							        }
+						        }
+					        });
+
+					optionalUI.ifPresent(ui -> ui.access(() -> {
+						this.anchor.setHref(downloadHandler);
+						this.anchor.getElement().callJsFunction("click");
+					}));
+
+				} catch (Exception e) {
+					LoggerUtils.logError(logger, e);
+				}
+
 			});
 		});
+	}
+
+	public void setUiPreCheck(Supplier<Optional<Exception>> uiPreCheck) {
+		this.uiPreCheck = uiPreCheck;
+	}
+
+	public Supplier<Optional<Exception>> getUiPreCheck() {
+		return this.uiPreCheck;
 	}
 
 	public LazyDownloadButton(String text, InputStreamFactory inputStreamFactory) {
@@ -214,6 +403,28 @@ public class LazyDownloadButton extends Button {
 		this.notification = notification;
 	}
 
+	/**
+	 * Set a callback invoked when a transfer completes successfully. The callback receives the TransferContext and the number of transferred bytes.
+	 */
+	public void setDoneCallback(BiConsumer<TransferContext, Long> doneCallback) {
+		this.doneCallback = doneCallback;
+	}
+
+	public BiConsumer<TransferContext, Long> getDoneCallback() {
+		return this.doneCallback;
+	}
+
+	/**
+	 * Set a callback invoked when a transfer fails with an error. The callback receives the TransferContext and the IOException that occurred.
+	 */
+	public void setErrorCallback(BiConsumer<TransferContext, IOException> errorCallback) {
+		this.errorCallback = errorCallback;
+	}
+
+	public BiConsumer<TransferContext, IOException> getErrorCallback() {
+		return this.errorCallback;
+	}
+
 	@Override
 	protected void onDetach(DetachEvent detachEvent) {
 		if (this.anchor != null) {
@@ -223,6 +434,27 @@ public class LazyDownloadButton extends Button {
 					parentElement.removeChild(anchorElement);
 				}
 			});
+		}
+	}
+
+	/**
+	 * Show the standard download error notification and log the error. This is safe to call from any thread: it will schedule UI access if needed.
+	 */
+	private void showDownloadErrorNotification(UI ui, String message, Throwable error) {
+		try {
+			if (ui == null)
+				return;
+			ui.access(() -> {
+				String body = message == null ? Translator.translate("Download.failed") : Translator.translate("Download.failed", message);
+				Notification notification = new Notification(body);
+				notification.setDuration(5000);
+				notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
+				notification.open();
+				logger.error("Download failed: {}", message, error);
+			});
+		} catch (Exception e) {
+			// If UI access fails, still log the original error
+			logger.error("Download failed (and UI notify failed): {}", message, error);
 		}
 	}
 }

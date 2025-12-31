@@ -55,6 +55,18 @@ public class JXLSExportRecords extends JXLSWorkbookStreamSource {
 	public JXLSExportRecords(UI ui, boolean allRecords, boolean currentOnly) {
 		this.setAllRecords(allRecords);
 		this.currentOnly = currentOnly;
+		this.setEmptyOk(true);
+	}
+
+	/**
+	 * Constructor that accepts a pre-filtered list of records.
+	 * Used when we want to export exactly what is shown in the grid.
+	 */
+	public JXLSExportRecords(UI ui, List<RecordEvent> filteredRecords) {
+		this.setAllRecords(true); // Not used when records are pre-filtered
+		this.currentOnly = false; // Not used when records are pre-filtered
+		this.records = new ArrayList<>(filteredRecords);
+		this.setEmptyOk(true);
 	}
 
 	@Override
@@ -98,21 +110,25 @@ public class JXLSExportRecords extends JXLSWorkbookStreamSource {
 	}
 
 	@Override
-	public List<Athlete> getSortedAthletes() {
+	public List<Athlete> computeSortedAthletes() {
 		HashMap<String, Object> reportingBeans = getReportingBeans();
 
-		// prevent irrelevant "No Athletes" error message.
-		List<Athlete> athletes = List.of(new Athlete());
+		// Only fetch records if they haven't been pre-provided
+		if (this.records == null) {
+			String groupName = this.group != null ? this.group.getName() : null;
+			this.setRecords(RecordRepository.findFiltered(null, null, null, groupName, !this.isAllRecords()));
+			logger.debug("found {} records",getRecords().size());
 
-		String groupName = this.group != null ? this.group.getName() : null;
-		this.setRecords(RecordRepository.findFiltered(null, null, null, groupName, !this.isAllRecords()));
-		logger.info("found {} records",getRecords().size());
-
-		if (this.currentOnly) {
-			var recordMap = this.keepNewest();
-			this.setRecords(new ArrayList<>(recordMap.values().stream().toList()));
-			this.getRecords().sort(sortRecords());
+			if (this.currentOnly) {
+				var recordMap = this.keepNewest();
+				this.setRecords(new ArrayList<>(recordMap.values().stream().toList()));
+				this.getRecords().sort(sortRecords());
+			} else {
+				this.getRecords().sort(sortRecords());
+			}
 		} else {
+			// Records were pre-filtered, just ensure they're sorted
+			logger.debug("using pre-filtered {} records", getRecords().size());
 			this.getRecords().sort(sortRecords());
 		}
 
@@ -125,7 +141,7 @@ public class JXLSExportRecords extends JXLSWorkbookStreamSource {
 		reportingBeans.put("records", this.getRecords());
 		
 		//logger.debug("put {}",getRecords().size());
-		return athletes;
+		return new ArrayList<>();
 	}
 
 	@Override
@@ -153,24 +169,24 @@ public class JXLSExportRecords extends JXLSWorkbookStreamSource {
 	}
 
 	public Comparator<RecordEvent> sortRecords() {
+		// Use the same ordering as RecordRepository.findWithFilters for consistency
 		return Comparator
-		        .comparing(RecordEvent::getRecordFederation) // all records for a federation go together (masters are
-		                                                     // separate)
-		        .thenComparing(RecordEvent::getRecordName) // sometimes several record names for same federation
-		                                                   // (example: event-specific)
-		        .thenComparing(RecordEvent::getGender) // all women, then all men
-		        .thenComparing(RecordEvent::getAgeGrpUpper) // U13 U15 U17 U20 U23 SR
-		        // open has biggest age gap, goes after masters M85 and W85
-		        .thenComparing((a, b) -> ObjectUtils.compare((a.getAgeGrpUpper() - a.getAgeGrpLower()), (b.getAgeGrpUpper() - b.getAgeGrpLower())))
-		        .thenComparing(RecordEvent::getAgeGrpLower) // increasing age groups for masters (35, 40, 45...)
-		        .thenComparing(RecordEvent::getBwCatUpper) // increasing body weights
-		        .thenComparing((r) -> r.getRecordLift().ordinal()) // SNATCH, CJ, TOTAL
-		        .thenComparing(RecordEvent::getRecordValue) // increasing records
+		        .comparing(RecordEvent::getRecordFederation) // federation first
+		        .thenComparing(RecordEvent::getRecordName) // then record name (type)
+		        .thenComparing(RecordEvent::getGender) // then gender
+		        .thenComparing(RecordEvent::getAgeGrpUpper) // then age group upper
+		        .thenComparing(RecordEvent::getAgeGrpLower) // then age group lower
+		        .thenComparing(RecordEvent::getBwCatUpper) // then body weight category
+		        .thenComparing((r) -> r.getRecordLift().ordinal()) // then lift type (SNATCH, CJ, TOTAL)
+		        .thenComparing(RecordEvent::getRecordValue) // finally record value
 		;
 	}
 
 	@Override
 	protected void setReportingInfo() {
+		// For records export, we need to compute the records first, which populates the reporting beans
+		this.computeSortedAthletes();
+		
 		List<Athlete> athletes = getSortedAthletes();
 		if (athletes != null) {
 			getReportingBeans().put("athletes", athletes);

@@ -248,20 +248,59 @@ public class URLUtils {
 	/**
 	 * @param history
 	 * @param object
-	 * @param location
+	 * @param location the new location to set
+	 * @param originalLocation the original location before the change (for FOP validation)
 	 */
-	public static void replaceState(History history, JsonValue object, Location location) {
+	public static void replaceState(History history, JsonValue object, Location location, Location originalLocation) {
 		//logger.debug("replaceState1 {} {}",location.getPathWithQueryParameters(), LoggerUtils.stackTrace());
-		history.replaceState(object, location);
+		
+		// Extract original FOP from the location passed in
+		String originalFop = null;
+		if (originalLocation != null) {
+			QueryParameters origParams = originalLocation.getQueryParameters();
+			if (origParams != null) {
+				List<String> fopParams = origParams.getParameters().get("fop");
+				if (fopParams != null && !fopParams.isEmpty()) {
+					originalFop = fopParams.get(0);
+				}
+			}
+		}
+		
+		// Safety check: ensure FOP parameter is never removed or changed
+		// This is a critical parameter that should remain stable throughout URL updates
+		Location finalLocation = location;
+		
+		QueryParameters newParams = location.getQueryParameters();
+		if (newParams != null && !newParams.getParameters().isEmpty()) {
+			// Check if FOP is being changed—this should not happen
+			List<String> newFopParams = newParams.getParameters().get("fop");
+			String newFop = (newFopParams != null && !newFopParams.isEmpty()) ? newFopParams.get(0) : null;
+			
+			if (originalFop != null && !originalFop.equals(newFop)) {
+				// FOP value changed from original
+				String errorMsg = "CRITICAL: replaceState would change FOP value!\n" +
+					"Original: " + originalFop + "\nNew: " + newFop + "\nURL: " + location.getPathWithQueryParameters() + "\nStack: " + LoggerUtils.stackTrace();
+				logger.error(errorMsg);
+			}
+		}
+		
+		// Only update URL if no FOP violations were detected
+		history.replaceState(object, finalLocation);
 	}
 
-	/**
-	 * @param history
-	 * @param object
-	 * @param pathWithQueryParameters
-	 */
-	public static void replaceState(History history, JsonValue object, String pathWithQueryParameters) {
-		//logger.debug("replaceState2 {} {}", pathWithQueryParameters, LoggerUtils.stackTrace());
-		history.replaceState(object, pathWithQueryParameters);
+	public static String getFlagResourcePath(String team, String[] exts) {
+        if (team == null || team.isBlank()) {
+            return null;
+        }
+        String teamFileName = sanitizeFilename(team);
+        for (String ext : exts) {
+            try {
+                ResourceWalker.getFileOrResourcePath("flags/" + teamFileName + ext);
+                return "flags/" + teamFileName + ext;
+            } catch (FileNotFoundException e) {
+                // try next extension
+            }
+        }
+        return null;
 	}
 }

@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.base.CharMatcher;
 
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.athlete.EligibleForIndividualRankingStatus;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.CategoryRepository;
@@ -174,7 +175,31 @@ public class RAthlete {
 		if (s == null) {
 			return;
 		}
-		this.a.setGender(Gender.valueOf(s.toUpperCase()));
+		String t = s.trim();
+
+		// 1) Try matching the canonical gender names among the allowed set
+		for (Gender g : Gender.mfValues()) {
+			if (g.name().equalsIgnoreCase(t)) {
+				this.a.setGender(g);
+				return;
+			}
+		}
+
+		// 2) Try matching each allowed gender's translated gender code
+		for (Gender g : Gender.mfValues()) {
+			try {
+				String translated = g.getTranslatedGenderCode();
+				if (translated != null && translated.equalsIgnoreCase(t)) {
+					this.a.setGender(g);
+					return;
+				}
+			} catch (Exception ex) {
+				// ignore translation failures and continue
+			}
+		}
+
+		// 3) Fallback to original behavior (this will throw IllegalArgumentException if invalid)
+		this.a.setGender(Gender.valueOf(t.toUpperCase()));
 	}
 
 	/**
@@ -331,10 +356,8 @@ public class RAthlete {
 				}
 			}
 
-			Category c;
-			String catCode = Category.codeFromName(catName);
-			//logger.debug("------ catName {} catCode {} active {}",catName, catCode,RCompetition.getActiveCategories().keySet());
-			if ((c = RCompetition.getActiveCategories().get(catCode)) != null) {
+			Category c = findActiveCategoryByName(catName);
+			if (c != null) {
 				// exact match for a category. This is the athlete's registration category.
 				processEligibilityAndTeams(parts, c, teamMember);
 			} else {
@@ -360,7 +383,6 @@ public class RAthlete {
 		RCompetition.putEligibles(this.a.getId(), new LinkedHashSet<>(eligibles));
 		RCompetition.putTeams(this.a.getId(), new LinkedHashSet<>(eligibles));
 
-		logger.warn ("findByAgeBW {} {} {} {}", age, searchBodyWeight, qualifyingTotal, eligibles);
 		Category category = eligibles.size() > 0 ? eligibles.get(0) : null;
 		if (category == null) {
 			throw new Exception(
@@ -465,9 +487,8 @@ public class RAthlete {
 					eligibleName = eligibleName.substring(0, eligibleName.length() - NoTeamMarker.length());
 					teamMember = false;
 				}
-				Category c2;
-				String catCode = Category.codeFromName(eligibleName.trim());
-				if ((c2 = RCompetition.getActiveCategories().get(catCode)) != null) {
+					Category c2 = findActiveCategoryByName(eligibleName.trim());
+					if (c2 != null) {
 					boolean addedToEligible = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
 					if (!addedToEligible) {
 						throw new Exception(Translator.translate("Upload.AthleteRegistrationCategoryProblem")+" "+eligibleName);
@@ -492,7 +513,7 @@ public class RAthlete {
 		double searchBodyWeight;
 		if (!legacyResult.matches()) {
 			// try by explicit name
-			Category category = RCompetition.getActiveCategories().get(categoryName);
+			Category category = findActiveCategoryByName(categoryName);
 			if (category == null) {
 				throw new Exception(Translator.translate("Upload.CategoryNotFoundByName", categoryName));
 			}
@@ -534,6 +555,53 @@ public class RAthlete {
 	}
 
 	public void setInvited(boolean b) {
-		this.a.setEligibleForIndividualRanking(!b);
+		if (b) {
+			this.a.setIndividualEligibilityStatus(EligibleForIndividualRankingStatus.OOC_INVITED);
+		} else {
+			this.a.setIndividualEligibilityStatus(EligibleForIndividualRankingStatus.ELIGIBLE);
+		}
+	}
+
+	private Category findActiveCategoryByName(String categoryName) {
+		if (categoryName == null) {
+			return null;
+		}
+		String trimmed = categoryName.trim();
+		if (trimmed.isEmpty()) {
+			return null;
+		}
+		for (String candidate : buildCategoryNameCandidates(trimmed)) {
+			String catCode = Category.codeFromName(candidate);
+			// logger.debug("candidate {} -> code {}", candidate, catCode);
+			if (catCode != null) {
+				Category category = RCompetition.getActiveCategories().get(catCode);
+				if (category != null) {
+					return category;
+				}
+			} else {
+				// logger.debug("active categories do not contain candidate {}: [{}]", candidate, RCompetition.getActiveCategories().keySet());
+			}
+		}
+		return null;
+	}
+
+	private LinkedHashSet<String> buildCategoryNameCandidates(String baseName) {
+		LinkedHashSet<String> candidates = new LinkedHashSet<>();
+		if (!baseName.contains("+")) {
+			// + requires canonicalization
+			candidates.add(baseName);
+		}
+
+		// if +number or number+ is present, add >number as candidate using regex replaceAll
+		String nc = baseName.replaceAll("(\\d+)[+]", ">$1");
+		if (!nc.contentEquals(baseName)) {
+			candidates.add(nc);
+		}
+		nc = baseName.replaceAll("[+](\\d+)", ">$1");
+		if (!nc.contentEquals(baseName)) {	
+			candidates.add(nc);
+		}
+		logger.debug("candidates: {}",candidates);
+		return candidates;
 	}
 }

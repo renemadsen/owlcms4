@@ -27,6 +27,8 @@ import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Convert;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.FetchType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
@@ -77,6 +79,7 @@ import app.owlcms.spreadsheet.RAthlete;
 import app.owlcms.utils.DateTimeUtils;
 import app.owlcms.utils.IdUtils;
 import app.owlcms.utils.LoggerUtils;
+import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
@@ -109,14 +112,14 @@ import ch.qos.logback.classic.Logger;
 @Cacheable
 @JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
 @JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger" })
-@JsonPropertyOrder({ "id", "participations", "category" })
+@JsonPropertyOrder({ "id", "participations", "category", "ligibleForIndividualRanking", "individualEligibilityStatus" })
 public class Athlete {
 	@Transient
 	@JsonIgnore
 	private static QPoints qPointsCoefficients = new QPoints(2023);
 	@Transient
 	@JsonIgnore
-	private static SinclairCoefficients sinclairProperties2020 = new SinclairCoefficients(2020);
+	public static SinclairCoefficients sinclairProperties2020 = new SinclairCoefficients(2020);
 	@Transient
 	@JsonIgnore
 	private static SinclairCoefficients sinclairProperties2024 = new SinclairCoefficients(2024);
@@ -386,6 +389,11 @@ public class Athlete {
 	private Double customScore;
 	@Column(columnDefinition = "boolean default true")
 	private boolean eligibleForIndividualRanking = true;
+
+	// New enum status indicating reason for ineligibility or null when eligible
+	@Column(name = "eligible_for_individual_ranking_status", columnDefinition = "varchar(64)")
+	@Enumerated(EnumType.STRING)
+	private EligibleForIndividualRankingStatus individualEligibilityStatus = null;
 	private boolean eligibleForTeamRanking = true;
 	private String federationCodes;
 	private String firstName = "";
@@ -480,6 +488,9 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	private boolean validation = true;
+	@Transient
+	@JsonIgnore
+	protected boolean fixNames = false;
 
 	/**
 	 * Instantiates a new athlete.
@@ -488,6 +499,11 @@ public class Athlete {
 		setId(IdUtils.getTimeBasedId());
 		this.validation = true;
 		this.timingLogger.setLevel(Level.WARN);
+		this.fixNames = fixNamesP();
+	}
+
+	protected boolean fixNamesP() {
+		return !Config.getCurrent().featureSwitch("dontFixNames");
 	}
 
 	public void addEligibleCategory(Category category) {
@@ -588,6 +604,34 @@ public class Athlete {
 		}
 	}
 
+	public void clearBodyWeight() {
+		boolean validate = this.isValidation();
+		Level prevLevel = this.getLogger().getLevel();
+		try {
+			this.setValidation(false);
+			this.setLoggerLevel(Level.OFF);
+			this.setBodyWeight(null);
+		} finally {
+			this.setValidation(validate);
+			this.setLoggerLevel(prevLevel);
+		}
+	}
+
+	public void clearWeighIn() {
+		boolean validate = this.isValidation();
+		Level prevLevel = this.getLogger().getLevel();
+		try {
+			this.setValidation(false);
+			this.setLoggerLevel(Level.OFF);
+			this.setBodyWeight(null);
+			this.setSnatch1Declaration("");
+			this.setCleanJerk1Declaration("");
+		} finally {
+			this.setValidation(validate);
+			this.setLoggerLevel(prevLevel);
+		}
+	}
+
 	/**
 	 * Gets the custom score.
 	 *
@@ -597,12 +641,16 @@ public class Athlete {
 	@JsonIgnore
 	public Double computedCategoryScore() {
 		AgeGroup ageGroup = getAgeGroup();
+
 		if (ageGroup == null) {
 			return 0.0;
 		}
 		Ranking scoringSystem = ageGroup.getComputedScoringSystem();
 		if (scoringSystem != null) {
-			return Ranking.getRankingValue(this, scoringSystem);
+			var score = Ranking.getRankingValue(this, scoringSystem);
+			//logger.debug("computing category score for athlete {} ageGroup={} scoringSystem={} score={} {}", 
+			// this.getAbbreviatedName(), ageGroup, scoringSystem, score, this.getClass().getSimpleName());
+			return score;
 		} else {
 			return 0.0;
 		}
@@ -782,7 +830,7 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getAbbreviatedName() {
-		var fn = this.getFullName();
+		var fn = this.computeRawFullName();
 		if (fn.isBlank()) {
 			return fn;
 		}
@@ -804,6 +852,79 @@ public class Athlete {
 		} else {
 			return "?";
 		}
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getFixedName() {
+		Locale loc = OwlcmsSession.getLocale();
+		var fn = this.computeRawFullName();
+		if (fn.isBlank()) {
+			return fn;
+		}
+		String upperCase = this.getLastName() != null ? this.getLastName().toUpperCase() : "";
+		String firstName2 = this.firstName != null ? this.firstName.trim() : "";
+
+		String formattedFirstName = computeFixedFirstName(loc, firstName2);
+
+		if (!upperCase.isBlank() && !formattedFirstName.isBlank()) {
+			return Translator.translate("AbbreviatedNameFormat", upperCase, formattedFirstName);
+		} else if (!upperCase.isBlank()) {
+			return upperCase;
+		} else if (!formattedFirstName.isBlank()) {
+			return formattedFirstName;
+		} else {
+			return "?";
+		}
+	}
+
+	public String computeFixedFirstName(Locale loc, String firstName2) {
+		if (Config.getCurrent().featureSwitch("dontFixNames")) {
+			return firstName2;
+		}
+		// Check if first name is all caps (or all caps with hyphens and spaces)
+		// Only fix names that are all uppercase
+		boolean needsFixing = firstName2.equals(firstName2.toUpperCase(loc));
+
+		var language = loc.getLanguage();
+		if (needsFixing && (language.equals("ar") || language.equals("he") || language.equals("ja"))) {
+			// This would attempt to fix Arabic, Hebrew, Japanese, but the fix would do nothing.
+			return firstName2;
+		} else if (needsFixing && (language.equals("el"))) {
+			// Greek has special rules for the lowercase sigma at the end of words.
+			// We cannot just lowercase everything and uppercase first letters.
+			// So we skip fixing Greek names for now.
+			return firstName2;
+		} else if (needsFixing && language.equals("ru")) {
+			// Russian has special rules for upper/lower case letters (e.g., Ё vs ё).
+			// We cannot just lowercase everything and uppercase first letters.
+			// So we skip fixing Russian names for now.
+			return firstName2;
+		}
+
+		String formattedFirstName;
+		if (needsFixing) {
+			// Split first name by spaces, then split each component by hyphens
+			// Capitalize first letter and lowercase the rest for each component
+			String[] spaceParts = firstName2.split("\\s+");
+			formattedFirstName = Arrays.stream(spaceParts).map(spacePart -> {
+				String[] hyphenatedParts = spacePart.split("-");
+				return Arrays.stream(hyphenatedParts)
+				        .map(hpart -> {
+					        if (hpart.isEmpty()) {
+						        return hpart;
+					        }
+					        // Capitalize first letter according to locale rules, lowercase the rest
+					        return hpart.substring(0, 1).toUpperCase(loc) +
+					                hpart.substring(1).toLowerCase(loc);
+				        })
+				        .collect(Collectors.joining("-"));
+			}).collect(Collectors.joining(" "));
+		} else {
+			// Keep the original first name if it doesn't need fixing
+			formattedFirstName = firstName2;
+		}
+		return formattedFirstName;
 	}
 
 	@Transient
@@ -952,8 +1073,13 @@ public class Athlete {
 		Set<String> s = new LinkedHashSet<>();
 		List<Participation> participations2 = getParticipations();
 		for (Participation p : participations2) {
+			Category category2 = p.getCategory();
+			if (category2 == null || category2.getAgeGroup() == null) {
+				// defensive -- corrupt database?
+				continue;
+			}
 			if (p.getTeamMember()) {
-				s.add(p.getCategory().getAgeGroup().getDisplayName());
+				s.add(category2.getAgeGroup().getDisplayName());
 			}
 		}
 		return s;
@@ -962,13 +1088,11 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getAllCategoriesAsString() {
-		Category mrCat = getMainRankings() != null ? this.getMainRankings().getCategory() : null;
-		// use getName because we don't want the translated gender.
-		String mainCategory = mrCat != null ? mrCat.getDisplayName() : "";
+		Category mrCat = getCategory();
 
-		String mainCategoryString = mainCategory;
+		String mainCategoryAsString = mrCat != null ? mrCat.getDisplayName() : "";
 		if (mrCat != null && !getMainRankings().getTeamMember()) {
-			mainCategoryString = mainCategory + RAthlete.NoTeamMarker;
+			mainCategoryAsString = mainCategoryAsString + RAthlete.NoTeamMarker;
 		}
 
 		String eligiblesAsString = this.getParticipations().stream()
@@ -980,9 +1104,9 @@ public class Athlete {
 		        })
 		        .collect(Collectors.joining(";"));
 		if (eligiblesAsString.isBlank()) {
-			return mainCategoryString;
+			return mainCategoryAsString;
 		} else {
-			return mainCategory + "|" + eligiblesAsString;
+			return mainCategoryAsString + ";" + eligiblesAsString;
 		}
 	}
 
@@ -1094,7 +1218,8 @@ public class Athlete {
 	public Double getBestLifterScore() {
 		var scoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
 		if (scoringSystem == null) {
-			// if we are invoked from a printing thread, this value will be defined.
+			// if we are invoked from a printing thread, this value will have been defined according to a
+			// dropdown or defaulted appropriately
 			scoringSystem = getAgeGroup().getBestAthleteScoringSystem();
 			if (scoringSystem == null) {
 				// this will be used on the interactive page as the default
@@ -1267,12 +1392,22 @@ public class Athlete {
 		return this.category != null ? this.getCategory().getCode() : "-";
 	}
 
+	/**
+	 * Gets the category display name safely.
+	 * 
+	 * @return the category display name, or empty string if no category is assigned
+	 */
+	@Transient  // but intentionally JSON
+	public String getCategoryName() {
+		return this.category != null ? this.getCategory().getDisplayName() : "";
+	}
+
 	@Transient
 	@JsonIgnore
 	public Boolean getCategoryFinished() {
 		var allUnfinished = AthleteRepository.getAllUnfinishedCategories();
-		String code = this.getCategory() != null ? this.getCategory().getCode() : null;
-		return code != null ? allUnfinished.contains(code) : false;
+		Category category = this.getCategory();
+		return category != null ? allUnfinished.contains(category) : false;
 	}
 
 	public int getCategoryScoreRank() {
@@ -1287,7 +1422,7 @@ public class Athlete {
 	@JsonIgnore
 	public String getCategorySortCode() {
 		Category sortCategory = getCategory();
-		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "-";
+		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "~"; // must sort after z to put at end of list
 		// logger.debug("a {} category {} sortCode {}", getAbbreviatedName(), getCategory(), sortCategory.getSortCode());
 		return sortCode;
 	}
@@ -1779,10 +1914,11 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public Set<Category> getEligibleCategories() {
-		// brain dead version, cannot get query version to work.
+		// defensive -- ignore historical corruption (category with no age group)
 		Set<Category> s = new LinkedHashSet<>();
 		List<Category> cats = getParticipations().stream()
 		        .map(p -> p.getCategory())
+		        .filter(c -> c.getAgeGroup() != null)
 		        .sorted(Category.medalingComparator())
 		        // .peek(c -> logger.debug("{} {}", c, c.getMedalingSortCode()))
 		        .toList();
@@ -1856,7 +1992,7 @@ public class Athlete {
 	 * @return the firstName
 	 */
 	public String getFirstName() {
-		return this.firstName != null ? this.firstName.trim() : null;
+		return this.firstName != null ? (this.fixNames ? this.computeFixedFirstName(OwlcmsSession.getLocale(), firstName) : this.firstName.trim()) : null;
 	}
 
 	@Transient
@@ -1894,7 +2030,7 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getFullId() {
-		String fullName = getFullName();
+		String fullName = computeRawFullName();
 		Category category2 = getCategory();
 		if (!fullName.isEmpty()) {
 			return fullName + " " + (category2 != null ? category2 : "");
@@ -1907,12 +2043,17 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getFullName() {
+		return fixNames ? getFixedName() : computeRawFullName();
+	}
+
+	@Transient
+	@JsonIgnore
+	public String computeRawFullName() {
 		String upperCase = this.getLastName() != null ? this.getLastName().toUpperCase() : "";
-		String lastName = this.getLastName() != null ? this.getLastName() : "";
 		String firstName2 = this.getFirstName() != null ? this.getFirstName() : "";
 		if ((upperCase != null) && !upperCase.trim().isEmpty() && (firstName2 != null)
 		        && !firstName2.trim().isEmpty()) {
-			String fullName = Translator.translate("FullNameFormat", upperCase, firstName2, lastName);
+			String fullName = Translator.translate("FullNameFormat", upperCase, firstName2);
 			return fullName;
 		} else {
 			return "";
@@ -1938,6 +2079,17 @@ public class Athlete {
 	@JsonIgnore
 	public Integer getGamxRank() {
 		return this.gamxRank;
+	}
+
+	/**
+	 * Gets the score according to the competition's global scoring system.
+	 * This method returns the appropriate score (Sinclair, QPoints, Robi, etc.)
+	 * based on the Competition.getScoringSystem() setting.
+	 *
+	 * @return the score value according to the global scoring system
+	 */
+	public Double getGlobalScore() {
+		return Ranking.getRankingValue(this, Competition.getCurrent().getScoringSystem());
 	}
 
 	/**
@@ -2192,6 +2344,14 @@ public class Athlete {
 
 	public List<Participation> getParticipations() {
 		return this.participations;
+	}
+
+	@Transient
+	@JsonIgnore
+	public List<Participation> getCleanParticipations() {
+		return this.participations.stream()
+		        .filter(p -> p.getCategory() != null && p.getCategory().getAgeGroup() != null)
+		        .toList();
 	}
 
 	public Integer getPersonalBestCleanJerk() {
@@ -3001,6 +3161,13 @@ public class Athlete {
 
 	@Transient
 	@JsonIgnore
+	public String getTeamFlagPath() {
+		// use the same approach as URLUtils to find the flag
+		return URLUtils.getFlagResourcePath(this.team, new String[] { ".png" });
+	}
+
+	@Transient
+	@JsonIgnore
 	public String getTeamAgeGroupsAsString() {
 		Set<String> s = new LinkedHashSet<>();
 		List<Participation> participations2 = getParticipations();
@@ -3289,7 +3456,7 @@ public class Athlete {
 	}
 
 	public boolean isEligibleForIndividualRanking() {
-		return this.eligibleForIndividualRanking;
+		return this.getEffectiveIndividualEligibilityStatus() == EligibleForIndividualRankingStatus.ELIGIBLE;
 	}
 
 	public boolean isEligibleForTeamRanking() {
@@ -3405,6 +3572,7 @@ public class Athlete {
 		// in a checkbox group
 		List<Participation> participations2 = getParticipations();
 		for (Participation p : participations2) {
+			// logger.debug("p.getCategory()={} p.getCategory().getAgeGroup()={}", p.getCategory(), p.getCategory() != null ? p.getCategory().getAgeGroup() : null);
 			p.setTeamMember(s.contains(p.getCategory().getAgeGroup().getDisplayName()));
 		}
 	}
@@ -3913,7 +4081,48 @@ public class Athlete {
 	}
 
 	public void setEligibleForIndividualRanking(boolean eligibleForIndividualRanking) {
+		// setter behavior
 		this.eligibleForIndividualRanking = eligibleForIndividualRanking;
+
+		// derived values
+		if (eligibleForIndividualRanking) {
+			// Explicitly mark as eligible when coming from a non-inclusion state.
+			if (this.individualEligibilityStatus == null
+			        || !this.individualEligibilityStatus.isInclusion()) {
+				this.individualEligibilityStatus = EligibleForIndividualRankingStatus.ELIGIBLE;
+			}
+			return;
+		} else {
+			// Setting to false keeps existing explicit non-eligible statuses when present.
+			if (this.individualEligibilityStatus == null
+			        || (this.individualEligibilityStatus != null && this.individualEligibilityStatus.isInclusion())) {
+				this.individualEligibilityStatus = EligibleForIndividualRankingStatus.OOC_INVITED;
+			}
+		}
+	}
+
+	public EligibleForIndividualRankingStatus getIndividualEligibilityStatus() {
+		return this.individualEligibilityStatus;
+	}
+
+	/**
+	 * Return the effective participation status: if an explicit enum is set return it, otherwise map the legacy boolean to ELIGIBLE / OOC_INVITED.
+	 */
+	public EligibleForIndividualRankingStatus getEffectiveIndividualEligibilityStatus() {
+		if (this.individualEligibilityStatus != null) {
+			return this.individualEligibilityStatus;
+		}
+		return this.eligibleForIndividualRanking ? EligibleForIndividualRankingStatus.ELIGIBLE
+		        : EligibleForIndividualRankingStatus.OOC_INVITED;
+	}
+
+	public void setIndividualEligibilityStatus(EligibleForIndividualRankingStatus status) {
+		this.individualEligibilityStatus = status;
+		// If status is non-null, derive the boolean from the enum (ELIGIBLE -> true, others -> false).
+		// If status is null, leave the boolean unchanged to preserve legacy database semantics.
+		if (status != null) {
+			this.eligibleForIndividualRanking = (status == EligibleForIndividualRankingStatus.ELIGIBLE);
+		}
 	}
 
 	public void setEligibleForTeamRanking(boolean eligibleForTeamRanking) {
@@ -5716,7 +5925,7 @@ public class Athlete {
 	 */
 	@Transient
 	@JsonIgnore
-	private Double sinclairFactor(Double bodyWeight1, Double coefficient, Double maxWeight) {
+	public static Double sinclairFactor(Double bodyWeight1, Double coefficient, Double maxWeight) {
 		if (bodyWeight1 == null) {
 			return 0.0;
 		}
@@ -5965,6 +6174,7 @@ public class Athlete {
 		// Category category = getCategory();
 		Category category = IWFCategories.findIWFCategory(this);
 		if (category == null) {
+			logger./**/warn("getCategorySinclairForDelta: category not found {}", this);
 			return 0.0;
 		}
 		Double categoryWeight = category.getMaximumWeight();
@@ -6094,6 +6304,17 @@ public class Athlete {
 
 	public void setScaleWeight(Double scaleWeight) {
 		this.scaleWeight = scaleWeight;
+	}
+
+	public void dump(String string) {
+		var a = this;
+		logger./**/warn("{} id={} {} {} S={} C={} T={} {}", string, a.getId(), a.getAbbreviatedName(), System.identityHashCode(a), a.getBestSnatch(),
+		        a.getBestCleanJerk(),
+		        a.getTotal(), app.owlcms.utils.LoggerUtils.whereFrom());
+		for (Participation p : a.getParticipations()) {
+			logger./**/warn("    {} S{} C{} T{} Sc{} {}", p.getCategory(), p.getSnatchRank(), p.getCleanJerkRank(), p.getTotalRank(), p.getCategoryScoreRank(),
+			        System.identityHashCode(p));
+		}
 	}
 
 }

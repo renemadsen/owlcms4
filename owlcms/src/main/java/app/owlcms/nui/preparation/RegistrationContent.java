@@ -192,6 +192,15 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			        }).open();
 		});
 		clearLifts.getElement().setAttribute("title", Translator.translate("ClearLifts_forListed"));
+		
+		Button clearWeighIn = new Button(Translator.translate("ClearWeighIn"), (e) -> {
+			new ConfirmationDialog(Translator.translate("ClearWeighIn"),
+			        Translator.translate("Warning_WeighIn"),
+			        Translator.translate("WeighInCleared"), () -> {
+				        clearWeighIn();
+				        refresh();
+			        }).open();
+		});
 
 		Button resetCats = new Button(Translator.translate("ResetCategories.ResetAthletes"), (e) -> {
 			new ConfirmationDialog(
@@ -209,7 +218,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		hr.getStyle().set("padding", "0");
 		FlexLayout buttons = new FlexLayout(
 		        // new NativeLabel(Translator.translate("Preparation")),
-		        drawLots, deleteAthletes, clearLifts,
+		        drawLots, deleteAthletes, clearLifts, clearWeighIn,
 		        resetCats
 		// , hr,
 		// new NativeLabel(Translator.translate("Entries")),
@@ -461,8 +470,8 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		params.remove("fop");
 
 		// change the URL to reflect group
-		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
-		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(event.getUI().getPage().getHistory(),null, newLocation, getLocation());
 	}
 
 	@Override
@@ -485,18 +494,29 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		Set<Athlete> regCatAthletes = found.stream().map(pa -> ((PAthlete) pa)._getAthlete())
 		        .collect(Collectors.toSet());
 
-		// we also need athletes with no participations (implies no category)
-		List<Athlete> noCat = AthleteRepository.findAthletesNoCategory();
+		// we also need athletes with no participations
+		List<Athlete> noCat = AthleteRepository.findAthletesNoParticipations();
 		List<Athlete> found2 = filterAthletes(noCat);
 		regCatAthletes.addAll(found2);
+
+		// we also need athletes with no category
+		List<Athlete> noCat3 = AthleteRepository.findAthletesNoCategory();
+		List<Athlete> found3 = filterAthletes(noCat3);
+		regCatAthletes.addAll(found3);
 
 		// sort
 		List<Athlete> regCatAthletesList = new ArrayList<>(regCatAthletes);
 		if (sessionOrder) {
 			Collections.sort(regCatAthletesList, RegistrationOrderComparator.athleteSessionRegistrationOrderComparator);
 		} else {
-			AthleteSorter.registrationOrder(regCatAthletesList);
+			try {
+				AthleteSorter.registrationOrder(regCatAthletesList);
+			} catch (Exception e) {
+				logger.error("***** Error sorting athletes", e);
+			}
 		}
+
+		//logger.debug("***** athletesFindAll: found {} athletes with category: {}, without participations: {}, without category: {}", regCatAthletes.size(), found2.size(), found3.size());
 
 		updateURLLocations();
 		return regCatAthletesList;
@@ -595,7 +615,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		sortOrder.add(new GridSortOrder<>(groupCol, SortDirection.ASCENDING));
 		grid.sort(sortOrder);
 
-		OwlcmsCrudGrid<Athlete> crudGrid = new OwlcmsCrudGrid<>(Athlete.class, new OwlcmsGridLayout(Athlete.class) {
+		OwlcmsCrudGrid<Athlete> crudGrid = new OwlcmsCrudGrid<Athlete>(Athlete.class, new OwlcmsGridLayout(Athlete.class) {
 
 			@Override
 			public void hideForm() {
@@ -607,6 +627,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			}
 		},
 		        crudFormFactory, grid);
+		
 		crudGrid.setCrudListener(this);
 		crudGrid.setClickRowToUpdate(true);
 		return crudGrid;
@@ -900,7 +921,22 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			em.flush();
 			return null;
 		});
-		// when doing tests, the clock may have been started, need to clear
+		// when doing on-site tests, the clock may have been started, need to clear
+		// otherwise marshal gets confusing message.
+		OwlcmsFactory.getFOPs().forEach(f -> f.setWeightAtLastStart(0));
+	}
+	
+	private void clearWeighIn() {
+		JPAService.runInTransaction(em -> {
+			List<Athlete> athletes = athletesFindAll(false);
+			for (Athlete a : athletes) {
+				a.clearWeighIn();
+				em.merge(a);
+			}
+			em.flush();
+			return null;
+		});
+		// when doing on-site tests, the clock may have been started, need to clear
 		// otherwise marshal gets confusing message.
 		OwlcmsFactory.getFOPs().forEach(f -> f.setWeightAtLastStart(0));
 	}
@@ -1029,12 +1065,12 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 				return compare;
 			}
 
-			// deal with athletes not fully registered or not eligible to any category.
-			Participation mainRankings1 = a1.getMainRankings() != null ? a1.getMainRankings() : null;
-			Participation mainRankings2 = a2.getMainRankings() != null ? a2.getMainRankings() : null;
-			Category category1 = mainRankings1 != null ? mainRankings1.getCategory() : null;
-			Category category2 = mainRankings2 != null ? mainRankings2.getCategory() : null;
-			compare = ObjectUtils.compare(category1, category2, true);
+			// in the context of weigh-in and registration, the displayed category is the one from the wrapped athlete
+			// to guarantee sort stability, we use the most stable category object
+			Category mainCat1 = a1 instanceof PAthlete ? ((PAthlete) a1)._getAthlete().getCategory() : a1.getCategory();
+			Category mainCat2 = a2 instanceof PAthlete ? ((PAthlete) a2)._getAthlete().getCategory() : a2.getCategory();
+			// null may happen with athletes not fully registered or not eligible to any category.
+			compare = ObjectUtils.compare(mainCat1, mainCat2, true);
 			if (compare != 0) {
 				logComparison(compare, a1, a2, "mainCategory");
 				return compare;
@@ -1049,11 +1085,11 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 
 	private void logComparison(int compare, Athlete a1, Athlete a2, String string) {
 		if (compare == 0) {
-			// logger.trace("({}) {} = {}", string, athleteLog(a1), athleteLog(a2));
+			//logger.debug("({}) {} = {}", string, athleteLog(a1), athleteLog(a2));
 		} else if (compare < 0) {
-			// logger.trace("({}) {} < {}", string, athleteLog(a1), athleteLog(a2));
+			//logger.debug("({}) {} < {}", string, athleteLog(a1), athleteLog(a2));
 		} else if (compare > 0) {
-			// logger.trace("({}) {} > {}", string, athleteLog(a1), athleteLog(a2));
+			//logger.debug("({}) {} > {}", string, athleteLog(a1), athleteLog(a2));
 		}
 	}
 
@@ -1083,7 +1119,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 		} else {
 			params.remove("group");
 		}
-		URLUtils.replaceState(ui.getPage().getHistory(),null,
-		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(ui.getPage().getHistory(),null, newLocation, location);
 	}
 }

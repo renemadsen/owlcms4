@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright © 2009-present Jean-Fran�ois Lamy
+ * Copyright © 2009-present Jean-François Lamy
  *
  * Licensed under the Non-Profit Open Software License version 3.0  ("NPOSL-3.0")
  * License text at https://opensource.org/licenses/NPOSL-3.0
@@ -37,7 +37,6 @@ import app.owlcms.fieldofplay.FOPState;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.lifting.UIEventProcessor;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import app.owlcms.uievents.BreakType;
@@ -136,6 +135,7 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 	private FieldOfPlay fop;
 	private Group group;
 	private QueryParameters defaultParameters;
+	private boolean publicDisplay;
 
 	/**
 	 * Instantiates a new results board.
@@ -176,7 +176,9 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("Video.EventMonitoringButton") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("Video.EventMonitoringButton") + suffix;
 	}
 
 	@Override
@@ -264,10 +266,9 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 			return;
 		} else if (e instanceof UIEvent.Notification) {
 			UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
-				OwlcmsSession.withFop(fop -> {
-					this.logger.trace("---- notification {} {}", fop.getName(),
-					        ((UIEvent.Notification) e).getNotificationString());
-				});
+				FieldOfPlay fop = getFop();
+				this.logger.trace("---- notification {} {}", fop.getName(),
+				        ((UIEvent.Notification) e).getNotificationString());
 			});
 		}
 		uiEventLogger.debug("### {} {} {} {}", this.getClass().getSimpleName(), e /* , e.getTrace() */);
@@ -304,15 +305,14 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		// fop obtained via FOPParameters interface default methods.
-		OwlcmsSession.withFop(fop -> {
-			init();
+		FieldOfPlay fop = getFop();
+		init();
 
-			checkVideo(this);
-			// sync with current status of FOP
-			syncWithFOP(null);
-			// we listen on uiEventBus.
-			this.uiEventBus = uiEventBusRegister(this, fop);
-		});
+		computeStylesDir(this);
+		// sync with current status of FOP
+		syncWithFOP(null);
+		// we listen on uiEventBus.
+		this.uiEventBus = uiEventBusRegister(this, fop);
 		doUpdate();
 	}
 
@@ -472,10 +472,9 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 	}
 
 	private void init() {
-		OwlcmsSession.withFop(fop -> {
-			this.logger.trace("{}Starting notification monitor", FieldOfPlay.getLoggingName(fop));
-			setId("scoreboard-" + fop.getName());
-		});
+		FieldOfPlay fop = getFop();
+		this.logger.trace("{}Starting notification monitor", FieldOfPlay.getLoggingName(fop));
+		setId("scoreboard-" + fop.getName());
 	}
 
 	private boolean isNotEmpty(List<RecordEvent> list) {
@@ -488,44 +487,43 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 
 	private boolean syncWithFOP(UIEvent e) {
 		boolean significant[] = { false };
-		OwlcmsSession.withFop(fop -> {
-			this.currentFOP = fop.getName();
-			boolean fopChallengedRecords = fop.getChallengedRecords() != null && !fop.getChallengedRecords().isEmpty();
-			boolean newRecord = e instanceof UIEvent.JuryNotification && ((UIEvent.JuryNotification) e).getNewRecord();
-			boolean curChallengedRecords = this.history.get(0).challengedRecords;
+		FieldOfPlay fop = getFop();
+		this.currentFOP = fop.getName();
+		boolean fopChallengedRecords = fop.getChallengedRecords() != null && !fop.getChallengedRecords().isEmpty();
+		boolean newRecord = e instanceof UIEvent.JuryNotification && ((UIEvent.JuryNotification) e).getNewRecord();
+		boolean curChallengedRecords = this.history.get(0).challengedRecords;
 
-			boolean stateChanged = fop.getState() != this.history.get(0).state;
-			boolean recordsChanged = fopChallengedRecords != curChallengedRecords;
-			this.logger.debug(">>>>>>EventMonitor event {} fop {} history {} recordsChanged {}",
-			        e != null ? e.getClass().getSimpleName() : null, fop.getState(), this.history.get(0).state,
-			        recordsChanged);
-			if (e != null && e instanceof UIEvent.DecisionReset) {
-				// this event does not change state, and should always be ignored.
-				// however, because it can occur very close to the lifter update, and we have
-				// asynchronous events
-				// there is a possibility that it comes late and out of order. So we ignore it
-				// explicitly.
-				this.logger.debug(">>>>>>EventMonitor DecisionReset ignored");
-				significant[0] = false;
-			} else if (stateChanged || recordsChanged) {
-				doPush(new Status(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), fop.getGoodLift(),
-				        isNotEmpty(fop.getChallengedRecords()) || newRecord, fop.getCurrentStage()));
+		boolean stateChanged = fop.getState() != this.history.get(0).state;
+		boolean recordsChanged = fopChallengedRecords != curChallengedRecords;
+		this.logger.debug(">>>>>>EventMonitor event {} fop {} history {} recordsChanged {}",
+		        e != null ? e.getClass().getSimpleName() : null, fop.getState(), this.history.get(0).state,
+		        recordsChanged);
+		if (e != null && e instanceof UIEvent.DecisionReset) {
+			// this event does not change state, and should always be ignored.
+			// however, because it can occur very close to the lifter update, and we have
+			// asynchronous events
+			// there is a possibility that it comes late and out of order. So we ignore it
+			// explicitly.
+			this.logger.debug(">>>>>>EventMonitor DecisionReset ignored");
+			significant[0] = false;
+		} else if (stateChanged || recordsChanged) {
+			doPush(new Status(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), fop.getGoodLift(),
+			        isNotEmpty(fop.getChallengedRecords()) || newRecord, fop.getCurrentStage()));
+			significant[0] = true;
+		} else if (fop.getState() == FOPState.BREAK) {
+			if (fop.getBreakType() != this.history.get(0).breakType
+			        || fop.getCeremonyType() != this.history.get(0).ceremonyType) {
+				doPush(new Status(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), null,
+				        isNotEmpty(fop.getChallengedRecords()), null));
 				significant[0] = true;
-			} else if (fop.getState() == FOPState.BREAK) {
-				if (fop.getBreakType() != this.history.get(0).breakType
-				        || fop.getCeremonyType() != this.history.get(0).ceremonyType) {
-					doPush(new Status(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), null,
-					        isNotEmpty(fop.getChallengedRecords()), null));
-					significant[0] = true;
-				} else {
-					// logger.trace("*** EventMonitor ignored duplicate {} {}",
-					// fop.getBreakType(),
-					// fop.getCeremonyType());
-				}
 			} else {
-				// logger.trace("*** EventMonitor non break {}", fop.getState());
+				// logger.trace("*** EventMonitor ignored duplicate {} {}",
+				// fop.getBreakType(),
+				// fop.getCeremonyType());
 			}
-		});
+		} else {
+			// logger.trace("*** EventMonitor non break {}", fop.getState());
+		}
 		this.logger.debug(">>>>>>EventMonitor sync significant {}", significant[0]);
 		return significant[0];
 	}
@@ -544,7 +542,7 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 		// element.callJsFunction("setTitle", title);
 
 		if (title.contains(".NEW_RECORD")) {
-			element.setProperty("title", Translator.translate("NewRecord"));
+			element.setProperty("title", Translator.translate("VideoNotification.NewRecord"));
 			this.showLonger = true;
 		} else if (title.contains(".RECORD_ATTEMPT")) {
 			element.setProperty("notificationClass", "attemptNotification");
@@ -581,5 +579,15 @@ public class StreamingEventMonitor extends LitTemplate implements FOPParametersR
 
 	private long waitBeforeChangingStatus() {
 		return getExpiryBeforeChangingStatus() - System.currentTimeMillis();
+	}
+	
+	@Override
+	public void setPublicDisplay(boolean publicDisplay) {
+		this.publicDisplay = publicDisplay;
+	}
+
+	@Override
+	public boolean isPublicDisplay() {
+		return publicDisplay;
 	}
 }

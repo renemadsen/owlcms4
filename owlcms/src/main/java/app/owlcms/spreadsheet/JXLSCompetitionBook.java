@@ -6,10 +6,12 @@
  *******************************************************************************/
 package app.owlcms.spreadsheet;
 
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+
+import app.owlcms.data.records.RecordEvent;
 
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -23,6 +25,7 @@ import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
+import app.owlcms.data.category.UnfinishedCategories;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
@@ -65,7 +68,7 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 	}
 
 	@Override
-	public List<Athlete> getSortedAthletes() {
+	public List<Athlete> computeSortedAthletes() {
 		// not used (setReportingInfo does all the work)
 		return null;
 	}
@@ -126,6 +129,7 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 		competition.computeReportingInfo(getAgeGroupPrefix(), getChampionship());
 
 		super.setReportingInfo();
+
 		Object records = super.getReportingBeans().get("records");
 		HashMap<String, Object> reportingBeans = competition.getReportingBeans();
 
@@ -137,14 +141,15 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 				if (bean instanceof List && ((List) bean).size() > 0 && ((List) bean).get(0) instanceof Athlete) {
 					this.logger.debug("cleaning up {}", k);
 					List<Athlete> bean2 = (List<Athlete>) bean;
-					Set<String> unfinishedCategories = AthleteRepository.unfinishedCategories(bean2);
-					bean2 = bean2.stream().filter(a -> !unfinishedCategories.contains(a.getCategoryCode())).toList();
+					UnfinishedCategories unfinishedCategories = AthleteRepository.unfinishedCategories(bean2);
+					bean2 = bean2.stream().filter(a -> !unfinishedCategories.contains(a.getCategory())).toList();
 					reportingBeans.put(k, bean2);
 				}
 			}
 		}
 
-		reportingBeans.put("records", records);
+		// Filter records to only those RecordEvent objects with non-null and non-empty group field
+		keepProvisionalRecords(records, reportingBeans);
 
 		Ranking overallScoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
 		JXLSWorkbookStreamSource.setNoInterimScoresInResults(Config.getCurrent().featureSwitch("noInterimScoresInResults"));
@@ -157,28 +162,52 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 			reportingBeans.put("mBest", AthleteSorter.resultsOrderCopy(sortedMen, overallScoringSystem));
 			reportingBeans.put("wBest", AthleteSorter.resultsOrderCopy(sortedWomen, overallScoringSystem));
 		}
-		
+
 		String brt = overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete");
 		reportingBeans.put("bestRankingTitle", brt);
 
-		if (isWinnersOnly()) {
-			Collection<Athlete> bestMen = ((Collection<Athlete>) reportingBeans
-			        .get(overallScoringSystem.getMReportingName()));
-			if (this.winnersOnly) {
-				bestMen = bestMen.stream().filter(a -> a.getTotalRank() == 1).toList();
+		if (overallScoringSystem != null) {
+			if (isWinnersOnly()) {
+				Collection<Athlete> bestMen = ((Collection<Athlete>) reportingBeans
+				        .get(overallScoringSystem.getMReportingName()));
+				if (this.winnersOnly) {
+					bestMen = bestMen.stream().filter(a -> a.getTotalRank() == 1).toList();
+				}
+				reportingBeans.put("mBest", bestMen);
+				Collection<Athlete> bestWomen = ((Collection<Athlete>) reportingBeans
+				        .get(overallScoringSystem.getWReportingName()));
+				if (this.winnersOnly) {
+					bestWomen = bestWomen.stream().filter(a -> a.getTotalRank() == 1).toList();
+				}
+				reportingBeans.put("wBest", bestWomen);
+			} else {
+				reportingBeans.put("mBest", reportingBeans.get(overallScoringSystem.getMReportingName()));
+				reportingBeans.put("wBest", reportingBeans.get(overallScoringSystem.getWReportingName()));
 			}
-			reportingBeans.put("mBest", bestMen);
-			Collection<Athlete> bestWomen = ((Collection<Athlete>) reportingBeans
-			        .get(overallScoringSystem.getWReportingName()));
-			if (this.winnersOnly) {
-				bestWomen = bestWomen.stream().filter(a -> a.getTotalRank() == 1).toList();
-			}
-			reportingBeans.put("wBest", bestWomen);
-		} else {
-			reportingBeans.put("mBest", reportingBeans.get(overallScoringSystem.getMReportingName()));
-			reportingBeans.put("wBest", reportingBeans.get(overallScoringSystem.getWReportingName()));
 		}
 		setReportingBeans(reportingBeans);
+	}
+
+	private void keepProvisionalRecords(Object records, HashMap<String, Object> reportingBeans) {
+		if (records instanceof List<?>) {
+			try {
+				@SuppressWarnings("unchecked")
+				List<?> recordList = (List<?>) records;
+				if (!recordList.isEmpty() && recordList.get(0) instanceof RecordEvent) {
+					List<RecordEvent> filtered = recordList.stream()
+						.map(o -> (RecordEvent) o)
+						.filter(r -> r != null && r.getGroupNameString() != null && !r.getGroupNameString().isBlank())
+						.toList();
+					reportingBeans.put("records", filtered);
+				} else {
+					reportingBeans.put("records", records);
+				}
+			} catch (ClassCastException e) {
+				reportingBeans.put("records", records);
+			}
+		} else {
+			reportingBeans.put("records", records);
+		}
 	}
 
 	/**

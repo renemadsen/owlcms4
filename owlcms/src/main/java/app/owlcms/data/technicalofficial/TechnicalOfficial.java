@@ -10,7 +10,10 @@ package app.owlcms.data.technicalofficial;
 import java.io.Serializable;
 
 import javax.persistence.Cacheable;
+import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.Enumerated;
+import javax.persistence.EnumType;
 import javax.persistence.Id;
 import javax.persistence.Transient;
 
@@ -22,7 +25,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
+import app.owlcms.i18n.Translator;
 import app.owlcms.utils.IdUtils;
+import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
@@ -47,6 +52,44 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 	private String federation;
 	private String federationId;
 	private String affiliation;
+	@Enumerated(EnumType.STRING)
+	@Column(columnDefinition = "varchar(255) default 'TECHNICAL_OFFICIAL'")
+	private Role role;
+	@Column(columnDefinition = "boolean default false")
+	private boolean active;
+
+	public enum CredentialType {
+		TECHNICAL_OFFICIAL,
+		ORGANIZATION,
+		INVITED,
+		MEDIA,
+		MEDICAL
+	}
+
+	public enum Role {
+		TECHNICAL_OFFICIAL(CredentialType.TECHNICAL_OFFICIAL),
+		COMPETITION_DIRECTOR(CredentialType.TECHNICAL_OFFICIAL),
+		COMPETITION_SECRETARY(CredentialType.TECHNICAL_OFFICIAL),
+		STAFF(CredentialType.ORGANIZATION),
+		VOLUNTEER(CredentialType.ORGANIZATION),
+		LOADER(CredentialType.ORGANIZATION),
+		INFORMATION_TECHNOLOGY(CredentialType.ORGANIZATION),
+		VIDEO(CredentialType.ORGANIZATION),
+		MEDIA(CredentialType.MEDIA),
+		VIP(CredentialType.INVITED),
+		DOCTOR(CredentialType.MEDICAL),
+		MEDICAL_STAFF(CredentialType.MEDICAL);
+
+		private final CredentialType credentialType;
+
+		Role(CredentialType credentialType) {
+			this.credentialType = credentialType;
+		}
+
+		public CredentialType getCredentialType() {
+			return credentialType;
+		}
+	}
 
 	public void setId(Long id) {
 		this.id = id;
@@ -57,6 +100,8 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 	 */
 	public TechnicalOfficial() {
 		setId(IdUtils.getTimeBasedId());
+		this.role = Role.TECHNICAL_OFFICIAL;
+		this.active = false;
 		// logger.debug"new Platform 1 {} {}",this.getNbB_5(), LoggerUtils.whereFrom());
 	}
 
@@ -65,7 +110,8 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 	 *
 	 * @param name the name
 	 */
-	public TechnicalOfficial(String lastName, String firstName, TOLevel level, String iwfId, String federation, String federationId, String affiliation) {
+	public TechnicalOfficial(String lastName, String firstName, TOLevel level, String iwfId, String federation,
+			String federationId, String affiliation) {
 		setId(IdUtils.getTimeBasedId());
 		this.lastName = lastName;
 		this.firstName = firstName;
@@ -74,6 +120,8 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 		this.federation = federation;
 		this.federationId = federationId;
 		this.affiliation = affiliation;
+		this.role = Role.TECHNICAL_OFFICIAL;
+		this.active = false;
 	}
 
 	@Override
@@ -93,6 +141,13 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 		TechnicalOfficial other = (TechnicalOfficial) obj;
 		return getId() != null && getId().equals(other.getId());
 
+	}
+
+	@Override
+	public int hashCode() {
+		// Use id for hashCode to be consistent with equals
+		// https://vladmihalcea.com/how-to-implement-equals-and-hashcode-using-the-jpa-entity-identifier/
+		return (getId() != null) ? getId().hashCode() : 0;
 	}
 
 	/**
@@ -172,6 +227,70 @@ public class TechnicalOfficial implements Serializable, Comparable<TechnicalOffi
 
 	public void setAffiliation(String affiliation) {
 		this.affiliation = affiliation;
+	}
+
+	public Role getRole() {
+		return role;
+	}
+
+	public void setRole(Role role) {
+		this.role = role;
+	}
+
+	public boolean isActive() {
+		return active;
+	}
+
+	public void setActive(boolean active) {
+		this.active = active;
+	}
+
+	@Transient
+	@JsonIgnore
+	public CredentialType getCredentialType() {
+		return role != null ? role.getCredentialType() : null;
+	}
+
+	/**
+	 * Get the translated role name for display.
+	 * 
+	 * @return translated role name, or empty string if role is null
+	 */
+	@Transient
+	@JsonIgnore
+	public String getTranslatedRole() {
+		if (role == null) {
+			return "";
+		}
+		return Translator.translate("TO.Role." + role.name());
+	}
+
+	/**
+	 * Get the translated credential type name for display.
+	 * 
+	 * @return translated credential type name, or empty string if credential type is null
+	 */
+	@Transient
+	@JsonIgnore
+	public String getTranslatedCredentialType() {
+		CredentialType credentialType = getCredentialType();
+		if (credentialType == null) {
+			return "";
+		}
+		return Translator.translate("TO.CredentialType." + credentialType.name());
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getTeamFlagPath() {
+		String fed = this.getFederation();
+		logger.debug("TO {} federation {}", this, fed);
+		// use the same approach as URLUtils to find the flag
+		return URLUtils.getFlagResourcePath(fed, new String[] { ".png" });
+	}
+
+	public void setTeamFlagPath(String path) {
+		// no-op, just to please some serializers
 	}
 
 }

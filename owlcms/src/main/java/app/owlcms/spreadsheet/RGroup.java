@@ -49,6 +49,11 @@ public class RGroup {
 	String platform;
 	String masters;
 	String reserveJury;
+	String doctor;
+	String doctor2;
+	String doctor3;
+	String competitionSecretary;
+	String competitionSecretary2;
 
 	public String getAnnouncer() {
 		return this.announcer;
@@ -140,6 +145,26 @@ public class RGroup {
 
 	public String getWeighInTO2() {
 		return this.weighInTO2;
+	}
+
+	public String getDoctor() {
+		return this.doctor;
+	}
+
+	public String getDoctor2() {
+		return this.doctor2;
+	}
+
+	public String getDoctor3() {
+		return this.doctor3;
+	}
+
+	public String getCompetitionSecretary() {
+		return this.competitionSecretary;
+	}
+
+	public String getCompetitionSecretary2() {
+		return this.competitionSecretary2;
 	}
 
 	public void setAnnouncer(String announcer) {
@@ -299,6 +324,31 @@ public class RGroup {
 	public void setWeighInTO2(String weighInTO2) {
 		this.group.setWeighIn2(weighInTO2);
 		this.weighInTO2 = weighInTO2;
+	}
+
+	public void setDoctor(String doctor) {
+		this.group.setDoctor(doctor);
+		this.doctor = doctor;
+	}
+
+	public void setDoctor2(String doctor2) {
+		this.group.setDoctor2(doctor2);
+		this.doctor2 = doctor2;
+	}
+
+	public void setDoctor3(String doctor3) {
+		this.group.setDoctor3(doctor3);
+		this.doctor3 = doctor3;
+	}
+
+	public void setCompetitionSecretary(String competitionSecretary) {
+		this.group.setCompetitionSecretary(competitionSecretary);
+		this.competitionSecretary = competitionSecretary;
+	}
+
+	public void setCompetitionSecretary2(String competitionSecretary2) {
+		this.group.setCompetitionSecretary2(competitionSecretary2);
+		this.competitionSecretary2 = competitionSecretary2;
 	}
 
 	public String getMasters() {

@@ -17,10 +17,10 @@ import com.vaadin.flow.router.Route;
 import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.config.Config;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.displays.attemptboard.AbstractAttemptBoard;
 import app.owlcms.displays.attemptboard.DecisionBoard;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
@@ -36,7 +36,9 @@ public class AthleteFacingDecisionBoardPage extends AbstractAttemptBoardPage {
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("Decision_AF_") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("Decision_AF_") + suffix;
 	}
 
 	@Override
@@ -61,7 +63,8 @@ public class AthleteFacingDecisionBoardPage extends AbstractAttemptBoardPage {
 		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
-		        SoundParameters.START_ORDER, "false");
+		        SoundParameters.START_ORDER, "false",
+		        DisplayParameters.CURRENT_ATTEMPT, "false");
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);
@@ -69,6 +72,7 @@ public class AthleteFacingDecisionBoardPage extends AbstractAttemptBoardPage {
 
 		AbstractAttemptBoard board = (AbstractAttemptBoard) getBoard();
 		board.getDecisions().setDontReset(false);
+		board.getDecisions().setDisplaySize("x-large");
 		board.setPublicFacing(false);
 		board.setShowBarbell(false);
 		setSilenced(false);

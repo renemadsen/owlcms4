@@ -157,6 +157,11 @@ public class SessionContent extends BaseContent implements CrudListener<Group>, 
 	}
 
 	@Override
+	public boolean isIgnoreFopFromURL() {
+		return true;
+	}
+
+	@Override
 	public void setRouterLayout(OwlcmsLayout routerLayout) {
 		this.routerLayout = routerLayout;
 	}
@@ -174,7 +179,7 @@ public class SessionContent extends BaseContent implements CrudListener<Group>, 
 		        .collect(Collectors.toSet());
 
 		// we also need athletes with no participations (implies no category)
-		List<Athlete> noCat = AthleteRepository.findAthletesNoCategory();
+		List<Athlete> noCat = AthleteRepository.findAthletesNoParticipations();
 		List<Athlete> found2 = filterAthletes(noCat);
 		regCatAthletes.addAll(found2);
 

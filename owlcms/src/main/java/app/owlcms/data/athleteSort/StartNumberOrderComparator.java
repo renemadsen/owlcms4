@@ -8,6 +8,8 @@ package app.owlcms.data.athleteSort;
 
 import java.util.Comparator;
 
+import org.apache.commons.lang3.ObjectUtils;
+
 import app.owlcms.data.athlete.Athlete;
 
 /**
@@ -26,23 +28,25 @@ public class StartNumberOrderComparator extends AbstractLifterComparator impleme
 	@Override
 	public int compare(Athlete lifter1, Athlete lifter2) {
 		int compare = 0;
-		
-		compare = compareAgeGroup(lifter1, lifter2);
-		if (compare != 0) {
-			return mastersSessionAgeGroupComparison(lifter1, lifter2, compare);
+
+		// nulls last
+		if (lifter1 == null && lifter2 == null) {
+			return 0;
+		} else if (lifter1 == null) {
+			return 1;
+		} else if (lifter2 == null) {
+			return -1;
 		}
 
-		compare = compareCategory(lifter1, lifter2);
+		compare = ObjectUtils.compare(lifter1.getStartNumber(), lifter2.getStartNumber(), true);
 		if (compare != 0) {
+			traceComparison("StartNumberOrderComparator", lifter1, lifter1.getStartNumber(), lifter2, lifter2.getStartNumber(), compare);
 			return compare;
 		}
 
-		compare = compareLotNumber(lifter1, lifter2);
-		if (compare != 0) {
-			return compare;
-		}
-
-		return compare;
+		// if athletes have 0 as start number (assignment was not done) or if manual assignment created duplicates,
+		// fall back to registration order
+		return RegistrationOrderComparator.athleteRegistrationOrderComparator.compare(lifter1, lifter2);
 	}
 
 }
