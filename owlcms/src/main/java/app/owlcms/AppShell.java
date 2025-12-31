@@ -58,6 +58,7 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 	 */
 	@Override
 	public void modifyIndexHtmlResponse(IndexHtmlResponse indexHtmlResponse) {
+		//System.err.println("//logger.debug( getCurrentUserLanguage "+getCurrentUserLanguage());
 		indexHtmlResponse.getDocument().getElementsByTag("html").attr("lang", getCurrentUserLanguage());
 	}
 
@@ -93,11 +94,20 @@ public class AppShell implements AppShellConfigurator, VaadinServiceInitListener
 					Throwable t = errorEvent.getThrowable();
 					if (!(t instanceof StopProcessingException) && !(t instanceof EofException)) {
 						LoggerFactory.getLogger("app.owlcms.errorHandler").warn("{}\n{}", t.toString(),
-						        LoggerUtils.shortStackTrace(t));
+						        LoggerUtils.stackTrace(t));
 					}
 				}
 			};
 			session.setErrorHandler(handler);
+		});
+
+		serviceInitEvent.getSource().addSessionDestroyListener(sde -> {
+			// Clear any thread-local copy when the Vaadin session is destroyed to avoid leaks
+			try {
+				app.owlcms.init.OwlcmsSessionThreadLocal.remove();
+			} catch (Throwable t) {
+				// ignore
+			}
 		});
 	}
 

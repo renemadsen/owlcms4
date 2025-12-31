@@ -15,6 +15,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
+// using per-task Threads instead of a pooled ExecutorService avoids inheritable ThreadLocal
+// leakage from pooled threads. A dedicated daemon Thread is started for each request.
+import java.util.concurrent.atomic.AtomicReference;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.FormatStyle;
@@ -22,14 +26,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.hssf.usermodel.HeaderFooter;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
@@ -45,9 +48,6 @@ import org.jxls.transform.poi.JxlsPoi;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.UI;
-import com.vaadin.flow.component.notification.Notification;
-import com.vaadin.flow.component.notification.Notification.Position;
-import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.server.InputStreamFactory;
 import com.vaadin.flow.server.StreamResourceWriter;
 import com.vaadin.flow.server.VaadinSession;
@@ -56,15 +56,20 @@ import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
+import app.owlcms.data.coach.CoachRepository;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.data.records.RecordEvent;
+import app.owlcms.data.technicalofficial.TechnicalOfficialRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
+import app.owlcms.init.OwlcmsSessionThreadLocal;
+import app.owlcms.servlet.StopProcessingException;
 import app.owlcms.utils.DateTimeUtils;
+import app.owlcms.utils.LocalResource;
 import app.owlcms.utils.LoggerUtils;
 import app.owlcms.utils.ResourceWalker;
 import ch.qos.logback.classic.Level;
@@ -90,29 +95,33 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		tagLogger.setLevel(Level.ERROR);
 	}
 
+	// prepareWithoutTemplate() removed — UI should use lightweight checks via defaultPreCheckFor(...) and
+	// writers should perform their own prepare() which may include template resolution as needed.
+
+		// No shared executor here; each download starts a short-lived daemon Thread.
+
 	public static Ranking getBestLifterRankingThreadLocal() {
 		Ranking blss = bestLifterRankingSystem.get();
-//		if (blss == null) {
-//			blss = Competition.getCurrent().getScoringSystem();
-//		}
+		// if (blss == null) {
+		// blss = Competition.getCurrent().getScoringSystem();
+		// }
 		return blss;
 	}
 
 	public static void setBestLifterRankingThreadLocal(Ranking bestLifterRankingValue) {
 		bestLifterRankingSystem.set(bestLifterRankingValue);
 	}
-	
+
 	protected static void setNoInterimScoresInResults(boolean noInterimScoresInResultsP) {
 		noInterimScoresInResults.set(noInterimScoresInResultsP);
 	}
-	
+
 	public static boolean isNoInterimScoresInResults() {
 		Boolean blss = noInterimScoresInResults.get();
-		return Boolean.TRUE.equals(blss);
+		return blss != null && Boolean.TRUE.equals(blss);
 	}
 
-
-	protected List<Athlete> sortedAthletes;
+	private List<Athlete> sortedAthletes;
 	private Championship championship;
 	private String ageGroupPrefix;
 	private Category category;
@@ -121,8 +130,9 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	protected InputStream inputStream;
 	private HashMap<String, Object> reportingBeans;
 	private String templateFileName;
+	@SuppressWarnings("unused")
 	private UI ui;
-	private Consumer<String> doneCallback;
+	private java.util.function.Consumer<Throwable> doneCallback;
 	private String fileExtension;
 	private boolean emptyOk = false;
 	private Integer pageLength = null;
@@ -137,6 +147,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		init();
 	}
 
+
 	/**
 	 * Read the xls template and write the processed XLS file out.
 	 *
@@ -150,7 +161,8 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 			logger.debug("*** getting {}", getBestLifterScoringSystem());
 			writeStream(stream);
 		} catch (Throwable t) {
-			logger.error(LoggerUtils./**/stackTrace(t));
+			LoggerUtils.logError(logger, t);
+			logger.error("writeStream failed: {}", LoggerUtils.stackTrace(t));
 		} finally {
 			session.unlock();
 		}
@@ -158,25 +170,77 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 
 	@Override
 	public InputStream createInputStream() {
+		logger.debug("============== createInputStream called {}\n", LoggerUtils.stackTrace());
+		// IMPORTANT: do NOT access VaadinSession or UI here. Pre-checks that require
+		// UI/Session must be executed by the caller (for example LazyDownloadButton.preCheck()).
+	// Return the background-driven InputStream immediately so Vaadin can stream it.
+	// Ensure reporting beans are available for the writer. Some callers may not invoke
+	// prepare() beforehand, so we keep this defensive initialization here as well.
+	setReportingInfo();
+	return doCreateStream();
+	}
+
+	protected InputStream doCreateStream() {
+		final PipedInputStream in = new PipedInputStream();
+		final PipedOutputStream out;
 		try {
-			PipedInputStream in = new PipedInputStream();
-			PipedOutputStream out = new PipedOutputStream(in);
-			new Thread(
-			        new Runnable() {
-				        @Override
-				        public void run() {
-					        try {
-						        writeStream(out);
-						        out.close();
-					        } catch (IOException e) {
-						        throw new RuntimeException(e);
-					        }
-				        }
-			        }).start();
-			return in;
+			out = new PipedOutputStream(in);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+
+		final AtomicReference<IOException> writerException = new AtomicReference<>();
+
+		Thread writerThread = new Thread(() -> {
+			try {
+				writeStream(out);
+				// success: notify caller
+				try { if (this.doneCallback != null) this.doneCallback.accept(null); } catch (Throwable cb) { /* swallow */ }
+			} catch (Throwable t) {
+				// notify doneCallback with a user-friendly message when available
+				try {
+					if (this.doneCallback != null) {
+						try {this.doneCallback.accept(t); } catch (Throwable cb) { /* swallow */ }
+					}
+				} catch (Throwable ignore) { }
+
+				if (t instanceof IOException) {
+					writerException.set((IOException) t);
+				} else if (t.getCause() instanceof IOException) {
+					writerException.set((IOException) t.getCause());
+				} else if (t instanceof StopProcessingException) {
+					writerException.set(new IOException(t));
+				} else {
+					writerException.set(new IOException(t));
+				}
+			} finally {
+				// Clear thread-local state to avoid leaking session/context if the Thread
+				// object is retained for any reason. This is defensive: per-task threads
+				// are normally reclaimed by the GC once terminated, but clearing is
+				// low-cost and prevents surprises if code changes later.
+				try {
+					OwlcmsSessionThreadLocal.remove();
+				} catch (Throwable ignore) {
+				}
+				try {
+					bestLifterRankingSystem.remove();
+				} catch (Throwable ignore) {
+				}
+				try {
+					noInterimScoresInResults.remove();
+				} catch (Throwable ignore) {
+				}
+				try {
+					out.close();
+				} catch (IOException e) {
+					logger.error("Error closing piped output stream", e);
+				}
+			}
+		}, "JXLSWorkbookStreamSource-writer");
+		writerThread.setDaemon(true);
+		writerThread.start();
+
+		return new InputStreamWrapper(in, writerException);
 	}
 
 	public void extractVariables(String comment) {
@@ -231,7 +295,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return this.championship;
 	}
 
-	public Consumer<String> getDoneCallback() {
+	public java.util.function.Consumer<Throwable> getDoneCallback() {
 		return this.doneCallback;
 	}
 
@@ -260,188 +324,138 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		return this.mergeColumnList;
 	}
 
-	public Integer getPageLength() {
-		return this.pageLength;
-	}
-
+	// Missing helper accessors used by subclasses and internal logic
 	public HashMap<String, Object> getReportingBeans() {
 		return this.reportingBeans;
 	}
 
-	public int getSizeLimit() {
-		return Integer.MAX_VALUE;
+	public void setReportingBeans(HashMap<String, Object> beans) {
+		this.reportingBeans = beans;
 	}
 
-	public List<Athlete> getSortedAthletes() {
-		return this.sortedAthletes;
-	}
-
-	public List<String> getSuffixes(Locale locale) {
-		List<String> tryList = new ArrayList<>();
-		if (!locale.getVariant().isEmpty() && !locale.getCountry().isEmpty() && !locale.getLanguage().isEmpty()) {
-			tryList.add("_" + locale.getLanguage() + "_" + locale.getCountry() + "_" + locale.getVariant());
-		}
-		if (!locale.getCountry().isEmpty() && !locale.getLanguage().isEmpty()) {
-			tryList.add("_" + locale.getLanguage() + "_" + locale.getCountry());
-		}
-		if (!locale.getLanguage().isEmpty()) {
-			tryList.add("_" + locale.getLanguage());
-		}
-		// try English explicitly for backward compatibility
-		if (!locale.getLanguage().equals("en")) {
-			tryList.add("_" + "en");
-		}
-		tryList.add("");
-		return tryList;
-	}
-
-	public InputStream getTemplate(Locale locale) throws IOException, Exception {
-		if (this.inputStream != null) {
-			logger.debug("explicitly set template {}", this.inputStream);
-			return new BufferedInputStream(this.inputStream);
-		}
-		String templateFileName2 = getTemplateFileName();
-		InputStream resourceAsStream = ResourceWalker.getFileOrResource(templateFileName2);
-		return new BufferedInputStream(resourceAsStream);
-	}
-
-	public String getTemplateFileName() {
-		return this.templateFileName;
+	public void setExcludeNotWeighed(boolean exclude) {
+		this.excludeNotWeighed = exclude;
 	}
 
 	public boolean isEmptyOk() {
 		return this.emptyOk;
 	}
 
-	public boolean isExcludeNotWeighed() {
-		return this.excludeNotWeighed;
+	public int getSizeLimit() {
+		// default generous limit; subclasses may override
+		return Integer.MAX_VALUE;
 	}
 
-	/**
-	 * @param ageGroupPrefix the ageGroupPrefix to set
-	 */
-	public void setAgeGroupPrefix(String ageGroupPrefix) {
-		this.ageGroupPrefix = ageGroupPrefix;
+	final public List<Athlete> getSortedAthletes() {
+		return this.sortedAthletes;
 	}
 
-	public void setBestLifterScoringSystem(Ranking computeScoringSystem) {
-		this.bestLifterScoringSystem = computeScoringSystem;
+	public List<Athlete> computeSortedAthletes() {
+		return this.getSortedAthletes();
 	}
 
-	public void setCategory(Category category) {
-		this.category = category;
-	}
-
-	public void setChampionship(Championship championship) {
-		this.championship = championship;
-	}
-
-	public void setDoneCallback(Consumer<String> action) {
-		this.doneCallback = action;
-	}
-
-	public void setEmptyOk(boolean emptyOk) {
-		this.emptyOk = emptyOk;
-	}
-
-	public void setExcludeNotWeighed(boolean excludeNotWeighed) {
-		this.excludeNotWeighed = excludeNotWeighed;
-	}
-
-	public void setFileExtension(String extension) {
-		// logger.debug("setting extension {} in {}",extension,this);
-		this.fileExtension = extension;
-	}
-
-	public void setFirstMergeLine(Integer firstMergeLine) {
-		this.firstMergeLine = firstMergeLine;
-	}
-
-	public void setGroup(Group group) {
-		this.group = group;
-	}
-
-	public void setInputStream(InputStream is) {
-		this.inputStream = is;
-	}
-
-	public void setLastLine(Integer lastLine) {
-		this.lastLine = lastLine;
-	}
-
-	// private boolean checkJxls3(Workbook tempWorkbook) throws IOException {
-	// boolean jxls3 = false;
-	// Sheet sheet = tempWorkbook.getSheetAt(0); // Get the first sheet
-	// Row row = sheet.getRow(0); // Get the first row (0-based)
-	// if (row != null) {
-	// Cell cell = row.getCell(0); // Get the first cell in the row (0-based)
-	// if (cell != null) {
-	// Comment comment = cell.getCellComment();
-	// jxls3 = (comment != null && comment.getString().getString().contains("jx:area"));
-	// if (comment != null) {
-	// String plainComment = comment.getString().getString();
-	// String regex = "lastCell=\"[A-Za-z](.*?)\"";
-	// Pattern pattern = Pattern.compile(regex);
-	// Matcher matcher = pattern.matcher(plainComment);
-	// if (matcher.find()) {
-	// String lastLine = matcher.group(1);
-	// try {
-	// this.setPageLength(Integer.parseInt(lastLine));
-	// } catch (NumberFormatException e) {
-	// LoggerUtils.logError(logger, e, true);
-	// }
-	// }
-	// }
-	// }
-	//
-	// }
-	// return jxls3;
-	// }
-
-	public void setMergeColumnList(List<Integer> columnsList) {
-		this.mergeColumnList = columnsList;
+	public String getTemplateFileName() {
+		return this.templateFileName;
 	}
 
 	public void setPageLength(Integer pageLength) {
 		this.pageLength = pageLength;
 	}
 
-	public void setReportingBeans(HashMap<String, Object> jXLSBeans) {
-		this.reportingBeans = jXLSBeans;
+	public Integer getPageLength() {
+		return this.pageLength;
 	}
 
-	public void setSortedAthletes(List<Athlete> sortedAthletes) {
-		this.sortedAthletes = sortedAthletes;
+	public void setLastLine(Integer lastLine) {
+		this.lastLine = lastLine;
 	}
 
-	public void setTemplateFileName(String templateFileName) {
-		this.templateFileName = templateFileName;
+	public void setFirstMergeLine(Integer firstMergeLine) {
+		this.firstMergeLine = firstMergeLine;
 	}
 
-	@SuppressWarnings("unchecked")
-	public void writeStream(OutputStream stream) throws IOException {
+	public void setMergeColumnList(List<Integer> list) {
+		this.mergeColumnList = list;
+	}
+
+	public void setFileExtension(String ext) {
+		this.fileExtension = ext;
+	}
+
+	// getTemplate(Locale) now has a default implementation lower in the class; subclasses may override it.
+
+	/**
+	 * Default concrete writeStream that reads the template and delegates to the
+	 * jxls transform helpers already defined in this class.
+	 */
+	protected void writeStream(OutputStream stream) throws IOException {
+		logger.debug("*** writeStream ***{}", this.getClass().getName());
 		File tempFile = null;
+		InputStream template = null;
 		try {
-			InputStream template;
-			Locale locale = OwlcmsSession.getLocale();
-			template = getTemplate(locale);
+			// Use the provided template stream if one was explicitly set via setInputStream().
+			// Otherwise, fetch the default template. In either case, wrap in BufferedInputStream
+			// for efficiency and mark/reset support, then copy to a temp file immediately so the
+			// original stream is available for reuse on subsequent downloads.
+			if (this.inputStream != null) {
+				template = new BufferedInputStream(this.inputStream);
+			} else {
+				template = new BufferedInputStream(getTemplate(OwlcmsSession.getLocale()));
+			}
+
+			// Copy template to temp file so WorkbookFactory/JXLS can operate on it
 			tempFile = File.createTempFile("jxlsTemplate", ".tmp");
 			FileUtils.copyInputStreamToFile(template, tempFile);
-			Workbook workbook = WorkbookFactory.create(tempFile);
+
+			Workbook workbook = WorkbookFactory.create(new FileInputStream(tempFile));
 			if (checkJxls3(workbook)) {
 				jxls3Transform(stream, tempFile);
 			} else {
 				jxls1Transform(stream, workbook);
 			}
-		} catch (Exception e) {
+		} catch (StopProcessingException e) {
 			LoggerUtils.logError(logger, e);
-			return;
+			// rethrow StopProcessingException directly so caller can handle it
+			throw e;
+		} catch (IOException e) {
+			throw e;
+		} catch (Throwable t) {
+			LoggerUtils.logError(logger, t);
+			throw new IOException(t);
 		} finally {
+			try {
+				if (template != null) {
+					template.close();
+				}
+			} catch (IOException ignore) {
+			}
 			if (tempFile != null) {
 				tempFile.delete();
 			}
 		}
+	}
 
+	// Common setters used by UI and other callers
+	public void setInputStream(InputStream template) {
+		this.inputStream = template;
+	}
+
+	public void setDoneCallback(java.util.function.Consumer<Throwable> cb) {
+		this.doneCallback = cb;
+	}
+
+	public void setSortedAthletes(List<Athlete> athletes) {
+		logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% === setSortedAthletes called, {} athletes {}", athletes != null ? athletes.size() : 0, LoggerUtils.whereFrom());
+		this.sortedAthletes = athletes;
+	}
+
+	public void setGroup(Group group) {
+		logger.debug("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% setGroup called, group = {} {}", group, LoggerUtils.whereFrom());
+		this.group = group;
+	}
+
+	public boolean isExcludeNotWeighed() {
+		return this.excludeNotWeighed;
 	}
 
 	/**
@@ -513,7 +527,7 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	 * @throws IOException
 	 */
 	protected InputStream getLocalizedTemplate(String templateName, String extension, Locale locale)
-	        throws IOException {
+			throws IOException {
 		List<String> tryList = getSuffixes(locale);
 		List<String> extensionList;
 		if (extension.equals(".xls")) {
@@ -540,6 +554,24 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		throw new IOException("no template found for : " + templateName + extension + " tried with suffix " + tryList);
 	}
 
+	private List<String> getSuffixes(Locale locale) {
+		List<String> result = new ArrayList<>();
+		if (locale == null) {
+			result.add("");
+			return result;
+		}
+		String language = locale.getLanguage();
+		String country = locale.getCountry();
+		if (language != null && !language.isEmpty()) {
+			if (country != null && !country.isEmpty()) {
+				result.add("_" + language + "_" + country);
+			}
+			result.add("_" + language);
+		}
+		result.add("");
+		return result;
+	}
+
 	protected void init() {
 		setReportingBeans(new HashMap<>());
 	}
@@ -552,19 +584,24 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	 * Return athletes as required by the template.
 	 */
 	protected void setReportingInfo() {
-		List<Athlete> athletes = getSortedAthletes();
+		List<Athlete> athletes = computeSortedAthletes();
 		if (athletes != null) {
 			getReportingBeans().put("athletes", athletes);
 			// logger.debug("*** Athletes : {}",athletes.stream().map(a-> a.getCategory()).toList());
 			getReportingBeans().put("lifters", athletes); // legacy
 		}
+		logger.debug("{} setReportingInfo called, group = {} athletes.size {} {}", this.getClass().getSimpleName(), getGroup(), athletes != null ? athletes.size() : "null", LoggerUtils.whereFrom());
 		Competition competition = Competition.getCurrent();
 		getReportingBeans().put("t", Translator.getMap());
 		getReportingBeans().put("tf", new JXLSFormatter());
 		getReportingBeans().put("competition", competition);
-		getReportingBeans().put("session", getGroup()); 
+		getReportingBeans().put("session", getGroup());
 		getReportingBeans().put("group", getGroup());// legacy
 		getReportingBeans().put("platforms", PlatformRepository.findAll());
+		getReportingBeans().put("coaches", CoachRepository.findAll());
+		getReportingBeans().put("tos", TechnicalOfficialRepository.findActive());
+
+		getReportingBeans().put("local", LocalResource.class);
 
 		// reuse existing logic for processing records
 		JXLSExportRecords jxlsExportRecords = new JXLSExportRecords(null, false, false);
@@ -584,12 +621,13 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		List<Group> sessions = GroupRepository.findAll().stream().sorted(Group.groupWeighinTimeComparator)
 		        .collect(Collectors.toList());
 
-//		Ranking overallScoringSystem = this.getBestLifterScoringSystem();
-//		overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
-		Ranking overallScoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
+		// Ranking overallScoringSystem = this.getBestLifterScoringSystem();
+		// overallScoringSystem = overallScoringSystem != null ? overallScoringSystem : Competition.getCurrent().getScoringSystem();
+		Ranking overallScoringSystem = getBestLifterRankingThreadLocal();
 
 		// make available to the Athlete class in this Thread (and subThreads).
-		this.reportingBeans.put("bestRankingTitle", overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete"));
+		this.reportingBeans.put("bestRankingTitle",
+		        overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete"));
 
 		getReportingBeans().put("groups", sessions);
 		getReportingBeans().put("sessions", sessions);
@@ -624,8 +662,8 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		XLSTransformer transformer = new XLSTransformer();
 		configureTransformer(transformer);
 		try {
-			setReportingInfo();
 			HashMap<String, Object> reportingInfo = getReportingBeans();
+
 			@SuppressWarnings("unchecked")
 			List<Athlete> athletes = (List<Athlete>) reportingInfo.get("athletes");
 			if (athletes != null && (athletes.size() == 0 ? isEmptyOk() : isSizeOk(athletes.size()))) {
@@ -637,23 +675,12 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 					postProcess(workbook);
 				}
 				logger.debug("after postprocess");
-			} else {
-				String noAthletes = Translator.translate("NoAthletes");
-				logger./**/warn("no athletes: empty report.");
-				if (this.ui != null) {
-					this.ui.access(() -> {
-						Notification notif = new Notification();
-						notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
-						notif.setPosition(Position.TOP_STRETCH);
-						notif.setDuration(3000);
-						notif.setText(noAthletes);
-						notif.open();
-					});
+				} else {
+					String localized = Translator.translate("NoAthletes");
+					logger./**/warn("No athletes: empty report.");
+					// treat as a validation failure -> stop processing and let caller handle the error
+					throw new StopProcessingException("NoAthletes", new RuntimeException(localized));
 				}
-				workbook = new HSSFWorkbook();
-				workbook.createSheet().createRow(1).createCell(1).setCellValue(noAthletes);
-				workbook.getCreationHelper().createFormulaEvaluator().evaluateAll();
-			}
 		} catch (Throwable t) {
 			LoggerUtils.logError(logger, t);
 		}
@@ -672,10 +699,10 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 	}
 
 	private void jxls3Transform(OutputStream stream, File templateFile) {
+		logger.debug("jxls3Transform called class={} template={}\n{}", this.getClass().getName(), templateFile, LoggerUtils.stackTrace());
 		Workbook workbook = null;
 		File tempFile = null;
 		try {
-			setReportingInfo();
 			HashMap<String, Object> reportingInfo = getReportingBeans();
 			@SuppressWarnings("unchecked")
 			List<Athlete> athletes = (List<Athlete>) reportingInfo.get("athletes");
@@ -690,31 +717,25 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 				workbook = WorkbookFactory.create(tempFile);
 				if (workbook != null) {
 					start = System.currentTimeMillis();
-					logger.info("postProcessing");
+					logger.info("postProcessing {} {}", templateFile, this.getClass().getName());
 					postProcess(workbook);
 					logger.info("postProcessing done: {}ms", System.currentTimeMillis() - start);
 				}
 			} else {
-				String message;
 				if (athletes == null || athletes.size() == 0) {
-					message = Translator.translate("NoAthletes");
+					String localized = Translator.translate("NoAthletes");
 					logger./**/warn("no athletes: empty report.");
+					throw new StopProcessingException("NoAthletes", new RuntimeException(localized));
 				} else {
-					message = Translator.translate("TooManyAthletes", Integer.toString(getSizeLimit()));
+					String localized = Translator.translate("TooManyAthletes", Integer.toString(getSizeLimit()));
 					logger./**/warn("too many athletes : no report");
+					// let caller handle the notification and error propagation
+					throw new StopProcessingException("TooManyAthletes", new RuntimeException(localized));
 				}
-				this.ui.access(() -> {
-					Notification notif = new Notification();
-					notif.addThemeVariants(NotificationVariant.LUMO_ERROR);
-					notif.setPosition(Position.TOP_STRETCH);
-					notif.setDuration(3000);
-					notif.setText(message);
-					notif.open();
-				});
-				throw new RuntimeException(message);
 			}
-		} catch (Exception e) {
+		} catch (IOException e) {
 			LoggerUtils.logError(logger, e);
+			throw new RuntimeException(e);
 		} finally {
 			if (tempFile != null) {
 				tempFile.delete();
@@ -734,4 +755,99 @@ public abstract class JXLSWorkbookStreamSource implements StreamResourceWriter, 
 		}
 	}
 
-}
+	public void setUi(UI current) {
+		this.ui = current;
+	}
+
+	public UI getUi() {
+		return ui;
+	}
+
+	/**
+	 * Default implementation of getTemplate. Subclasses may override to provide a custom template lookup.
+	 */
+	public InputStream getTemplate(Locale locale) throws IOException {
+		if (this.templateFileName != null) {
+			String name = this.templateFileName;
+			String ext = "";
+			int dot = name.lastIndexOf('.');
+			if (dot >= 0) {
+				ext = name.substring(dot);
+				name = name.substring(0, dot);
+			}
+			if (ext == null || ext.isEmpty()) {
+				ext = ".xls";
+			}
+			return getLocalizedTemplate(name, ext, locale);
+		}
+		throw new IOException("No templateFileName set for " + this.getClass().getName());
+	}
+
+	public void setTemplateFileName(String templateFileName) {
+		this.templateFileName = templateFileName;
+	}
+
+	public void setChampionship(Championship championship) {
+		this.championship = championship;
+	}
+
+	public void setAgeGroupPrefix(String ageGroupPrefix) {
+		this.ageGroupPrefix = ageGroupPrefix;
+	}
+
+	public void setCategory(Category category) {
+		this.category = category;
+	}
+
+	public void setBestLifterScoringSystem(Ranking bestLifterScoringSystem) {
+		this.bestLifterScoringSystem = bestLifterScoringSystem;
+	}
+
+	public void setEmptyOk(boolean emptyOk) {
+		this.emptyOk = emptyOk;
+	}
+
+	/**
+	 * Optional pre-check invoked before creating the input stream. Implementations should return an Optional
+	 * containing an Exception when the download should be aborted early (for example when there's no data).
+	 * The default implementation performs basic reporting-info validation used by many JXLS exporters.
+	 */
+	public Optional<Exception> prepare() {
+        try {
+			
+            setReportingInfo();
+            // Validate that the template exists and is readable on the UI thread.
+            // If a caller provided a custom template via setInputStream(), trust that they manage it properly.
+            // Otherwise, validate that the default template exists.
+            try {
+                if (this.inputStream == null) {
+                    // No custom template set; validate the default template can be loaded
+                    InputStream testTemplate = getTemplate(OwlcmsSession.getLocale());
+                    if (testTemplate != null) {
+                        testTemplate.close();
+                    }
+                }
+                // If inputStream is set, don't touch it - caller is responsible for managing it
+            } catch (IOException e) {
+                return Optional.of(e);
+            }
+            @SuppressWarnings("unchecked")
+            List<Athlete> athletes = (List<Athlete>) getReportingBeans().get("athletes");
+            int size = athletes != null ? athletes.size() : 0;
+            if (!(size == 0 ? isEmptyOk() : isSizeOk(size))) {
+                if (athletes == null || athletes.size() == 0) {
+                    String localized = Translator.translate("NoAthletes");
+                    return Optional.of(new StopProcessingException("NoAthletes", new RuntimeException(localized)));
+                } else {
+                    String localized = Translator.translate("TooManyAthletes", Integer.toString(getSizeLimit()));
+                    return Optional.of(new StopProcessingException("TooManyAthletes", new RuntimeException(localized)));
+                }
+            }
+			
+            return Optional.empty();
+        } catch (Exception e) {
+			e.printStackTrace();
+			
+            return Optional.of(e);
+        }
+    }}

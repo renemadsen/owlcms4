@@ -20,8 +20,8 @@ import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.config.Config;
 import app.owlcms.displays.scoreboard.ResultsMultiRanks;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
@@ -33,12 +33,19 @@ public class WarmupMultiRanksPage extends AbstractResultsDisplayPage {
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("ScoreboardMultiRanksTitle") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("ScoreboardMultiRanksTitle") + suffix;
 	}
+	
 
 	@Override
 	protected void init() {
-		var board = new ResultsMultiRanks();
+		this.logger = (Logger) LoggerFactory.getLogger(PublicScoreboardPage.class);
+
+		// each subclass must override this routine.
+		// otherwise we end up with multiple instances of the Results board.
+		ResultsMultiRanks board =  new ResultsMultiRanks();
 		this.setBoard(board);
 
 		// when navigating to the page, Vaadin will call setParameter+readParameters
@@ -57,7 +64,8 @@ public class WarmupMultiRanksPage extends AbstractResultsDisplayPage {
 		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
-		        SoundParameters.START_ORDER, "false");
+		        SoundParameters.START_ORDER, "false",
+		        DisplayParameters.CURRENT_ATTEMPT, "true");
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);

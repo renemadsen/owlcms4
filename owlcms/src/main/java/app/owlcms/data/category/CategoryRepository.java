@@ -126,12 +126,13 @@ public class CategoryRepository {
 		allEligible = allEligible.stream()
 		        .filter(c -> (qualifyingTotal >= c.getQualifyingTotal()))
 		        .filter(c -> (bw == null || (bw > c.getMinimumWeight() && bw <= c.getMaximumWeight())))
+		        .filter(c -> (c.getAgeGroup() != null && c.getAgeGroup().isActive()))
 		        .collect(Collectors.toList());
-		
+
 		// the most specific category should be returned first, and will be used as registration category.
 		// we do not want Open categories used as registration if there are "non-open" categories.
 		allEligible.sort(Category.specificityComparator);
-		if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Mannino")) {
+		if (logger.isEnabledFor(Level.TRACE) && a.getLastName().contentEquals("Castanon")) {
 			logger./**/warn("allEligible bw={} {} -- {}", bw, allEligible, LoggerUtils.whereFrom());
 		}
 		return allEligible;
@@ -303,13 +304,23 @@ public class CategoryRepository {
 	}
 
 	public static void resetCodeMap() {
+		clearCodeMap();
 		synchronized (allCategories) {
+			logger.info("reloading category code map {}", LoggerUtils.whereFrom());
 			findActive().stream()
-			        //.peek(c -> logger./**/warn("============ adding {} ; {} : {}", c.getDisplayName(), c.getNameWithAgeGroup(), c.getCode()))
 			        .forEach(c -> {
 				        allCategories.put(c.getDisplayName(), c);
-				        allCategories.put(c.getNameWithAgeGroup(), c);
+				        String canonicalName = Category.canonicalName(c.getNameWithAgeGroup());
+				        allCategories.put(canonicalName, c);
+				        logger.debug("code map entry: '{}' -> {}", c, canonicalName);
 			        });
+		}
+	}
+
+	public static void clearCodeMap() {
+		synchronized (allCategories) {
+			logger.debug("clearing category code map {}", LoggerUtils.whereFrom());
+			allCategories.clear();
 		}
 	}
 
@@ -323,7 +334,6 @@ public class CategoryRepository {
 		return JPAService.runInTransaction(em -> {
 			// code must match inside info for string-based matches in db.
 			category.setCode(category.getComputedCode());
-			category.setName(category.getDisplayName());
 			return em.merge(category);
 		});
 	}
@@ -370,7 +380,8 @@ public class CategoryRepository {
 	        Double bodyWeight, Gender gender, Boolean active) {
 		List<String> whereList = new LinkedList<>();
 		if (ageDivision != null) {
-			whereList.add("((ag.ageDivision = :championshipName) or (ag.championshipName = :championshipName))");
+			// Match on championshipName first; only fall back to ageDivision if championshipName is not set
+			whereList.add("((ag.championshipName = :championshipName) or ((ag.championshipName IS NULL OR ag.championshipName = '') AND ag.ageDivision = :championshipName))");
 		}
 		if (name != null && name.trim().length() > 0) {
 			whereList.add("lower(c.name) like :name");
@@ -429,5 +440,34 @@ public class CategoryRepository {
 		if (gender != null) {
 			query.setParameter("gender", gender);
 		}
+	}
+
+	public static void fixCategories() {
+		// get all categories for all age groups; if the code in the category does not match the computed code, fix it.
+		// use eager fetch join to load both categories and their age groups in a single query, avoiding N+1 problem.
+		JPAService.runInTransaction(em -> {
+			List<Category> allCats = em.createQuery(
+			        "select c from Category c join fetch c.ageGroup ag order by ag.ageDivision, ag.minAge, ag.maxAge, c.code",
+			        Category.class)
+			        .getResultList();
+
+			int count = 0;
+			int fixedCount = 0;
+			for (Category c : allCats) {
+				String computedCode = c.getComputedCode();
+				if (!c.getCode().equals(computedCode)) {
+					logger.info("fixing category code from {} to {}", c.getCode(), computedCode);
+					c.setCode(computedCode);
+					fixedCount++;
+
+					if (++count % 50 == 0) {
+						em.flush(); // Periodic flush without clear
+					}
+				}
+			}
+			em.flush();
+			logger.info("Fixed {} category codes out of {} total categories", fixedCount, allCats.size());
+			return null;
+		});
 	}
 }

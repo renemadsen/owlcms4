@@ -18,15 +18,16 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.router.Location;
 import com.vaadin.flow.router.QueryParameters;
 
 import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.DisplayParametersReader;
+import app.owlcms.apputils.queryparameters.FOPParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
 import app.owlcms.data.group.Group;
 import app.owlcms.fieldofplay.FieldOfPlay;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import ch.qos.logback.classic.Logger;
 
@@ -55,6 +56,7 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	private boolean showInitialDialog;
 	private Map<String, List<String>> urlParameterMap;
 	private boolean video;
+	private boolean currentAttempt;
 	private FieldOfPlay fop;
 	private Group group;
 	private boolean abbreviatedName;
@@ -161,6 +163,11 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	}
 
 	@Override
+	public final boolean isCurrentAttempt() {
+		return this.currentAttempt;
+	}
+
+	@Override
 	final public boolean isDarkMode() {
 		return this.darkMode;
 	}
@@ -201,12 +208,12 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	}
 
 	@Override
-	public void pushEmSize() {
+	public void pushEmSize(Element element) {
 		// update the dialog
 	}
 
 	@Override
-	public void pushTeamWidth() {
+	public void pushTeamWidth(Element element) {
 		// update the dialog
 	}
 
@@ -248,19 +255,29 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	}
 
 	@Override
-	final public void setEmFontSize(Double emFontSize) {
+	public void setCurrentAttempt(boolean currentAttempt) {
+		((DisplayParameters) this.board).setCurrentAttempt(currentAttempt);
+		this.currentAttempt = currentAttempt;
+	}
+
+	@Override
+	public void setEmFontSize(Double emFontSize) {
 		// clamp the value to something still visible
 		if (emFontSize != null && emFontSize <= 0.1) {
 			emFontSize = 0.1D;
 		}
 		this.emFontSize = emFontSize;
 		((DisplayParameters) this.board).setEmFontSize(emFontSize);
-		pushEmSize();
+		pushEmSize(this.getElement());
 	}
 
 	@Override
 	final public void setFop(FieldOfPlay fop) {
 		this.fop = fop;
+		// Propagate FOP to the board so it can access it via its own getFop()
+		if (this.board instanceof FOPParameters) {
+			((FOPParameters) this.board).setFop(fop);
+		}
 	}
 
 	@Override
@@ -314,7 +331,7 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	}
 
 	@Override
-	final public void setTeamWidth(Double tw) {
+	public void setTeamWidth(Double tw) {
 		if (tw != null && tw <= 0.0) {
 			tw = 0.0D;
 		}
@@ -345,10 +362,17 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	@Override
 	protected void onAttach(AttachEvent attachEvent) {
 		super.onAttach(attachEvent);
-		uiEventBusRegister(this, OwlcmsSession.getFop());
+		FieldOfPlay fop = getFop();
+		if (fop == null) {
+			logger.error("No FOP provided to {} before attach; aborting registration", this.getClass().getSimpleName());
+			return;
+		}
+		uiEventBusRegister(this, fop);
 		if (isShowInitialDialog()) {
 			openDialog(getDialog());
 		}
 		addKeyboardShortcuts();
+		pushEmSize(this.getElement());
+		pushTeamWidth(this.getElement());
 	}
 }

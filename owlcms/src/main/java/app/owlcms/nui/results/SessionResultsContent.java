@@ -14,7 +14,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.slf4j.LoggerFactory;
@@ -56,6 +55,7 @@ import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.athleteSort.WinningOrderComparator;
+import app.owlcms.data.category.UnfinishedCategories;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
@@ -279,10 +279,10 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		Gender currentGender = this.getGenderFilter().getValue();
 
 		List<Athlete> rankedAthletes = AthleteSorter.assignCategoryRanks(getCurrentGroup());
+		logger.debug("=== ResultsContent ranked athletes {}", rankedAthletes.size());
 
 		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
-		@SuppressWarnings("unchecked")
-		Set<String> unfinishedCategories = AthleteRepository.allUnfinishedCategories();
+		UnfinishedCategories unfinishedCategories = AthleteRepository.allUnfinishedCategories();
 		// logger.debug("ResultsContent unfinished categories {}", unfinishedCategories);
 
 		if (getCurrentGroup() != null) {
@@ -292,7 +292,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 			                ? (currentGender != null ? currentGender.equals(a.getGender()) : true)
 			                : false)
 			        .map(a -> {
-				        if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+				        if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory())) {
 					        a.setCategoryFinished(false);
 				        } else {
 					        a.setCategoryFinished(true);
@@ -306,7 +306,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 			                ? (currentGender != null ? currentGender.equals(a.getGender()) : true)
 			                : false)
 			        .map(a -> {
-				        if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory().getCode())) {
+				        if (a.getCategory() != null && unfinishedCategories.contains(a.getCategory())) {
 					        a.setCategoryFinished(false);
 				        } else {
 					        a.setCategoryFinished(true);
@@ -416,8 +416,8 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		logger.debug("params {}", params);
 
 		// change the URL to reflect group
-		URLUtils.replaceState(event.getUI().getPage().getHistory(), null,
-		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(event.getUI().getPage().getHistory(), null, newLocation, getLocation());
 	}
 
 	public void setRankingSelector(ComboBox<Ranking> rankingSelector) {
@@ -434,8 +434,8 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		} else {
 			params.remove("group");
 		}
-		URLUtils.replaceState(ui.getPage().getHistory(), null,
-		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(ui.getPage().getHistory(), null, newLocation, location);
 	}
 
 	@Override

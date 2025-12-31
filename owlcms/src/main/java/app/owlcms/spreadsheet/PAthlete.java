@@ -22,11 +22,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
+import app.owlcms.data.athlete.EligibleForIndividualRankingStatus;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.IRankHolder;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.group.Group;
+import app.owlcms.fieldofplay.FieldOfPlay;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -54,6 +56,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 		this.c = a2.getCategory();
 		this.p = a2.getMainRankings();
 		this.originalParticipation = this.p;
+		this.fixNames = fixNamesP();
 	}
 
 	public PAthlete(Participation p) {
@@ -61,6 +64,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 		this.c = p.getCategory();
 		this.p = new Participation(p, this.a, this.c);
 		this.originalParticipation = p;
+		this.fixNames = fixNamesP();
 	}
 
 	/**
@@ -214,31 +218,30 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public Boolean getCategoryFinished() {
 		var allUnfinished = AthleteRepository.getAllUnfinishedCategories();
-		String code = this.c.getCode();
-		boolean contains = allUnfinished.contains(code);
+		boolean contains = this.c != null ? allUnfinished.contains(this.c) : false;
 		return !contains;
 	}
-	
+
 	@Override
 	public Double getCategoryScoreForDelta() {
 		return this.a.getCategoryScoreForDelta();
 	}
-	
-	@Override
+
+	//@Override
 	@Transient
 	@JsonIgnore
 	public String getCategorySortCode() {
 		Category sortCategory = getMainRankings().getCategory();
-		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "-";
+		String sortCode = sortCategory != null ? sortCategory.getSortCode() : "~";
 		// logger.debug("a {} category {} sortCode {}", getAbbreviatedName(), getCategory(), sortCategory.getSortCode());
 		return sortCode;
 	}
-	
+
 	@Override
 	public void setCategoryScoreForDelta(Double ignored) {
 		// ignored, necessary for bean introspection
 	}
-	
+
 	@Override
 	public Double getCategoryScore() {
 		// use ranking calculation with the PAthlete category.
@@ -458,6 +461,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	}
 
 	@Override
+	public EligibleForIndividualRankingStatus getEffectiveIndividualEligibilityStatus() {
+		return this.a.getEffectiveIndividualEligibilityStatus();
+	}
+
+	@Override
 	public Set<Category> getEligibleCategories() {
 		return this.a.getEligibleCategories();
 	}
@@ -475,6 +483,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public String getFirstName() {
 		return this.a.getFirstName();
+	}
+
+	@Override
+	public FieldOfPlay getFop() {
+		return this.a.getFop();
 	}
 
 	@Override
@@ -510,6 +523,11 @@ public class PAthlete extends Athlete implements IRankHolder {
 	@Override
 	public Long getId() {
 		return this.a.getId();
+	}
+
+	@Override
+	public EligibleForIndividualRankingStatus getIndividualEligibilityStatus() {
+		return this.a.getIndividualEligibilityStatus();
 	}
 
 	@Override
@@ -629,20 +647,21 @@ public class PAthlete extends Athlete implements IRankHolder {
 		return this.a.getPreviousLiftTime();
 	}
 
-	@Override
-	public Double getQAge() {
-		return this.a.getQAge();
-	}
-	
-	@Override
-	public Double getQAgeForDelta() {
-		return this.a.getQAge();
-	}
+	// @Override
+	// public Double getQAge() {
+	// 	return this.a.getQAge();
+	// }
 
-	@Override
-	public int getqAgeRank() {
-		return this.a.getqAgeRank();
-	}
+	// @Override
+	// public Double getQAgeForDelta() {
+	// 	logger./**/warn("getting QAge for Delta for PAthlete {} ", this.a.getAbbreviatedName());
+	// 	return this.a.getQAge();
+	// }
+
+	// @Override
+	// public int getqAgeRank() {
+	// 	return this.a.getqAgeRank();
+	// }
 
 	@Override
 	public Integer getQualifyingTotal() {
@@ -1008,7 +1027,7 @@ public class PAthlete extends Athlete implements IRankHolder {
 	public void setCatSinclairRank(int i) {
 		this.a.setCatSinclairRank(i);
 	}
-	
+
 	@Override
 	public void setCatQPointsRank(int i) {
 		this.a.setCatQPointsRank(i);
@@ -1110,12 +1129,12 @@ public class PAthlete extends Athlete implements IRankHolder {
 		// and we don't want to copy the code.
 		return super.toStringRanks();
 	}
-	
+
 	@Override
 	public String getFederationCodes() {
 		return this.a.getFederationCodes();
 	}
-	
+
 	@Override
 	public void setFederationCodes(String federationCodes) {
 		this.a.setFederationCodes(federationCodes);

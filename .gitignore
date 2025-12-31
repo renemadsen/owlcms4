@@ -16,7 +16,6 @@
 *.ear
 *.tar.gz
 *.rar
-*.tgz
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
@@ -36,10 +35,26 @@ database/owlcms.mv.db
 /fly.toml
 /mqttData/
 /nohup.out
-.idea/
-*.mp4
+/*.mp4
 owlcms/.classpath
 /alpha.md
 /beta.md
 /rc.md
 /release.md
+
+# Local environment file
+.env
+/.vscode/.env.windows
+/.vscode/.env.linux
+/.vscode/.env.mac
+/.code-workspace
+jfl*.*
+
+# GPT assistant workspace (hidden, local)
+.gpt/
+.gpt/**
+owlcms/package.json
+owlcms/package-lock.json
+playwright/.flattened-pom.xml
+package-lock.json
+package.json

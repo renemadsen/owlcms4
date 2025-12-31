@@ -30,6 +30,7 @@ import com.vaadin.flow.router.BeforeEvent;
 import com.vaadin.flow.router.Location;
 import com.vaadin.flow.router.OptionalParameter;
 
+import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
 import ch.qos.logback.classic.Logger;
 
@@ -112,12 +113,23 @@ public interface DisplayParametersReader extends SoundParametersReader, DisplayP
 		processBooleanParam(params, LEADERS, (v) -> switchLeaders(v, false));
 		processBooleanParam(params, ABBREVIATED, (v) -> switchAbbreviated(v, true));
 		processBooleanParam(params, VIDEO, (v) -> switchVideo(v, true));
+		processBooleanParam(params, CURRENT_ATTEMPT, (v) -> switchCurrentAttempt(v, false));
 
+		String videoStyles = Config.getCurrent().getParamVideoStylesDir();
+		String publicStyles = Config.getCurrent().getParamPublicStylesDir();
+		
 		List<String> sizeParams = params.get(FONTSIZE);
 		Double emSize;
 		try {
 			emSize = (sizeParams != null && !sizeParams.isEmpty() ? Double.parseDouble(sizeParams.get(0)) : 0.0D);
-			if (emSize > 0.0D) {
+
+			if (isVideo() && emSize <= 0.1D && videoStyles != null && !videoStyles.endsWith("grid")) {
+				// video style is "transparent" or a custom style, increase default size.
+				switchEmFontSize(1.35D, true);
+			} else if (isPublicDisplay() && emSize <= 0.1D && publicStyles != null && !publicStyles.endsWith("grid")) {
+				// public style is "public" or a custom style, increase default size.
+				switchEmFontSize(1.35D, true);
+			} else if (emSize > 0.0D) {
 				switchEmFontSize(emSize, false);
 			} else {
 				switchEmFontSize(null, true);
@@ -130,8 +142,9 @@ public interface DisplayParametersReader extends SoundParametersReader, DisplayP
 		Double tWidth;
 		try {
 			tWidth = (twParams != null && !twParams.isEmpty() ? Double.parseDouble(twParams.get(0)) : 0.0D);
-			if (tWidth > 0.0D) {
-
+			if (isVideo() && tWidth <= 0.1D && videoStyles != null && !videoStyles.endsWith("grid")) {
+				switchTeamWidth(9.0D, true);
+			} else if (tWidth > 0.0D) {
 				switchTeamWidth(tWidth, false);
 			} else {
 				switchTeamWidth(null, true);
@@ -164,6 +177,8 @@ public interface DisplayParametersReader extends SoundParametersReader, DisplayP
 	public default void setRouteParameter(String routeParameter) {
 		if (routeParameter != null && routeParameter.contentEquals("video")) {
 			setVideo(true);
+		} else if (routeParameter != null && routeParameter.contentEquals("currentAttempt")) {
+			setCurrentAttempt(true);
 		}
 	}
 
@@ -246,6 +261,13 @@ public interface DisplayParametersReader extends SoundParametersReader, DisplayP
 			updateURLLocation(getLocationUI(), getLocation(), VIDEO, Boolean.toString(video));
 		}
 		setVideo(video);
+	}
+
+	public default void switchCurrentAttempt(boolean currentAttempt, boolean updateURL) {
+		if (updateURL) {
+			updateURLLocation(getLocationUI(), getLocation(), CURRENT_ATTEMPT, Boolean.toString(currentAttempt));
+		}
+		setCurrentAttempt(currentAttempt);
 	}
 
 	default Dialog getDialogCreateIfMissing() {

@@ -67,16 +67,21 @@ public class DecisionReceiverServlet extends HttpServlet implements Traceable {
         }
 
         String updateKey = req.getParameter("updateKey");
-        if (updateKey == null || !updateKey.equals(this.secret)) {
-            this.getLogger().error("denying access from {} expected {} got {} ", req.getRemoteHost(), this.secret,
-                    updateKey);
+        if (this.secret != null && (updateKey == null || !updateKey.equals(this.secret))) {
+            getLogger().warn("DecisionReceiverServlet responding 401 from {}: secret='{}', provided='{}' ({})", 
+                req.getRemoteHost(),
+                this.secret,
+                updateKey,
+                updateKey != null ? "mismatch" : "missing");
             resp.sendError(401, "Denied, wrong credentials");
             return;
         }
 
-        DecisionEvent decisionEvent = new DecisionEvent();
+            if (ConfigurationRequestUtil.requestConfigIfMissing(resp, "DecisionReceiverServlet")) {
+                return;
+            }
 
-        String eventTypeString = req.getParameter("decisionEventType");
+            DecisionEvent decisionEvent = new DecisionEvent();        String eventTypeString = req.getParameter("decisionEventType");
         DecisionEventType eventType = null;
         try {
             eventType = DecisionEventType.valueOf(eventTypeString);
@@ -118,6 +123,5 @@ public class DecisionReceiverServlet extends HttpServlet implements Traceable {
     void setLogger(Logger logger) {
         this.logger = logger;
     }
-
 
 }

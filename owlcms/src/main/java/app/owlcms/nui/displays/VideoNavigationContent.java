@@ -12,8 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.nui.displays.top.TopTeamsSinclairPage;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 import org.vaadin.addons.tatu.ColorPicker;
@@ -43,12 +41,14 @@ import app.owlcms.data.group.GroupRepository;
 import app.owlcms.displays.video.StreamingEventMonitor;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.monitors.OBSMonitor;
 import app.owlcms.nui.displays.attemptboards.PublicFacingAttemptBoardPage;
 import app.owlcms.nui.displays.attemptboards.PublicFacingDecisionBoardPage;
 import app.owlcms.nui.displays.scoreboards.CurrentAthletePage;
+import app.owlcms.nui.displays.scoreboards.JuryDecisionsPage;
 import app.owlcms.nui.displays.scoreboards.MedalsPage;
+import app.owlcms.nui.displays.scoreboards.NCurrentAthletePage;
+import app.owlcms.nui.displays.scoreboards.PublicStartListPage;
 import app.owlcms.nui.displays.scoreboards.RankingsPage;
 import app.owlcms.nui.displays.scoreboards.WarmupMultiRanksPage;
 import app.owlcms.nui.displays.scoreboards.WarmupNoLeadersPage;
@@ -91,30 +91,31 @@ public class VideoNavigationContent extends BaseNavigationContent
 		intro.getStyle().set("margin-bottom", "0");
 		fillH(intro, this);
 
-        colorOverride();
-        
-		Button currentAthlete = openInNewTabQueryParameters(CurrentAthletePage.class,
-		        Translator.translate("CurrentAthleteTitle"), "video=true");
-		Button attempt = openInNewTabQueryParameters(PublicFacingAttemptBoardPage.class,
-		        Translator.translate("AttemptBoard"), "video=true");
-		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(attempt, currentAthlete);
-		doGroup(Translator.translate("AttemptBoard"), grid3, this);
+		colorOverride();
 
-		Button publicDecisions = openInNewTabQueryParameters(PublicFacingDecisionBoardPage.class,
-		        Translator.translate("RefereeDecisions"), "video=true");
-		FlexibleGridLayout grid31 = HomeNavigationContent.navigationGrid(publicDecisions);
-		doGroup(Translator.translate("RefereeDecisions"), grid31, this);
+		attemptBoard();
+		startList();
+		scoreboards();
+		decisions();
+		rankings();
+		monitoring();
 
-		Button scoreboard = openInNewTabQueryParameters(WarmupNoLeadersPage.class,
-		        Translator.translate("Scoreboard"), "video=true");
-		Button scoreboardWLeaders = openInNewTabQueryParameters(WarmupScoreboardPage.class,
-		        Translator.translate("ScoreboardWLeadersButton"), "video=true");
-		scoreboardWLeaders.getElement().setAttribute("title", Translator.translate("ScoreboardWLeadersMouseOver"));
-		Button scoreboardMultiRanks = openInNewTabQueryParameters(WarmupMultiRanksPage.class,
-		        Translator.translate("ScoreboardMultiRanksButton"), "video=true");
-		Button scoreboardRankings = openInNewTabQueryParameters(WarmupRankingOrderPage.class,
-		        Translator.translate("Scoreboard.RankingOrderButton"), "video=true");
+		DebugUtils.gc();
+	}
 
+	public void monitoring() {
+		Button obsMonitor = openInNewTab(OBSMonitor.class, Translator.translate("OBS.MonitoringButton"));
+		Button eventMonitor = openInNewTabWithFopQueryParameters(StreamingEventMonitor.class,
+		        Translator.translate("Video.EventMonitoringButton"),
+		        "video=true");
+		VerticalLayout intro4 = new VerticalLayout();
+		addP(intro4, Translator.translate("Video.EventMonitoringExplanation", Translator.translate("Video.EventMonitoringButton")));
+		addP(intro4, Translator.translate("OBS.MonitoringExplanation", Translator.translate("OBS.MonitoringButton")));
+		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(eventMonitor, obsMonitor);
+		doGroup(Translator.translate("OBS.MonitoringButton"), intro4, grid4, this);
+	}
+
+	public void rankings() {
 		List<Group> groups = GroupRepository.findAll();
 		// more recent group first, else reverse order.
 		groups.sort((g1, g2) -> {
@@ -125,7 +126,7 @@ public class VideoNavigationContent extends BaseNavigationContent
 			compare = -(new NaturalOrderComparator<Group>().compare(g1, g2));
 			return compare;
 		});
-		FieldOfPlay curFop = OwlcmsSession.getFop();
+		FieldOfPlay curFop = getFop();
 		GroupCategorySelectionMenu groupCategorySelectionMenu = new GroupCategorySelectionMenu(groups, curFop,
 		        // group has been selected
 		        (g1, c1, fop1) -> selectVideoContext(g1, c1, fop1),
@@ -139,13 +140,6 @@ public class VideoNavigationContent extends BaseNavigationContent
 		includeNotCompleted.setLabel(Translator.translate("Video.includeNotCompleted"));
 		HorizontalLayout hl = new HorizontalLayout();
 		hl.add(groupCategorySelectionMenu, includeNotCompleted);
-		VerticalLayout intro1 = new VerticalLayout();
-		// addP(intro1, Translator.translate("darkModeSelect"));
-		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(scoreboard, scoreboardWLeaders,
-		        scoreboardRankings,
-		        scoreboardMultiRanks);
-		doGroup(Translator.translate("Scoreboards"), intro1, grid1, this);
-
 		Button medals = new Button(Translator.translate("CeremonyType.MEDALS"));
 		Button rankings = new Button(Translator.translate("Scoreboard.RANKING"));
 		medals.addClickListener((e) -> {
@@ -159,32 +153,59 @@ public class VideoNavigationContent extends BaseNavigationContent
 		VerticalLayout intro1a = new VerticalLayout();
 		// addP(intro1, Translator.translate("darkModeSelect"));
 		intro1a.add(hl);
+		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings);
+		doGroup(Translator.translate("Scoreboard.RankingOrder"), intro1a, grid1a, this);
+	}
 
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
-		String scoringTitle = Ranking.getScoringTitle(scoringSystem);
+	public void decisions() {
+		Button publicDecisions = openInNewTabWithFopQueryParameters(PublicFacingDecisionBoardPage.class,
+		        Translator.translate("RefereeDecisions"), "video=true");
+		Button juryDecisions = openInNewTabWithFopQueryParameters(JuryDecisionsPage.class,
+		        Translator.translate("JuryDecisions.Title"), "video=true");
+		FlexibleGridLayout grid31 = HomeNavigationContent.navigationGrid(publicDecisions, juryDecisions);
+		doGroup(Translator.translate("RefereeDecisions"), grid31, this);
+	}
 
-		Button topTeamsSinclair = new Button(
-				Translator.translate("Scoreboard.TopTeamsSinclair"));
-		topTeamsSinclair.addClickListener((e) -> {
-			Class<TopTeamsSinclairPage> class1 = TopTeamsSinclairPage.class;
-			openInNewTabWithResultsQueryParameters(class1);
-		});
+	public void scoreboards() {
+		Button scoreboard = openInNewTabWithFopQueryParameters(WarmupNoLeadersPage.class,
+		        Translator.translate("Scoreboard"), "video=true&currentAttempt=false");
+		Button scoreboardWLeaders = openInNewTabWithFopQueryParameters(WarmupScoreboardPage.class,
+		        Translator.translate("ScoreboardWLeadersButton"), "video=true&currentAttempt=false");
+		scoreboardWLeaders.getElement().setAttribute("title", Translator.translate("ScoreboardWLeadersMouseOver"));
+		Button scoreboardMultiRanks = openInNewTabWithFopQueryParameters(WarmupMultiRanksPage.class,
+		        Translator.translate("ScoreboardMultiRanksButton"), "video=true&currentAttempt=false");
+		Button scoreboardRankings = openInNewTabWithFopQueryParameters(WarmupRankingOrderPage.class,
+		        Translator.translate("Scoreboard.RankingOrderButton"), "video=true&currentAttempt=false");
 
-		FlexibleGridLayout grid1a = HomeNavigationContent.navigationGrid(medals, rankings, topTeamsSinclair);
-		doGroup(Translator.translate("Scoreboard.RANKINGS"), intro1a, grid1a, this);
+		VerticalLayout intro1 = new VerticalLayout();
+		// addP(intro1, Translator.translate("darkModeSelect"));
+		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(scoreboard, scoreboardWLeaders,
+		        scoreboardRankings,
+		        scoreboardMultiRanks);
+		doGroup(Translator.translate("Scoreboards"), intro1, grid1, this);
+	}
 
-		Button obsMonitor = openInNewTab(OBSMonitor.class, Translator.translate("OBS.MonitoringButton"));
-		Button eventMonitor = openInNewTabQueryParameters(StreamingEventMonitor.class,
-		        Translator.translate("Video.EventMonitoringButton"),
-		        "video=true");
-		VerticalLayout intro4 = new VerticalLayout();
-		addP(intro4, Translator.translate("Video.EventMonitoringExplanation", Translator.translate("Video.EventMonitoringButton")));
-		addP(intro4, Translator.translate("OBS.MonitoringExplanation", Translator.translate("OBS.MonitoringButton")));
-		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(eventMonitor, obsMonitor);
-		doGroup(Translator.translate("OBS.MonitoringButton"), intro4, grid4, this);
-		
+	public void startList() {
+		Button startList = openInNewTabWithFopQueryParameters(PublicStartListPage.class,
+		        Translator.translate("Scoreboard.StartList"), "video=true");
+		FlexibleGridLayout gridIntro = HomeNavigationContent.navigationGrid(startList);
+		doGroup(Translator.translate("CeremonyType.INTRODUCTION"), gridIntro, this);
+	}
 
-		DebugUtils.gc();
+	public void attemptBoard() {
+		FlexibleGridLayout grid3;
+		Button attempt = openInNewTabWithFopQueryParameters(PublicFacingAttemptBoardPage.class,
+		        Translator.translate("AttemptBoard"), "video=true");
+		if (Config.getCurrent().featureSwitch("iwfLook")) {
+			Button nCurrentAthlete = openInNewTabWithFopQueryParameters(NCurrentAthletePage.class,
+			        Translator.translate("CurrentAthleteTitle") + " (New)", "video=true");
+			grid3 = HomeNavigationContent.navigationGrid(nCurrentAthlete, attempt);
+		} else {
+			Button currentAthlete = openInNewTabWithFopQueryParameters(CurrentAthletePage.class,
+			        Translator.translate("CurrentAthleteTitle"), "video=true");
+			grid3 = HomeNavigationContent.navigationGrid(currentAthlete, attempt);
+		}
+		doGroup(Translator.translate("AttemptBoard"), grid3, this);
 	}
 
 	public void colorOverride() {
@@ -193,45 +214,44 @@ public class VideoNavigationContent extends BaseNavigationContent
 		enableColorOverrideCheckbox.setMaxWidth("40%");
 		ColorPicker colorPicker = new ColorPicker();
 		colorPicker.setEnabled(enableColorOverrides);
-		
-        enableColorOverrideCheckbox.addClickListener(event -> {
-        	boolean selected = Boolean.TRUE.equals(enableColorOverrideCheckbox.getValue());
-        	Config.getCurrent().setEnableColorOverrides(selected);
-        	colorPicker.setEnabled(selected);
-        	logger.debug("selected {}",selected);
-        });
-        enableColorOverrideCheckbox.setLabel(Translator.translate("ColorSelection.EnabledLabel"));
-        enableColorOverrideCheckbox.setHelperText(Translator.translate("ColorSelection.EnabledHelperText"));
 
-        colorPicker.setLabel(Translator.translate("ColorSelection.Label"));
-        colorPicker.setMaxWidth("40%");
-        colorPicker.setHelperText(Translator.translate("ColorSelection.Helper"));
-        colorPicker
-                .setPresets(Arrays.asList(
-                		new ColorPreset("#000000", "Black"),
-                		new ColorPreset("#696969", "Dim Grey"),
-                		new ColorPreset("#8b0000", "Dark Red"),
-                        new ColorPreset("#006400", "Dark Green"),
-                        new ColorPreset("#00008b", "Dark Blue")
-                        ));
+		enableColorOverrideCheckbox.addClickListener(event -> {
+			boolean selected = Boolean.TRUE.equals(enableColorOverrideCheckbox.getValue());
+			Config.getCurrent().setEnableColorOverrides(selected);
+			colorPicker.setEnabled(selected);
+			logger.debug("selected {}", selected);
+		});
+		enableColorOverrideCheckbox.setLabel(Translator.translate("ColorSelection.EnabledLabel"));
+		enableColorOverrideCheckbox.setHelperText(Translator.translate("ColorSelection.EnabledHelperText"));
 
-        colorPicker.addValueChangeListener(event -> {
-        	Config.getCurrent().setVideoColorOverrides("--videoHeaderBackgroundColor: "+event.getValue());
-            Notification.show(event.getValue());
-        });
-        
+		colorPicker.setLabel(Translator.translate("ColorSelection.Label"));
+		colorPicker.setMaxWidth("40%");
+		colorPicker.setHelperText(Translator.translate("ColorSelection.Helper"));
+		colorPicker
+		        .setPresets(Arrays.asList(
+		                new ColorPreset("#000000", "Black"),
+		                new ColorPreset("#696969", "Dim Grey"),
+		                new ColorPreset("#8b0000", "Dark Red"),
+		                new ColorPreset("#006400", "Dark Green"),
+		                new ColorPreset("#00008b", "Dark Blue")));
+
+		colorPicker.addValueChangeListener(event -> {
+			Config.getCurrent().setVideoColorOverrides("--videoHeaderBackgroundColor: " + event.getValue());
+			Notification.show(event.getValue());
+		});
+
 		VerticalLayout intro5 = new VerticalLayout();
 		intro5.setSpacing(false);
-        intro5.add(new Div(Translator.translate("ColorSelection.Intro")));
-        intro5.setMargin(false);
-        intro5.setPadding(false);
-        HorizontalLayout horizontalLayout = new HorizontalLayout(enableColorOverrideCheckbox, colorPicker);
-        horizontalLayout.setMargin(false);
-        horizontalLayout.setAlignItems(Alignment.CENTER);
+		intro5.add(new Div(Translator.translate("ColorSelection.Intro")));
+		intro5.setMargin(false);
+		intro5.setPadding(false);
+		HorizontalLayout horizontalLayout = new HorizontalLayout(enableColorOverrideCheckbox, colorPicker);
+		horizontalLayout.setMargin(false);
+		horizontalLayout.setAlignItems(Alignment.CENTER);
 		intro5.add(horizontalLayout);
 
 		doGroup(Translator.translate("ColorSelection"), intro5, new FlexibleGridLayout(), this);
-		
+
 	}
 
 	@Override
@@ -250,7 +270,9 @@ public class VideoNavigationContent extends BaseNavigationContent
 
 	@Override
 	public String getPageTitle() {
-		return Translator.translate("VideoStreaming") + OwlcmsSession.getFopNameIfMultiple();
+		FieldOfPlay fop = getFop();
+		String suffix = fop != null ? " (" + fop.getName() + ")" : "";
+		return Translator.translate("VideoStreaming") + suffix;
 	}
 
 	/*
@@ -264,11 +286,9 @@ public class VideoNavigationContent extends BaseNavigationContent
 		formatLabel(fopLabel);
 
 		ComboBox<FieldOfPlay> fopSelect = createFopSelect(placeHolder);
-		OwlcmsSession.withFop((fop) -> {
-			fopSelect.setValue(fop);
-		});
+		fopSelect.setValue(getFop());
 		fopSelect.addValueChangeListener(e -> {
-			OwlcmsSession.setFop(e.getValue());
+			setFop(e.getValue());
 			updateURLLocation(getLocationUI(), getLocation(), null);
 		});
 
@@ -293,6 +313,10 @@ public class VideoNavigationContent extends BaseNavigationContent
 			params.put("cat", medalCategory2.getCode().toString());
 		} else if (getMedalGroup() != null) {
 			params.put("group", getMedalGroup().toString());
+		}
+		FieldOfPlay fop = getFop();
+		if (fop != null) {
+			params.put("fop", fop.getName());
 		}
 		params.put("video", "true");
 		QueryParameters qp = QueryParameters.simple(params);

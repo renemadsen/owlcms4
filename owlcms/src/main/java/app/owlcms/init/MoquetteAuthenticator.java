@@ -30,7 +30,7 @@ public class MoquetteAuthenticator implements IAuthenticator {
 		if (clientPasswordString.contentEquals(Main.mqttStartup)) {
 			// special case -- owlcms is calling it's own moquette locally
 			// the shared secret is the milliseconds at which the server started.
-			this.logger.trace("owlcms MQTT connection from {}", clientId);
+			this.logger.debug("owlcms MQTT connection from {}", clientId);
 			return true;
 		}
 
@@ -47,7 +47,7 @@ public class MoquetteAuthenticator implements IAuthenticator {
 		}
 
 		String expectedClearTextPassword = StartupUtils.getStringParam("mqttPassword");
-		this.logger.trace("client password string : {}", clientPasswordString);
+		this.logger.debug("client password string : {}", clientPasswordString);
 		if (expectedClearTextPassword != null) {
 			// clear text comparison
 			boolean plainTextMatch = expectedClearTextPassword.contentEquals(clientPasswordString);

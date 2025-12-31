@@ -65,7 +65,7 @@ public class TwoMinutesRuleTest {
     public void initialCheck() {
         final String resName = "/initialCheck.txt";
         AthleteSorter.displayOrder(athletes);
-        AthleteSorter.doAssignStartNumbers(athletes);
+        AthleteSorter.testAssignStartNumbers(athletes);
 
         Collections.shuffle(athletes);
 
@@ -114,15 +114,16 @@ public class TwoMinutesRuleTest {
     }
 
     public void testPrepState3(FieldOfPlay fopState, EventBus fopBus, Logger logger2) {
-        fopState.testBefore();
         gA = GroupRepository.findByName("A");
+        fopState.testBefore();
         fopState.loadGroup(gA, this, true);
+        fopState.testStartLifting(gA, fopState);
         athletes = fopState.getDisplayOrder();
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
 
         JPAService.runInTransaction(em -> {
-            AthleteSorter.doAssignStartNumbers(athletes);
+            AthleteSorter.testAssignStartNumbers(athletes);
             // simulate initial declaration at weigh-in
             schneiderF.setSnatch1Declaration(Integer.toString(60));
             simpsonR.setSnatch1Declaration(Integer.toString(60));
@@ -149,12 +150,13 @@ public class TwoMinutesRuleTest {
     public void testPrepState4(FieldOfPlay fopState, EventBus fopBus, Logger logger2) {
         fopState.testBefore();
         fopState.loadGroup(gA, this, true);
+        fopState.testStartLifting(gA, fopState);
         athletes = fopState.getDisplayOrder();
         final Athlete schneiderF = athletes.get(0);
         final Athlete simpsonR = athletes.get(1);
 
         JPAService.runInTransaction(em -> {
-            AthleteSorter.doAssignStartNumbers(athletes);
+            AthleteSorter.testAssignStartNumbers(athletes);
             // simulate initial declaration at weigh-in
             schneiderF.setSnatch1Declaration(Integer.toString(60));
             simpsonR.setSnatch1Declaration(Integer.toString(65));
@@ -394,7 +396,7 @@ public class TwoMinutesRuleTest {
         logger.debug("calling lifter: {}", curLifter);
         fopBus.post(new FOPEvent.TimeStarted(null));
         fopBus.post(new FOPEvent.DownSignal(null));
-        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false, false));
+        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, false, false, false, 0L, 0L, 0L, false));
         logger.debug("failed lift for {}", curLifter);
 //        fopState.finalDecision(null);
         fopBus.post(new FOPEvent.DecisionReset(null));
@@ -405,7 +407,7 @@ public class TwoMinutesRuleTest {
         logger.debug("calling lifter: {}", curLifter);
         fopBus.post(new FOPEvent.TimeStarted(null));
         fopBus.post(new FOPEvent.DownSignal(null));
-        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false, false));
+        fopBus.post(new FOPEvent.DecisionFullUpdate(this, curLifter, true, true, true, 0L, 0L, 0L, false));
         logger.debug("successful lift for {}", curLifter);
 //        fopState.finalDecision(null);
         fopBus.post(new FOPEvent.DecisionReset(null));

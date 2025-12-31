@@ -8,8 +8,8 @@
     /* variable-size columns. fr = free space after other columns have been allocated.
        for ease of understanding, sum of all fr columns should be 1.00.
     */
-    --nameWidth: 0.60fr;
-    --clubWidth: 0.40fr;
+    --nameWidth: 1fr;
+    --clubWidth: max-content;
     --tableWidthRatio: 100%;
     --defaultLeaderFillerHeight: 1fr;
 
@@ -37,9 +37,9 @@
     --custom2Width: 0;
     --custom2Visibility: hidden;
 
-    --rankWidth: var(--liftResultWidth);
+    --rankWidth: 3em;
     --rankVisibility: visible;
-    --totalRankWidth: var(--liftResultWidth);
+    --totalRankWidth: 3em;
     --totalRankVisibility: visible;
 
     /*
@@ -67,6 +67,68 @@
 
     /* flag height */
     --flagHeight: calc(var(--athleteNameFontSize)*1.4);
+}
+
+table.results.ranks {
+    --rankWidth: 3em;
+    --rankVisibility: visible;
+}
+
+table.results.noranks {
+    --rankWidth: 0;
+    --rankVisibility: hidden;
+}
+
+table.results.totalRank {
+    /* do not use rankWidth since we set it to 0 */
+    --totalRankWidth: 3em;
+    --totalRankVisibility: visible;
+}
+
+table.results.nosinclair {
+    --sinclairWidth: 0;
+    --sinclairVisibility: hidden;
+    --sinclairVspacerWidth: 0;
+    --sinclairRankWidth: 0;
+    --sinclairRankVisibility: hidden;
+}
+
+/* Hide all sinclair elements when nosinclair */
+table.results.nosinclair th.sinclair,
+table.results.nosinclair td.sinclair,
+table.results.nosinclair th.sinclairRank,
+table.results.nosinclair td.sinclairRank,
+table.results.nosinclair th.sinclairVspacer,
+table.results.nosinclair td.sinclairVspacer,
+table.results.nosinclair .leaders th.sinclair,
+table.results.nosinclair .leaders td.sinclair,
+table.results.nosinclair .leaders th.sinclairRank,
+table.results.nosinclair .leaders td.sinclairRank,
+table.results.nosinclair .leaders th.sinclairVspacer,
+table.results.nosinclair .leaders td.sinclairVspacer {
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}
+
+table.results.sinclair.nosinclairRank {
+    --sinclairRankWidth: 0;
+    --sinclairRankVisibility: hidden;
+}
+
+/* Hide sinclairRank elements when sinclair is shown but ranks are off */
+table.results.sinclair.nosinclairRank th.sinclairRank,
+table.results.sinclair.nosinclairRank td.sinclairRank,
+table.results.sinclair.nosinclairRank .leaders th.sinclairRank,
+table.results.sinclair.nosinclairRank .leaders td.sinclairRank {
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+}
+
+table.results.sinclair {
+    --sinclairWidth: 0;
+    --sinclairVisibility: hidden;
 }
 
 @media screen and (orientation: landscape) {

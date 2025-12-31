@@ -85,7 +85,6 @@ import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.fieldofplay.IBreakTimer;
 import app.owlcms.fieldofplay.IProxyTimer;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.crudui.OwlcmsCrudGrid;
 import app.owlcms.nui.crudui.OwlcmsGridLayout;
@@ -153,7 +152,9 @@ public abstract class AthleteGridContent extends BaseContent
 		Integer lift = a.getActualLiftOrNull(i);
 		Integer attemptsDone = a.getAttemptsDone();
 		if (i == (attemptsDone + 1)) {
-			return a == OwlcmsSession.getFop().getCurAthlete() ? "yellow" : "next";
+			FieldOfPlay fop = a.getFop();
+			Athlete curAthlete = fop != null ? fop.getCurAthlete() : null;
+			return a == curAthlete ? "yellow" : "next";
 		} else if (lift == null) {
 			return ("gray");
 		} else if (lift > 0) {
@@ -166,7 +167,9 @@ public abstract class AthleteGridContent extends BaseContent
 	}
 
 	private static String computeNameClass(Athlete a) {
-		return a == OwlcmsSession.getFop().getCurAthlete() ? "bold" : "";
+		FieldOfPlay fop = a.getFop();
+		Athlete curAthlete = fop != null ? fop.getCurAthlete() : null;
+		return a == curAthlete ? "bold" : "";
 	}
 
 	private static Renderer<Athlete> createAttemptsRenderer() {
@@ -321,6 +324,7 @@ public abstract class AthleteGridContent extends BaseContent
 		IBreakTimer breakTimer = this.fop.getBreakTimer();
 		if (!breakTimer.isIndefinite()) {
 			BreakTimerElement bte = (BreakTimerElement) getBreakTimerElement();
+			bte.setFop(this.fop);
 			bte.syncWithFopTimer(this.fop);
 			bte.setParent(this.getClass().getSimpleName() + "_" + this.id);
 			this.breakButton.setIcon(bte);
@@ -473,7 +477,7 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	@Override
 	public Collection<Athlete> findAll() {
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = getFop();
 		if (fop != null) {
 			logger.trace("{}findAll {} {}", FieldOfPlay.getLoggingName(fop),
 			        fop.getGroup() == null ? null : fop.getGroup().getName(),
@@ -632,12 +636,10 @@ public abstract class AthleteGridContent extends BaseContent
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
 		this.summonNotificationSent = false;
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
-			if (e.isDisplayToggle()) {
+			if (e.isDisplayToggle() && e.getBreakType() != BreakType.TEST_BUTTONS) {
 				logger.debug("{} ignoring switch to break", this.getClass().getSimpleName());
 				return;
 			}
-
-			// logger.debug("%%%%%%% starting break {}", LoggerUtils./**/stackTrace());
 			syncWithFop(true, e.getFop());
 			clearRecordNotifications();
 		});
@@ -926,7 +928,8 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	protected HorizontalLayout breakButtons(FlexLayout announcerBar) {
 		this.breakButton = new Button(Translator.translateOrElseEmpty("Pause"), new Icon(VaadinIcon.TIMER), (e) -> {
-			OwlcmsSession.withFop(fop -> {
+			FieldOfPlay fop = getFop();
+			if (fop != null) {
 				Athlete curAthlete = fop.getCurAthlete();
 				List<Athlete> order = fop.getLiftingOrder();
 				BreakType bt;
@@ -949,9 +952,9 @@ public abstract class AthleteGridContent extends BaseContent
 
 				}
 				// logger.debug("requesting breaktype {}", bt);
-				this.breakDialog = new BreakDialog(bt, ct, null, this);
+				this.breakDialog = new BreakDialog(getFop(), bt, ct, null, this);
 				this.breakDialog.open();
-			});
+			}
 		});
 		return layoutBreakButtons();
 	}
@@ -1009,7 +1012,10 @@ public abstract class AthleteGridContent extends BaseContent
 		        .setTextAlign(ColumnTextAlign.CENTER);
 		grid.addColumn((a) -> formatAttemptNumber(a), "attemptsDone").setHeader(Translator.translate("Attempt"));
 		grid.setPartNameGenerator(athlete -> {
-			FieldOfPlay fop2 = OwlcmsSession.getFop();
+			FieldOfPlay fop2 = getFop();
+			if (fop2 == null) {
+				return null;
+			}
 			Athlete prevAthlete = fop2.getPreviousAthlete();
 			Athlete curAthlete = fop2.getCurAthlete();
 			Athlete nextAthlete = fop2.getNextAthlete();
@@ -1051,6 +1057,7 @@ public abstract class AthleteGridContent extends BaseContent
 
 	protected void createDecisionLights() {
 		this.decisionDisplay = new JuryDisplayDecisionElement();
+		this.decisionDisplay.setFop(getFop());
 		this.decisionDisplay.setSilenced(isDownSilenced());
 		// Icon silenceIcon = AvIcons.MIC_OFF.create();
 		this.setDecisionLights(new HorizontalLayout(this.decisionDisplay));
@@ -1058,6 +1065,8 @@ public abstract class AthleteGridContent extends BaseContent
 		this.getDecisionLights().setWidth("12em");
 		this.getDecisionLights().getStyle().set("line-height", "2em");
 		this.decisionDisplay.getStyle().set("width", "9em");
+		// Set small size for top bar decision display
+		this.decisionDisplay.getStyle().set("--attemptFontSize", "1.2em");
 	}
 
 	/**
@@ -1144,6 +1153,7 @@ public abstract class AthleteGridContent extends BaseContent
 		if (this.timer == null) {
 			this.timer = new AthleteTimerElement(this);
 		}
+		this.timer.setFop(getFop());
 		this.timer.setSilenced(this.isSilenced());
 		H1 time = new H1(this.timer);
 		clearVerticalMargins(this.attempt);
@@ -1316,6 +1326,7 @@ public abstract class AthleteGridContent extends BaseContent
 	 */
 	
 	protected List<Notification> notifications = new ArrayList<>();
+	private boolean publicDisplay;
 	protected void doNotification(String text, String theme) {
 		Notification n = new Notification();
 		n.getElement().getThemeList().add(theme);
@@ -1587,6 +1598,11 @@ public abstract class AthleteGridContent extends BaseContent
 				topBarWarning(fop.getGroup(), curAthlete2 == null ? 0 : curAthlete2.getAttemptsDone(),
 				        fop.getState(), fop.getLiftingOrder());
 			}
+			if (state == FOPState.BREAK) {
+				busyBreakButton();
+			} else {
+				quietBreakButton(Translator.translate("Pause"));
+			}
 		} else {
 			getRouterLayout().setMenuTitle("");
 			getRouterLayout().setMenuArea(createTopBar());
@@ -1631,8 +1647,10 @@ public abstract class AthleteGridContent extends BaseContent
 			String string = Translator.translate("NoGroupSelected");
 			String text = group == null ? "\u2013" : string;
 			if (!this.initialBar) {
+				logger.debug("====== initial bar");
 				topBarMessage(string, text);
 			} else {
+				logger.debug("====== hiding buttons");
 				hideButtons();
 				this.warning.setText(string);
 			}
@@ -1678,15 +1696,22 @@ public abstract class AthleteGridContent extends BaseContent
 	protected void updateURLLocation(UI ui, Location location, Group newGroup) {
 		// change the URL to reflect fop group
 		HashMap<String, List<String>> params = new HashMap<>(location.getQueryParameters().getParameters());
-		params.put("fop", Arrays.asList(URLUtils.urlEncode(OwlcmsSession.getFop().getName())));
+		
+		// CRITICAL: Preserve the FOP from this content's context
+		// The session FOP may have changed due to cross-FOP events, but we must maintain
+		// the FOP that corresponds to this page's actual context
+		FieldOfPlay pageFop = this.getFop();
+		if (pageFop != null) {
+			params.put("fop", Arrays.asList(URLUtils.urlEncode(pageFop.getName())));
+		}
 
 		if (newGroup != null && !isIgnoreGroupFromURL()) {
 			params.put("group", Arrays.asList(URLUtils.urlEncode(newGroup.getName())));
 		} else {
 			params.remove("group");
 		}
-		URLUtils.replaceState(ui.getPage().getHistory(), null,
-		        new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(location.getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(ui.getPage().getHistory(), null, newLocation, location);
 	}
 
 	/**
@@ -1795,6 +1820,16 @@ public abstract class AthleteGridContent extends BaseContent
 
 	public boolean ackDialogIsOpened() {
 		return this.stoppageAckNotification != null && this.stoppageAckNotification.isOpened();
+	}
+	
+	@Override
+	public void setPublicDisplay(boolean publicDisplay) {
+		this.publicDisplay = publicDisplay;
+	}
+
+	@Override
+	public boolean isPublicDisplay() {
+		return publicDisplay;
 	}
 
 }

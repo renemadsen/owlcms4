@@ -46,7 +46,7 @@ import ch.qos.logback.classic.Logger;
 @SuppressWarnings("serial")
 @JsonIgnoreProperties(ignoreUnknown = true, value = { "hibernateLazyInitializer", "logger" })
 @JsonInclude(Include.NON_NULL)
-public class RecordEvent {
+public class RecordEvent implements Comparable<RecordEvent> {
 
 	public class MissingAgeGroup extends Exception {
 	}
@@ -100,34 +100,34 @@ public class RecordEvent {
 	private Integer athleteAge;
 	@Id
 	// @GeneratedValue(strategy = GenerationType.AUTO)
-	Long id;
-	Double recordValue;
-	private String ageGrp;
-	private int ageGrpLower;
-	private int ageGrpUpper;
-	private String athleteName;
-	private LocalDate birthDate;
-	private Integer birthYear;
-	private int bwCatLower;
-	private Integer bwCatUpper;
-	private String event;
-	private String eventLocation;
-	private Gender gender;
-	private String nation;
-	private LocalDate recordDate;
-	private String recordFederation;
-	private Ranking recordLift;
-	private String recordName;
-	private int recordYear;
-	private String fileName;
-	private String bwCatString;
-	private String groupNameString;
-	private String categoryString;
+	public Long id;
+	public Double recordValue;
+	public String ageGrp;
+	public int ageGrpLower;
+	public int ageGrpUpper;
+	public String athleteName;
+	public LocalDate birthDate;
+	public Integer birthYear;
+	public int bwCatLower;
+	public Integer bwCatUpper;
+	public String event;
+	public String eventLocation;
+	public Gender gender;
+	public String nation;
+	public LocalDate recordDate;
+	public String recordFederation;
+	public Ranking recordLift;
+	public String recordName;
+	public int recordYear;
+	public String fileName;
+	public String bwCatString;
+	public String groupNameString;
+	public String categoryString;
 	@Transient
 	@JsonIgnore
 	private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-	RecordEvent() {
+	public RecordEvent() {
 		setId(IdUtils.getTimeBasedId());
 	}
 
@@ -194,6 +194,8 @@ public class RecordEvent {
 		return this.athleteName;
 	}
 
+	@Transient
+	@JsonIgnore
 	public String getBirth() {
 		return (this.birthDate != null ? this.dateFormat.format(this.birthDate)
 		        : (this.birthYear != null ? Integer.toString(this.birthYear) : null));
@@ -212,6 +214,22 @@ public class RecordEvent {
 	}
 
 	public String getBwCatString() {
+		// if bwCatString is an integer over 900, it is a super-heavyweight
+		// then we use the catLower translated to get the + or > according to locale.
+		// also when the string has ">" or "+" we use the catLower (legacy)
+		if (this.bwCatString != null && (this.bwCatString.contains(">") || this.bwCatString.contains("+"))) {
+			return Translator.translate("catAboveFormat", this.bwCatLower);
+		}
+		if (this.bwCatString != null) {
+			try {
+				int bw = Integer.parseInt(this.bwCatString);
+				if (bw >= 199) {
+					return Translator.translate("catAboveFormat", this.bwCatLower);
+				}
+			} catch (NumberFormatException e) {
+				// not an integer, ignore
+			}
+		}
 		return this.bwCatString;
 	}
 
@@ -255,6 +273,8 @@ public class RecordEvent {
 		return this.id;
 	}
 
+	@Transient
+	@JsonIgnore
 	public String getKey() {
 		return // getRecordFederation() + "_" +
 		getRecordName() + "_" + getGender() + "_" + getRecordLift() + "_" + getBwCatLower() + "_" + getBwCatUpper() + "_"
@@ -269,6 +289,8 @@ public class RecordEvent {
 		return this.recordDate;
 	}
 
+	@Transient
+	@JsonIgnore
 	public String getRecordDateAsString() {
 		if (this.recordDate == null) {
 			return "";
@@ -289,7 +311,7 @@ public class RecordEvent {
 	}
 
 	public Double getRecordValue() {
-		return this.recordValue;
+		return this.recordValue == null ? 0.0D : this.recordValue;
 	}
 
 	public int getRecordYear() {
@@ -305,6 +327,9 @@ public class RecordEvent {
 	@Transient
 	@JsonIgnore
 	public String getResRecordLift() {
+		if (this.recordLift == null) {
+			return "";
+		}
 		switch (this.recordLift) {
 			case CLEANJERK:
 				return Translator.translate("Results.Clean_and_Jerk");
@@ -317,11 +342,21 @@ public class RecordEvent {
 		}
 	}
 
+	@Transient
+	@JsonIgnore
 	public String getTranslatedGender() {
+		if (this.gender == null) {
+			return "";
+		}
 		return this.gender.asGenderName();
 	}
 
+	@Transient
+	@JsonIgnore
 	public String getTranslatedLift() {
+		if (this.recordLift == null) {
+			return "";
+		}
 		return Translator.translate("Record." + this.recordLift);
 	}
 
@@ -526,6 +561,24 @@ public class RecordEvent {
 	public void setTranslatedLift(String ignored) {
 	}
 
+	public void setBirth(String ignored) {
+	}
+
+	public void setKey(String ignored) {
+	}
+
+	public void setName(String ignored) {
+	}
+
+	public void setRecordDateAsString(String ignored) {
+	}
+
+	public void setResAthleteName(String ignored) {
+	}
+
+	public void setResRecordLift(String ignored) {
+	}
+
 	@Override
 	public String toString() {
 		return getKey();
@@ -596,6 +649,17 @@ public class RecordEvent {
 
 	public String prettyPrint() {
 		return getRecordName() + " " + Translator.translate("Record."+getRecordLift()) + " " + getAgeGrp() + " " + getBwCatString();
+	}
+
+	@Transient
+	@JsonIgnore
+	public String getName() {
+		return prettyPrint();
+	}
+
+	@Override
+	public int compareTo(RecordEvent o) {
+		return 0;
 	}
 
 }

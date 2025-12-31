@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.nui.preparation;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,12 +45,13 @@ import com.vaadin.flow.component.tabs.TabSheet;
 import com.vaadin.flow.component.textfield.PasswordField;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.component.upload.Upload;
-import com.vaadin.flow.component.upload.receivers.MemoryBuffer;
+import com.vaadin.flow.server.streams.UploadHandler;
 import com.vaadin.flow.data.binder.Binder;
 import com.vaadin.flow.data.binder.BinderValidationStatus;
 import com.vaadin.flow.data.provider.ListDataProvider;
 import com.vaadin.flow.data.validator.RegexpValidator;
 
+import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.config.ConfigRepository;
 import app.owlcms.i18n.Translator;
@@ -90,7 +92,7 @@ public class ConfigEditingFormFactory
 
 	@Override
 	public String buildCaption(CrudOperation operation, Config config) {
-		return Translator.translate("Config.Titles");
+		return Translator.translate("Config.Title");
 	}
 
 	@Override
@@ -340,20 +342,21 @@ public class ConfigEditingFormFactory
 		layout.addFormItem(localDirZipDiv, Translator.translate("Config.DownloadLocalDirZipLabel"));
 
 		Button uploadButton = new Button(Translator.translate("LocalOverride.DirUploadButton"));
-		MemoryBuffer receiver = new MemoryBuffer();
 		uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
-		Upload uploadZip = new Upload(receiver);
-		uploadZip.setUploadButton(uploadButton);
-		uploadZip.setDropLabel(new NativeLabel(Translator.translate("LocalOverride.DirUploadDropZone")));
-		uploadZip.addSucceededListener(e -> {
+		
+		UploadHandler uploadHandler = UploadHandler.inMemory((metadata, bytes) -> {
 			Path curDir = Paths.get(".", "local");
 			try {
 				ZipUtils.deleteDirectoryRecursively(curDir);
-				ZipUtils.extractZip(receiver.getInputStream(), curDir);
+				ZipUtils.extractZip(new ByteArrayInputStream(bytes), curDir);
 			} catch (IOException e1) {
 				LoggerUtils.logError(this.logger, e1);
 			}
 		});
+		
+		Upload uploadZip = new Upload(uploadHandler);
+		uploadZip.setUploadButton(uploadButton);
+		uploadZip.setDropLabel(new NativeLabel(Translator.translate("LocalOverride.DirUploadDropZone")));
 		layout.addFormItem(uploadZip, Translator.translate("LocalOverride.Title"));
 
 		return layout;
@@ -417,6 +420,15 @@ public class ConfigEditingFormFactory
 		defaultLocaleField.setItems(new ListDataProvider<>(Translator.getAllAvailableLocales()));
 		defaultLocaleField.setItemLabelGenerator((locale) -> locale.getDisplayName(locale));
 		this.binder.forField(defaultLocaleField).bind(Config::getDefaultLocale, Config::setDefaultLocale);
+		defaultLocaleField.addValueChangeListener(event -> {
+			if (!event.isFromClient()) {
+				return;
+			}
+			Locale newLocale = event.getValue();
+			Translator.setForcedLocale(newLocale);
+			Gender.initPublicGenderCodeMapString(newLocale != null ? newLocale : Locale.ENGLISH);
+			this.logger.info("Setting forced locale {} {}", newLocale, Translator.getForcedLocale());
+		});
 		layout.addFormItem(defaultLocaleField, Translator.translate("Competition.defaultLocale"));
 
 		return layout;
@@ -433,7 +445,7 @@ public class ConfigEditingFormFactory
 		layout.addFormItem(publicResultsField, Translator.translate("Config.publicResultsURL"));
 		this.binder.forField(publicResultsField)
 		        .withNullRepresentation("")
-		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(http://|https://).*"))
+		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(https?://|wss?://).*"))
 		        .bind(Config::getPublicResultsURL, Config::setPublicResultsURL);
 
 		PasswordField updateKey = new PasswordField();
@@ -474,6 +486,13 @@ public class ConfigEditingFormFactory
 		this.binder.forField(videoStylesField)
 		        .withNullRepresentation("")
 		        .bind(Config::getVideoStylesDirBase, Config::setVideoStylesDirectory);
+		
+		TextField publicStylesField = new TextField();
+		publicStylesField.setWidthFull();
+		layout.addFormItem(publicStylesField, Translator.translate("Config.publicStylesLabel"));
+		this.binder.forField(publicStylesField)
+		        .withNullRepresentation("")
+		        .bind(Config::getPublicStylesDirectory, Config::setPublicStylesDirectory);
 
 		return layout;
 	}
@@ -571,7 +590,7 @@ public class ConfigEditingFormFactory
 		layout.addFormItem(videoDataField, Translator.translate("Config.videoDataURL"));
 		this.binder.forField(videoDataField)
 		        .withNullRepresentation("")
-		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(http://|https://).*"))
+		        .withValidator(new RegexpValidator(Translator.translate("URL.missingProtocol"),"^(https?://|wss?://).*"))
 		        .bind(Config::getVideoDataURL, Config::setVideoDataURL);
 
 		PasswordField updateKey = new PasswordField();

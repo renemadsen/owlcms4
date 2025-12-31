@@ -46,6 +46,28 @@ import ch.qos.logback.classic.Logger;
 
 public class UIEvent {
 
+	static public class ButtonTest extends UIEvent {
+		private FOPEvent fopEvent;
+		public String format;
+		public Object[] infos;
+
+		public ButtonTest(FOPEvent e, FieldOfPlay fop,  Object origin, String format, Object... infos) {
+			super(origin, fop);
+			this.setFopEvent(e);
+			this.format = format;
+			this.infos = infos;
+		}
+
+		public FOPEvent getFopEvent() {
+			return fopEvent;
+		}
+
+		public void setFopEvent(FOPEvent fopEvent) {
+			this.fopEvent = fopEvent;
+		}
+		
+	}
+
 	static public class BarbellOrPlatesChanged extends UIEvent {
 		public BarbellOrPlatesChanged(Object object, FieldOfPlay fop) {
 			super(object, fop);
@@ -470,16 +492,17 @@ public class UIEvent {
 		 * @param ref2     the ref 2
 		 * @param ref3     the ref 3
 		 * @param origin   the origin
+		 * @param b 
 		 */
-		public Decision(Athlete a, Boolean decision, Boolean ref1, Boolean ref2, Boolean ref3, Object origin, FieldOfPlay fop) {
+		public Decision(Athlete a, Boolean decision, Boolean ref1, Boolean ref2, Boolean ref3, Object origin, FieldOfPlay fop, boolean b) {
 			super(a, origin, fop);
 			this.decision = decision;
 			this.ref1 = ref1;
 			this.ref2 = ref2;
 			this.ref3 = ref3;
 			this.setTrace(() -> LoggerUtils.stackTrace());
-			this.setSingleReferee(fop.isSingleReferee());
-			if (fop.isSingleReferee()) {
+			this.setSingleReferee(b);
+			if (isSingleReferee()) {
 				if (this.ref1 != null) {
 					this.ref2 = this.ref1;
 					this.ref1 = null;
@@ -1142,9 +1165,10 @@ public class UIEvent {
 		public Long ref2Time;
 		public Boolean ref3;
 		public Long ref3Time;
+		public boolean singleReferee;
 
 		public RefereeUpdate(Athlete a, Boolean ref1, Boolean ref2, Boolean ref3, Long long1,
-		        Long long2, Long long3, Object origin, FieldOfPlay fop) {
+		        Long long2, Long long3, Object origin, boolean singleReferee, FieldOfPlay fop) {
 			super(a, origin, fop);
 			this.ref1 = ref1;
 			this.ref2 = ref2;
@@ -1152,10 +1176,11 @@ public class UIEvent {
 			this.ref1Time = long1;
 			this.ref2Time = long2;
 			this.ref3Time = long3;
+			this.singleReferee = singleReferee;
 			if (this.trace == null || this.trace.isBlank()) {
 				this.setTrace(() -> LoggerUtils.stackTrace());
 			}
-			if (fop.isSingleReferee()) {
+			if (singleReferee) {
 				if (this.ref1 != null) {
 					this.ref2 = this.ref1;
 					this.ref1 = null;
@@ -1165,6 +1190,14 @@ public class UIEvent {
 				}
 			}
 			this.logger.debug("RefereeUpdate {} {} {}\n{}", ref1, ref2, ref3, this.trace);
+		}
+
+		public boolean isSingleReferee() {
+			return singleReferee;
+		}
+
+		public void setSingleReferee(boolean singleReferee) {
+			this.singleReferee = singleReferee;
 		}
 	}
 

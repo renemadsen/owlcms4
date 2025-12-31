@@ -76,14 +76,12 @@ public class PreparationNavigationContent extends BaseNavigationContent implemen
 		Button officials = openInNewTabNoParam(TechnicalOfficialContent.class, Translator.translate("TechnicalOfficials"));
 		Button groups = openInNewTabNoParam(SessionContent.class, Translator.translate("DefineGroups"));
 		Button platforms = openInNewTabNoParam(PlatformContent.class, Translator.translate("DefineFOP"));
-		Button configureRecords = openInNewTabNoParam(RecordsContent.class,
-		        Translator.translate("Records.RecordsManagementTitle"));
 
-		var emptyRegistrationWriter = new JXLSRegistrationEmptyExport(UI.getCurrent());
+		var emptyRegistrationWriter = new JXLSRegistrationEmptyExport();
 		Notification notification = new Notification(Translator.translate("Processing"));
 		notification.setPosition(Position.TOP_END);
-		notification.addThemeVariants(NotificationVariant.LUMO_WARNING);
-		emptyRegistrationWriter.setDoneCallback((s) -> this.getUI().get().access(() -> {
+		emptyRegistrationWriter.setDoneCallback((t) -> emptyRegistrationWriter.getUi().access(() -> {
+			// ignore throwable, just close notification on completion
 			notification.close();
 		}));
 		Div downloadDiv = DownloadButtonFactory.createDynamicJXLSDownloadButton("Registration", Translator.translate("DownloadRegistrationTemplate"),
@@ -100,7 +98,7 @@ public class PreparationNavigationContent extends BaseNavigationContent implemen
 		Notification notification1 = new Notification(Translator.translate("LongProcessing"));
 		notification1.setPosition(Position.TOP_END);
 		notification1.addThemeVariants(NotificationVariant.LUMO_WARNING);
-		registrationWriter.setDoneCallback((s) -> this.getUI().get().access(() -> {
+		registrationWriter.setDoneCallback((t) -> this.getUI().get().access(() -> {
 			notification1.close();
 		}));
 
@@ -110,8 +108,15 @@ public class PreparationNavigationContent extends BaseNavigationContent implemen
 
 		Button athletes = openInNewTabNoParam(RegistrationContent.class, Translator.translate("EditAthletes"));
 		athletes.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
+
+		Button coaches = openInNewTabNoParam(CoachContent.class, Translator.translate("EditCoaches"));
 		Button teams = openInNewTabNoParam(TeamSelectionContent.class,
 		        Translator.translate(TeamSelectionContent.TITLE));
+
+		Button configureRecords = openInNewTabNoParam(RecordsConfigContent.class,
+		        Translator.translate("RecordEvent.RecordsConfigurationTitle"));
+		Button editExportRecords = openInNewTabNoParam(RecordContent.class,
+		        Translator.translate("RecordEvent.EditExportRecords"));
 
 		Button documents = openInNewTab(DocumentsContent.class, Translator.translate("Documents.Title"), "documents");
 		documents.addThemeVariants(ButtonVariant.LUMO_PRIMARY, ButtonVariant.LUMO_SUCCESS);
@@ -129,14 +134,14 @@ public class PreparationNavigationContent extends BaseNavigationContent implemen
 		exportJsonButton.ifPresent(c -> ((Button) c).setWidth("100%"));
 		exportJsonDiv.setWidthFull();
 
-		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(competition, config, ageGroups, officials, groups, configureRecords, platforms);
+		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(competition, config, ageGroups, officials, groups, platforms);
 		doGroup(Translator.translate("PreCompetitionSetup"), grid1, this, true);
-		FlexibleGridLayout grid2 = HomeNavigationContent.navigationGrid(downloadDiv, upload, athletes, teams);
+		FlexibleGridLayout grid2 = HomeNavigationContent.navigationGrid(downloadDiv, upload, athletes, coaches, teams);
 		doGroup(Translator.translate("Registration"), grid2, this, true);
-		// FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(athletes, teams, exportDiv);
-		// doGroup(Translator.translate("EditAthletes_Groups"), grid3, this);
-		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(documents);
-		doGroup(Translator.translate("Documents.Title"), grid4, this, true);
+		FlexibleGridLayout grid3 = HomeNavigationContent.navigationGrid(documents);
+		doGroup(Translator.translate("Documents.Title"), grid3, this, true);
+		FlexibleGridLayout grid4 = HomeNavigationContent.navigationGrid(configureRecords, editExportRecords);
+		doGroup(Translator.translate("RecordEvent.PageTitle"), grid4, this, true);
 		FlexibleGridLayout grid5 = HomeNavigationContent.navigationGrid(exportJsonDiv, uploadJson);
 		doGroup(Translator.translate("ExportDatabase.ExportImport"), grid5, this, true);
 		FlexibleGridLayout grid6 = HomeNavigationContent.navigationGrid(sbdeDiv, sbdeUpload);
@@ -200,8 +205,8 @@ public class PreparationNavigationContent extends BaseNavigationContent implemen
 		params.remove("fop");
 
 		// change the URL to reflect group
-		URLUtils.replaceState(event.getUI().getPage().getHistory(),null,
-		        new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params))));
+		Location newLocation = new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		URLUtils.replaceState(event.getUI().getPage().getHistory(), null, newLocation, getLocation());
 	}
 
 	@Override

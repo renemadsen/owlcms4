@@ -29,7 +29,6 @@ import app.owlcms.apputils.queryparameters.DisplayParametersReader;
 import app.owlcms.components.fields.LocalizedDecimalField;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
-import app.owlcms.init.OwlcmsSession;
 import ch.qos.logback.classic.Logger;
 
 public class DisplayOptions {
@@ -104,12 +103,22 @@ public class DisplayOptions {
 			UI.getCurrent().getPage().setLocation(location.getPathWithQueryParameters());
 		});
 
+		boolean showCurrentAttempt = dp.isCurrentAttempt();
+		Checkbox currentAttemptCheckbox = new Checkbox(Translator.translate("DisplayParameters.ShowCurrentAttempt"));
+		currentAttemptCheckbox.setValue(showCurrentAttempt);
+		currentAttemptCheckbox.addValueChangeListener(e -> {
+			if (e.isFromClient() && e.getSource() == currentAttemptCheckbox) {
+				dp.switchCurrentAttempt(e.getValue(), true);
+			}
+		});
+
 		HorizontalLayout horizontalLayout = new HorizontalLayout();
 		horizontalLayout.add(leadersDisplayCheckbox);
 		if (recordsDisplayCheckbox != null) {
 			horizontalLayout.add(recordsDisplayCheckbox);
 		}
 		horizontalLayout.add(abbreviatedCheckbox);
+		horizontalLayout.add(currentAttemptCheckbox);
 
 		layout.add(label);
 		layout.add(horizontalLayout);
@@ -163,7 +172,7 @@ public class DisplayOptions {
 
 	public static void addSoundEntries(VerticalLayout layout, Component target, DisplayParametersReader dp) {
 		NativeLabel label = new NativeLabel(Translator.translate("DisplayParameters.SoundSettings"));
-		FieldOfPlay fop = OwlcmsSession.getFop();
+		FieldOfPlay fop = dp.getFop();
 		if (fop != null) {
 			if (fop.isEmitSoundsOnServer()) {
 				label = new NativeLabel(Translator.translate("DisplayParameters.SoundsOnServer"));

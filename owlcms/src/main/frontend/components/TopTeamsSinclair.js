@@ -19,11 +19,11 @@ class TopTeamsSinclair extends LitElement {
         <timer-element id="timer"></timer-element>
         <timer-element id="breakTimer"></timer-element>
         <decision-element id="decisions"></decision-element>
-      </div>
-     <div id="resultBoardDiv" class="${this.activeClasses()}">
+      </div> 
+     <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode??"dark"}">
         ${this.topTeamsWomen
           ? html`
-              <h2 class="fullName" id="fullNameDivWomen" .innerHTML="${this.topTeamsWomen}" ></h2>
+              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsWomen}" ></h2>
               <table class="results" id="orderDiv" style$="">
                 <thead>
                   <tr>
@@ -31,26 +31,21 @@ class TopTeamsSinclair extends LitElement {
                     <th class="medium" .innerHTML="${this.t?.ScoringTitle}" ></th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr>
-                    <td class="spacer" style="grid-column: 1 / -1; justify-content: left;" innerHTML="-" ></td>
-                  </tr>
-                  ${(this.womensTeams ?? []).map(
-                    (item) => html`
-                      <tr class="athlete">
-                        <td class="club"><div>${item.team}</div></td>
-                        <td class="medium"><div>${item.score}</div></td>
-                      </tr>
-                    `
-                  )}
-                </tbody>
+                ${(this.womensTeams ?? []).map(
+                  (item) => html`
+                    <tr>
+                      <td class="club"><div>${item.team}</div></td>
+                      <td class="medium"><div>${item.score}</div></td>
+                    </tr>
+                  `
+                )}
               </table>
               <h4>&nbsp;</h4>
             `
           : html``}
         ${this.topTeamsMen 
           ? html` 
-              <h2 class="fullName" id="fullNameDivMen" .innerHTML="${this.topTeamsMen}"></h2>
+              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsMen}"></h2>
               <table class="results" id="orderDiv" style$="">
                 <thead>
                   <tr>
@@ -100,8 +95,10 @@ class TopTeamsSinclair extends LitElement {
       title: {},
       topTeamsMen: {},
       topTeamsWomen: {},
+      topTeamsMixed: {},
       mensTeams: {type: Object},
       womensTeams: {type: Object},
+      mixedTeams: {type: Object},
       // style sheets & misc.
       javaComponentId: {},
       stylesDir: {},
@@ -119,11 +116,6 @@ class TopTeamsSinclair extends LitElement {
   activeClasses() {
     return "wrapper ";
   }
-
-  videoHeaderStyles() {
-      return "display: " + ((this.mode !== "WAIT" && this.video)? "flex" : "none");
-    }
-
 
 }
 

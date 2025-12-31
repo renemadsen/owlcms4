@@ -7,6 +7,7 @@
 package app.owlcms.nui.crudui;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.LoggerFactory;
 import org.vaadin.crudui.crud.CrudOperation;
@@ -16,6 +17,8 @@ import org.vaadin.crudui.crud.impl.GridCrud;
 import com.vaadin.flow.component.ClickEvent;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.ComponentEventListener;
+import com.vaadin.flow.component.Focusable;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.grid.Grid;
@@ -45,6 +48,9 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 	private boolean clickable = true;
 	protected long clicked = 0L;
 
+	// Focus management
+	private T triggeringItem;
+
 	/**
 	 * Instantiates a new owlcms crudGrid crudGrid.
 	 *
@@ -62,7 +68,32 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 		// {}",System.identityHashCode(owlcmsCrudFormFactory), LoggerUtils.whereFrom());
 		this.setCrudFormFactory(owlcmsCrudFormFactory);
 		this.setOwlcmsGridLayout(crudLayout);
+
+		// Initialize layout and toolbar first so buttons (findAll/add) are created
 		initLayoutGrid();
+
+		// Set up the grid reference for dialog close callbacks after init
+		crudLayout.setOwlcmsCrudGrid(this);
+	}
+
+	/**
+	 * Try to find and focus a TextField or ComboBox in the filter layout. Returns true if focus was moved to a component, false otherwise.
+	 */
+	protected Focusable<?> focusInFilterArea() {
+		Component filterLayout = this.getOwlcmsGridLayout().getFilterLayout();
+		if (!(filterLayout instanceof Component)) {
+			return null;
+		}
+		// Focus first focusable child found in the filter layout
+		Optional<Component> focusable = ((Component) filterLayout).getChildren()
+		        .filter(c -> c instanceof com.vaadin.flow.component.Focusable)
+		        .findFirst();
+		if (focusable.isPresent()) {
+			var f = (Focusable<?>) focusable.get();
+			f.focus();
+			return f;
+		}
+		return null;
 	}
 
 	public OwlcmsGridLayout getOwlcmsGridLayout() {
@@ -87,7 +118,7 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 
 	protected void cancelCallback() {
 		this.getOwlcmsGridLayout().hideForm();
-		this.grid.asSingleSelect().clear();
+		focusOutsideThenBackToTriggeringItem();
 	}
 
 	/*
@@ -125,17 +156,67 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 	protected void deleteCallBack() {
 		this.getOwlcmsGridLayout().hideForm();
 		this.deleteButtonClicked();
+		// For delete, do not return to triggering item: clear it then focus outside
+		this.triggeringItem = null;
+		focusOutsideThenBackToTriggeringItem();
 	}
 
 	protected void deleteCallBack(T domainObject) {
 		this.getOwlcmsGridLayout().hideForm();
 		this.deleteButtonClicked(domainObject);
+		// For delete, do not return to triggering item: clear it then focus outside
+		this.triggeringItem = null;
+		focusOutsideThenBackToTriggeringItem();
 	}
 
 	@Override
 	protected void findAllButtonClicked() {
 		this.grid.sort(null); // reset the sorting order to none - use the query result set as is.
 		super.findAllButtonClicked();
+	}
+
+	/**
+	 * Focus management: Focus outside the grid, then back to the triggering item. This performs a two-step focus to clear any unwanted highlights.
+	 */
+	protected void focusOutsideThenBackToTriggeringItem() {
+		UI current = UI.getCurrent();
+
+		// Step 1: Clear selection and focus outside the grid
+
+		this.grid.asSingleSelect().clear();
+		var focused = focusInFilterArea();
+		logger.debug("focusing on filter area component {}", focused);
+		current.push();
+
+		// Step 2: After a short delay, re-select and focus the triggering item
+		if (triggeringItem != null) {
+			logger.debug("refocusing on triggering item {}", triggeringItem);
+			if (focused != null) {
+				focused.blur();
+			}
+			this.grid.select(triggeringItem);
+			current.push();
+		} else {
+			// No triggering item: just focus back to the grid
+			logger.debug("no triggering item, just refocusing on grid");
+			this.grid.focus();
+			current.push();
+
+		}
+	}
+
+	// focusOnAddButton removed; focusOutsideThenBackToTriggeringItem handles filter-area focus
+
+	@Override
+	protected void addButtonClicked() {
+		triggeringItem = null; // For add operations, no triggering item
+		super.addButtonClicked();
+	}
+
+	@Override
+	protected void updateButtonClicked() {
+		triggeringItem = this.grid.asSingleSelect().getValue(); // Capture the selected item
+		super.updateButtonClicked();
 	}
 
 	/**
@@ -196,6 +277,19 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 		this.addButton.getElement().setAttribute("title", Translator.translate("Add"));
 		this.crudLayout.addToolbarComponent(this.addButton);
 
+		// Ensure the toolbar layout is visible now that we've added toolbar components
+		try {
+			OwlcmsGridLayout gl = this.getOwlcmsGridLayout();
+			if (gl != null) {
+				Component toolbar = (Component) gl.getToolbarLayout();
+				if (toolbar != null) {
+					toolbar.setVisible(true);
+				}
+			}
+		} catch (Exception e) {
+			logger.trace("could not show toolbar layout", e);
+		}
+
 		this.updateButton = new Button(VaadinIcon.PENCIL.create(), e -> updateButtonClicked());
 		this.updateButton.getElement().setAttribute("title", Translator.translate("Update"));
 		// crudLayout.addToolbarComponent(updateButton);
@@ -214,6 +308,7 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 			refreshGrid();
 			Notification.show(successMessage);
 			logger.trace("operation performed");
+			focusOutsideThenBackToTriggeringItem();
 		} catch (Exception e) {
 			LoggerUtils.logError(logger, e);
 		}
@@ -228,6 +323,9 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 	@Override
 	protected void showForm(CrudOperation operation, T domainObject, boolean readOnly, String successMessage,
 	        ComponentEventListener<ClickEvent<Button>> unused) {
+		// Store the item that triggered the dialog (could be new for add, or existing for update)
+		triggeringItem = domainObject;
+
 		OwlcmsCrudFormFactory<T> owlcmsCrudFormFactory = (OwlcmsCrudFormFactory<T>) this.getCrudFormFactory();
 		Component form = owlcmsCrudFormFactory.buildNewForm(operation, domainObject, readOnly,
 		        cancelButtonClickEvent -> {
@@ -242,6 +340,13 @@ public class OwlcmsCrudGrid<T> extends GridCrud<T> {
 
 		String caption = owlcmsCrudFormFactory.buildCaption(operation, domainObject);
 		this.getOwlcmsGridLayout().showForm(operation, form, caption);
+	}
+
+	/**
+	 * Handle dialog close events (Escape key, clicking outside, etc.) This is called by the grid layout when the dialog is closed.
+	 */
+	public void handleDialogClose() {
+		focusOutsideThenBackToTriggeringItem();
 	}
 
 }

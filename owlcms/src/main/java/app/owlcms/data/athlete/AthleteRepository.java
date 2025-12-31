@@ -26,6 +26,7 @@ import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
+import app.owlcms.data.category.UnfinishedCategories;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.jpa.JPAService;
@@ -42,27 +43,29 @@ public class AthleteRepository {
 	static {
 		logger.setLevel(Level.INFO);
 	}
-	public static Set<String> allUnfinishedCategories;
+	public static UnfinishedCategories allUnfinishedCategories;
 	private static final ThreadLocal<Map<String, Integer>> categoryAthleteCount = ThreadLocal.withInitial(HashMap::new);
 
-	public static Set<String> allUnfinishedCategories() {
-		Set<String> unfinishedCategories = new HashSet<>();
+	public static UnfinishedCategories allUnfinishedCategories() {
+		UnfinishedCategories result = new UnfinishedCategories();
 		List<Athlete> ranked = findAll();
 		if (ranked == null || ranked.isEmpty()) {
-			return Set.of();
+			setAllUnfinishedCategories(result);
+			return result;
 		}
 		for (Athlete a : ranked) {
-			// logger.debug("unfinishedCategories *** athlete {}",a);
-			if (!a.isDone()) {
-				// logger.debug("{}", a, a.getCleanJerk3ActualLift());
+			boolean ineligible = !a.isEligibleForIndividualRanking();
+			boolean done = a.isDone();
+			if (!done && !ineligible) {
 				for (Participation p : a.getParticipations()) {
-					unfinishedCategories.add(p.getCategory().getCode());
+					Category category = p.getCategory();
+					result.add(category);
 				}
 			}
 		}
-		logger.debug("unfinishedCategories2 {}", unfinishedCategories);
-		setAllUnfinishedCategories(unfinishedCategories);
-		return unfinishedCategories;
+		logger.debug("unfinishedCategories2 {}", result);
+		setAllUnfinishedCategories(result);
+		return result;
 	}
 
 	public static void assignCategoryRanks() {
@@ -85,6 +88,12 @@ public class AthleteRepository {
 			AthleteSorter.doAssignStartNumbers(currentGroupAthletes);
 			return currentGroupAthletes;
 		});
+	}
+
+	public static void assignStartNumbersUnlessManual(Group group) {
+		if (!Competition.getCurrent().isManualStartNumbers()) {
+			assignStartNumbers(group);
+		}
 	}
 
 	/**
@@ -111,6 +120,12 @@ public class AthleteRepository {
 			}
 			return null;
 		});
+	}
+
+	public static void assignStartNumbersUnlessManual(List<Athlete> athletes) {
+		if (!Competition.getCurrent().isManualStartNumbers()) {
+			assignStartNumbers(athletes);
+		}
 	}
 
 	/**
@@ -301,10 +316,20 @@ public class AthleteRepository {
 		});
 	}
 
-	public static List<Athlete> findAthletesNoCategory() {
+	public static List<Athlete> findAthletesNoParticipations() {
 		return JPAService.runInTransaction((em) -> {
 			TypedQuery<Athlete> q = em.createQuery(
 			        "select distinct a from Athlete a left outer join a.participations p where p is null",
+			        Athlete.class);
+			return q.getResultList();
+		});
+	}
+
+	public static List<Athlete> findAthletesNoCategory() {
+		return JPAService.runInTransaction((em) -> {
+			TypedQuery<Athlete> q = em.createQuery(
+			        // Find athletes with no category
+			        "select distinct a from Athlete a where a.category is null",
 			        Athlete.class);
 			return q.getResultList();
 		});
@@ -335,7 +360,7 @@ public class AthleteRepository {
 		});
 	}
 
-	public static Set<String> getAllUnfinishedCategories() {
+	public static UnfinishedCategories getAllUnfinishedCategories() {
 		if (allUnfinishedCategories == null) {
 			allUnfinishedCategories();
 		}
@@ -384,19 +409,21 @@ public class AthleteRepository {
 	}
 
 	public static Set<Athlete> keepOnlyFinishedCategoryAthletes(Collection<Athlete> athletes) {
-		Set<String> unfinishedCategories = new HashSet<>();
+		UnfinishedCategories unfinishedCategories = new UnfinishedCategories();
 		Set<Athlete> finishedCategoryAthletes = new HashSet<>();
 		for (Athlete a : athletes) {
 			if (a.getSnatch3AsInteger() == null || a.getSnatch3ActualLift().isBlank()
 			        || a.getCleanJerk3AsInteger() == null || a.getCleanJerk3ActualLift().isBlank()) {
 				for (Participation p : a.getParticipations()) {
-					unfinishedCategories.add(p.getCategory().getCode());
+					Category category = p.getCategory();
+					unfinishedCategories.add(category);
 				}
 			}
 		}
 		// logger.debug("unfinishedCategories1 {}",unfinishedCategories);
 		for (Athlete a : athletes) {
-			if (!unfinishedCategories.contains(a.getCategory().getCode())) {
+			Category athleteCategory = a.getCategory();
+			if (athleteCategory != null && !unfinishedCategories.contains(athleteCategory)) {
 				finishedCategoryAthletes.add(a);
 			}
 		}
@@ -424,7 +451,7 @@ public class AthleteRepository {
 				return null;
 			});
 		}
-		
+
 		if (recomputeParticipations) {
 			JPAService.runInTransaction(em -> {
 				List<Athlete> athletes = AthleteRepository.doFindAll(em);
@@ -458,26 +485,27 @@ public class AthleteRepository {
 		});
 	}
 
-	public static void setAllUnfinishedCategories(Set<String> allUnfinishedCategories) {
+	public static void setAllUnfinishedCategories(UnfinishedCategories allUnfinishedCategories) {
 		AthleteRepository.allUnfinishedCategories = allUnfinishedCategories;
 	}
 
-	public static Set<String> unfinishedCategories(List<Athlete> ranked) {
-		Set<String> unfinishedCategories = new HashSet<>();
+	public static UnfinishedCategories unfinishedCategories(List<Athlete> ranked) {
+		UnfinishedCategories result = new UnfinishedCategories();
 		if (ranked == null || ranked.isEmpty()) {
-			return Set.of();
+			return result;
 		}
 		for (Athlete a : ranked) {
 			// logger.debug("unfinishedCategories *** athlete {}",a);
 			if (!a.isDone()) {
 				// logger.debug("{}", a, a.getCleanJerk3ActualLift());
 				for (Participation p : a.getParticipations()) {
-					unfinishedCategories.add(p.getCategory().getCode());
+					Category category = p.getCategory();
+					result.add(category);
 				}
 			}
 		}
-		// logger.debug("unfinishedCategories2 {}",unfinishedCategories);
-		return unfinishedCategories;
+		// logger.debug("unfinishedCategories2 {}",result);
+		return result;
 	}
 
 	private static List<Athlete> doFindAthletesForGlobalRanking(Group g, EntityManager em, boolean onlyWeighedIn) {
@@ -607,6 +635,50 @@ public class AthleteRepository {
 		if (team != null) {
 			query.setParameter("team", team);
 		}
+	}
+
+	public static void removeBrokenParticipationsAndCategories() {
+		JPAService.runInTransaction(em -> {
+			TypedQuery<Participation> q = em.createQuery(
+			        "select p from Participation p where p.category is null or p.category.ageGroup is null",
+			        Participation.class);
+			List<Participation> results = q.getResultList();
+			logger.info("removeBrokenParticipationsAndCategories found {} athletes with broken participations:\n{}",
+				results.size(),
+			    results.stream().map(p -> p.getAthlete().getAbbreviatedName()).collect(Collectors.joining(",\n")));
+			for (Participation p : results) {
+				Athlete a = p.getAthlete();
+				a.getParticipations().remove(p);
+				em.remove(p);
+				em.merge(a);
+			}
+
+			// find athletes where a.category is without age group
+			TypedQuery<Athlete> q2 = em.createQuery(
+			        "select a from Athlete a where a.category is not null and a.category.ageGroup is null",
+			        Athlete.class);
+			List<Athlete> results2 = q2.getResultList();
+			logger.info("removeBrokenParticipationsAndCategories found {} athletes with broken registration categories {}",
+			        results2.size(),
+			        results2.stream().map(a -> a.getAbbreviatedName()).collect(Collectors.joining(", ")));
+			for (Athlete a : results2) {
+				a.setCategory(null);
+				em.merge(a);
+			}
+
+			// remove the broken categories without age group
+			TypedQuery<Category> q3 = em.createQuery(
+			        "select c from Category c where c.ageGroup is null",
+			        Category.class);
+			List<Category> results3 = q3.getResultList();
+			logger.info("removeBrokenParticipationsAndCategories removed {} stray participation categories {}",
+			        results3.size(),
+			        results3.stream().map(c -> c.getCode()).collect(Collectors.joining(", ")));
+			for (Category c : results3) {
+				em.remove(c);
+			}
+			return null;
+		});
 	}
 
 }

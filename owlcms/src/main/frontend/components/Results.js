@@ -89,11 +89,11 @@ class Results extends LitElement {
                         ${item?.isSpacer
                           ? html`
                             <tr>
-                              <td class="spacer" style="grid-column: 1 / -1; justify-content: left;" innerHTML="-" ></td>
+                              <td class="spacer" style="grid-column: 1 / -1; justify-content: left;">&nbsp;</td>
                             </tr>
                           `
                           : html`
-                            <tr class="athlete">
+                            <tr class="${"athlete" + (item?.classname ?? "")}">
                               <td class="${"start " + (item?.classname ?? "")}">
                                 <div class="${item?.classname}"> ${item?.startNumber}</div>
                               </td>
@@ -146,7 +146,7 @@ class Results extends LitElement {
                               <td class="rank">
                                 <div .innerHTML="${item?.cleanJerkRank}"></div>
                               </td>
-                              <td class="vspacer"></td>
+                              <td class="vspacer"></td>    
                               <td class="total">
                                 <div>${item?.total}</div>
                               </td>
@@ -164,15 +164,15 @@ class Results extends LitElement {
                   `)}
               `
               : html``}
-            <tr>
-              <td class="filler" .style="grid-column: 1 / -1; ${this.fillerStyles()}"> &nbsp; </td>
-            </tr>
             ${this.leaders
               ? html`
                 <tbody class="leaders" style="${this.leadersStyles()}">
-                  <tr class="head">
-                    <td class="leaderTitle" .innerHTML="${(this.t?.Leaders ?? "") + " " + (this.categoryName ?? "")}"></td>
+                  <tr>
+                    <td class="filler" style="grid-column: 1 / -1; ${this.fillerStyles()}"> &nbsp; </td>
                   </tr>
+				  <tr class="head">
+				    <td class="leaderTitle" .innerHTML="${(this.t?.Leaders ?? "") + " " + (this.categoryName ?? "")}"></td>
+				  </tr>
                   <tr>
                     <td class="headerSpacer" innerHTML="&nbsp;" style="${"grid-column: 1 / -1; justify-content: left; " + this.leadingAthleteStyles()}"></td>
                   </tr>
@@ -210,7 +210,7 @@ class Results extends LitElement {
                                     `)}
                                 <td class="best" style="${this.leadingAthleteStyles()} "> <div .innerHTML="${item?.bestCleanJerk}"></div></td>
                                 <td class="rank" style="${this.leadingAthleteStyles()} "> <div .innerHTML="${item?.cleanJerkRank}"></div></td>
-                                <td class="vspacer"></td>
+                                <td class="vspacer sinclairVspacer"></td>
                                 <td class="total" style="${this.leadingAthleteStyles()} "> <div>${item?.total}</div></td>
                                 <td class="totalRank" style="${this.leadingAthleteStyles()} "> <div .innerHTML="${item?.totalRank}"></div></td>
                                 <td class="sinclair" style="${this.leadingAthleteStyles()} "> <div>${item?.sinclair}</div></td>
@@ -256,12 +256,12 @@ class Results extends LitElement {
                         </div>
                       `)}
                   <div class="${"recordNotification " + (this.recordKind ?? "")}"> ${this.recordMessage} </div>
-                  <!--<div class="branding" style="position: absolute; bottom: 2em; right: 2em; display: flex; align-items: center; font-weight: thin; font-size: 0.9em;"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>-->
+                  <div class="branding" style="position: absolute; bottom: 2em; right: 2em; display: flex; align-items: center; font-weight: 100; font-size: 1.6vh;"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>
                 </div>
               </div>
             `
             : html`<div style="${this.bottomSpacerStyles()}">&nbsp;
-              <!--<div class="branding" style="position: absolute; bottom: 0.5em; right: 2em; align-items: center; font-weight: thin; font-size: 0.9em; line-height: 1.25em"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>-->
+              <div class="branding" style="position: absolute; bottom: 0.5em; right: 2em; align-items: center; font-weight: 100; font-size: 1.6vh; line-height: 1.25em"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>
             </div>
             `}
         </div>
@@ -299,14 +299,16 @@ class Results extends LitElement {
       teamWidthClass: {},
       sizeOverride: {},
       twOverride: {},
-	    colorOverride: {},
+      colorOverride: {},
       video: {},
+      currentAttempt: {},
       showLiftRanks: {type: Boolean},
       showBest: {type: Boolean},
       showSinclair: {type: Boolean},
       showSinclairRanks: {type: Boolean},
       showLeaders: {type: Boolean},
       showRecords: {type: Boolean},
+      logoSrc: {},
 
       // translation map
       t: { type: Object },
@@ -315,7 +317,6 @@ class Results extends LitElement {
       javaComponentId: {},
       stylesDir: {},
       autoVersion: {},
-
     };
   }
 
@@ -348,7 +349,8 @@ class Results extends LitElement {
   }
 
   attemptBarStyles() {
-    return "display: " + (this.mode === "WAIT" || this.video ? "none" : "block");
+    const showAttempt = this.currentAttempt === true || this.currentAttempt === "true";
+    return "display: " + (this.mode === "WAIT" || this.video || !showAttempt ? "none" : "block");
   }
 
   athleteInfoStyles() {
@@ -377,8 +379,10 @@ class Results extends LitElement {
   }
 
   athleteTimerStyles() {
-   let visible = ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "display" : "hidden");
-   return "visibility: " + (this.isBreak() ? "hidden" : visible);
+  //  let visible = ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "display" : "hidden");
+  //  return "visibility: " + (this.isBreak() ? "hidden" : visible);
+   let visible = ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "flex" : "none");
+   return "display: " + (this.isBreak() ? "none" : visible);
   }
 
   breakTimerStyles() {
@@ -390,7 +394,8 @@ class Results extends LitElement {
   }
 
   videoHeaderStyles() {
-    return "display: " + ((this.mode !== "WAIT" && this.video)? "flex" : "none");
+    const showAttempt = this.currentAttempt === true || this.currentAttempt === "true";
+    return "display: " + ((this.mode !== "WAIT" && (this.video || !showAttempt))? "flex" : "none");
   }
 
   bottomSpacerStyles() {
@@ -412,7 +417,7 @@ class Results extends LitElement {
 
   athleteStyles() {
     return (this.mode === "WAIT" ? "display: none" : "display:grid ")
-      + (this.resultLines ? ("; --top: " + this.resultLines) : "")
+      + (this.resultLines ? ("; --top: calc(" + this.resultLines + ")") : "") // FIXME suspicious + 1 removed
       + (this.leaderLines ? "; --bottom: " + this.leaderLines : "")
       + (this.leadersLineHeight ? "; " + this.leadersLineHeight : "")
       + (this.leaderFillerHeight ? "; " + this.leaderFillerHeight : "")
@@ -428,7 +433,7 @@ class Results extends LitElement {
   }
 
   fillerStyles() { // was display:flex
-    return this.showLeaders && this.mode !== "WAIT" ? " display:grid" : " display:none";
+    return (this.showLeaders && this.mode !== "WAIT") ? " display:grid" : " display:none";
   }
 
   recordsStyles() {

@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.data.config;
 
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Blob;
@@ -145,6 +146,8 @@ public class Config {
 	private String stylesDirectory;
 	@Column(name = "videoStylesDirectory", columnDefinition = "varchar(255) default 'css/transparent'")
 	private String videoStylesDirectory;
+	@Column(name = "publicStylesDirectory", columnDefinition = "varchar(255) default 'css/nogrid'")
+	private String publicStylesDirectory;
 	@Transient
 	@JsonIgnore
 	private IConfig mqttConfig;
@@ -455,6 +458,19 @@ public class Config {
 	}
 
 	/**
+	 * @return the configured MQTT-over-WebSocket port (if provided via env/args)
+	 */
+	@Transient
+	@JsonIgnore
+	public String getParamMqttWsPort() {
+		String param = StartupUtils.getStringParam("mqttWsPort");
+		if (param == null) {
+			return "9090";
+		}
+		return param;
+	}
+
+	/**
 	 * @return the current mqtt server.
 	 */
 	@Transient
@@ -612,14 +628,28 @@ public class Config {
 	@JsonIgnore
 	public String getParamUpdateUrl() {
 		String publicResultsURLParam = getParamPublicResultsURL();
-		return publicResultsURLParam != null ? publicResultsURLParam + "/update" : null;
+		if (publicResultsURLParam == null) {
+			return null;
+		}
+		// WebSocket URLs don't need path suffixes - message type is in the JSON payload
+		if (publicResultsURLParam.startsWith("ws://") || publicResultsURLParam.startsWith("wss://")) {
+			return publicResultsURLParam;
+		}
+		return publicResultsURLParam + "/update";
 	}
 
 	@Transient
 	@JsonIgnore
 	public String getParamVideoDataDecisionUrl() {
 		String paramVideoDataURL = getParamVideoDataURL();
-		return paramVideoDataURL != null ? paramVideoDataURL + "/decision" : null;
+		if (paramVideoDataURL == null) {
+			return null;
+		}
+		// WebSocket URLs don't need path suffixes - message type is in the JSON payload
+		if (paramVideoDataURL.startsWith("ws://") || paramVideoDataURL.startsWith("wss://")) {
+			return paramVideoDataURL;
+		}
+		return paramVideoDataURL + "/decision";
 	}
 
 	/**
@@ -643,14 +673,28 @@ public class Config {
 	@JsonIgnore
 	public String getParamVideoDataTimerUrl() {
 		String paramVideoDataURL = getParamVideoDataURL();
-		return paramVideoDataURL != null ? paramVideoDataURL + "/timer" : null;
+		if (paramVideoDataURL == null) {
+			return null;
+		}
+		// WebSocket URLs don't need path suffixes - message type is in the JSON payload
+		if (paramVideoDataURL.startsWith("ws://") || paramVideoDataURL.startsWith("wss://")) {
+			return paramVideoDataURL;
+		}
+		return paramVideoDataURL + "/timer";
 	}
 
 	@Transient
 	@JsonIgnore
 	public String getParamVideoDataUpdateUrl() {
 		String paramVideoDataURL = getParamVideoDataURL();
-		return paramVideoDataURL != null ? paramVideoDataURL + "/update" : null;
+		if (paramVideoDataURL == null) {
+			return null;
+		}
+		// WebSocket URLs don't need path suffixes - message type is in the JSON payload
+		if (paramVideoDataURL.startsWith("ws://") || paramVideoDataURL.startsWith("wss://")) {
+			return paramVideoDataURL;
+		}
+		return paramVideoDataURL + "/update";
 	}
 
 	/**
@@ -692,7 +736,39 @@ public class Config {
 			Path ldp = ldpd.resolve("css/" + param);
 			boolean predefinedStyleName = isPredefinedStyle(param);
 			if (!Files.exists(ldp) && !predefinedStyleName) {
-				param = "css/transparent";
+				param = "css/nogrid";
+				String message = "{} does not exist, using default css/nogrid as default video styles";
+				Main.getStartupLogger().error(message, ldp.toAbsolutePath());
+				logger./**/error(message, ldp.toAbsolutePath());
+			}
+		}
+		if (!param.startsWith("css/")) {
+			param = "css/" + param;
+		}
+		return param;
+	}
+	
+	@Transient
+	@JsonIgnore
+	public String getParamPublicStylesDir() {
+		String param = StartupUtils.getStringParam("publicStylesDir");
+		if (param == null || param.isBlank()) {
+			// get from database
+			param = Config.getCurrent().getPublicStylesDirectory();
+			if (param == null || param.isBlank()) {
+				param = "css/nogrid";
+			}
+		}
+		Path ldpd = ResourceWalker.getLocalDirPath();
+		// accept and normalize old naming convention.
+		if (param.startsWith("css/")) {
+			param = param.substring("css/".length());
+		}
+		if (ldpd != null) {
+			Path ldp = ldpd.resolve("css/" + param);
+			boolean predefinedStyleName = isPredefinedStyle(param);
+			if (!Files.exists(ldp) && !predefinedStyleName) {
+				param = "css/nogrid";
 				String message = "{} does not exist, using default css/nogrid as default video styles";
 				Main.getStartupLogger().error(message, ldp.toAbsolutePath());
 				logger./**/error(message, ldp.toAbsolutePath());
@@ -940,7 +1016,7 @@ public class Config {
 	}
 
 	public void setPublicResultsURL(String publicResultsURL) {
-		if (publicResultsURL != null && !publicResultsURL.startsWith("http")) {
+		if (publicResultsURL != null && !publicResultsURL.startsWith("http") && !publicResultsURL.startsWith("ws")) {
 			this.publicResultsURL = "https://"+publicResultsURL;
 		} else {
 			this.publicResultsURL = publicResultsURL;
@@ -991,7 +1067,11 @@ public class Config {
 	}
 
 	private boolean isPredefinedStyle(String param) {
-		return param.contentEquals("grid") || param.contentEquals("nogrid") || param.contentEquals("transparent");
+		// check for a directory under css
+		URL predefined = this.getClass().getResource("/css/"+param);
+		//logger.debug("checking for predefined : {} {}",predefined, LoggerUtils.stackTrace());
+		//return param.contentEquals("grid") || param.contentEquals("nogrid") || param.contentEquals("transparent");
+		return predefined != null;
 	}
 
 	/**
@@ -1024,6 +1104,14 @@ public class Config {
 
 	public void setLocalDateTimeUtcNormalized(boolean normalized) {
 		this.localDateTimeUtcNormalized = normalized;
+	}
+
+	public String getPublicStylesDirectory() {
+		return publicStylesDirectory;
+	}
+
+	public void setPublicStylesDirectory(String publicStylesDirectory) {
+		this.publicStylesDirectory = publicStylesDirectory;
 	}
 
 }
