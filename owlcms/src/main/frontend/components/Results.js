@@ -35,7 +35,7 @@ class Results extends LitElement {
             <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
             <div class="club" style="${this.teamNameStyles()}">${this.teamName}</div>
             <div class="attempt-info" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
-            <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span style="font-size:75%">&hairsp;${this.t?.KgSymbol}</span></div>
+            <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span style="font-size:75%; vertical-align:baseline">&hairsp;${this.t?.KgSymbol}</span></div>
             <div class="timer athleteTimer" style="${this.athleteTimerStyles()}"><timer-element id="timer"></timer-element></div>
             <div class="timer breakTime" style="${this.breakTimerStyles()}"><timer-element id="breakTimer"></timer-element></div>
             <div class="decisionBox" style="${this.decisionStyles()}"><decision-element style="width:100%" id="decisions"></decision-element></div>
