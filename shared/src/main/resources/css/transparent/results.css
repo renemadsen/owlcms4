@@ -60,6 +60,7 @@
     color: var(--videoHeaderTextColor);
     /* margin-bottom: 1.2rem; */
     margin-block-end: 1.2rem;
+    border-bottom: 2px solid #FFD200;
     padding: 0.25em;
     /* padding-left: 0.5em; */
     padding-inline-start: 0.5em;
@@ -529,6 +530,7 @@ td {
     /* padding-bottom: 2px; */
     padding-block: 2px;
     border: 1px solid;
+    border-bottom: 2px solid #FFD200;
     background: var(--TitleBackgroundColor);
     color: var(--TitleTextColor);
     border-color: var(--TableBorders);
