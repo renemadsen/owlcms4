@@ -121,6 +121,27 @@
     z-index: 10;
 }
 
+/* ── Record attempt / new record badge ───────────────────────── */
+.record-badge {
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.record-badge.attempt {
+  background: #b0353d;
+  color: white;
+}
+
+.record-badge.new {
+  background: #557945;
+  color: white;
+}
+
 /* ── Attempt history row ──────────────────────────────────────── */
 .lt-attempts {
     position: relative;
