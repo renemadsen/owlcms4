@@ -35,6 +35,9 @@ class Results extends LitElement {
             <div class="start-num" style="${this.startNumberStyles()}">${this.startNumber}</div>
             <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
             <div class="club" style="${this.teamNameStyles()}">${this.teamName}</div>
+            ${this.recordKind && this.recordKind !== "none"
+              ? html`<div class="record-badge ${this.recordKind}">${this.recordMessage}</div>`
+              : html``}
             <div class="attempt-info" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
             <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span></div>
             <div class="timer athleteTimer" style="${this.athleteTimerStyles()}"><timer-element id="timer"></timer-element></div>
@@ -136,45 +139,35 @@ class Results extends LitElement {
           </table>
           ${this.records && this.showRecords
             ? html`
-              <div style="${this.recordsStyles()}">
-                <div class="recordsFiller">&nbsp;</div>
-                <div class="recordRow" style="${(this.hiddenGridStyle ?? "") + "; --nbRecords: " + (this.records?.nbRecords ?? "")}">
-                  <div class="recordTitleBlock">
-                    <div class="recordName recordTitle">${this.t?.records}</div>
-                    <div class="recordLiftTypeSpacer"><span class="recordLiftTypeSpacer">&nbsp;</span></div>
-                    ${(this.records?.recordNames ?? []).map(
-                      (n, index) =>
-                        html`
-                          <div class="recordName">${n}</div>
+              <div class="record-bar">
+                ${(this.records?.recordTable ?? []).map(
+                  (c) => html`
+                    <div class="record-group">
+                      <span class="record-cat">${c?.cat}</span>
+                      ${(c?.records ?? []).map(
+                        (r, i) => html`
+                          <span class="record-pill">
+                            <span class="record-label">${(this.records?.recordNames ?? [])[i] ?? ""}</span>
+                          </span>
+                          <span class="record-pill">
+                            <span class="record-label">${this.t?.recordS ?? "S"}</span>
+                            <span class="record-val ${r?.snatchHighlight ?? ''}">${r?.SNATCH ?? ""}</span>
+                          </span>
+                          <span class="record-pill">
+                            <span class="record-label">${this.t?.recordCJ ?? "CJ"}</span>
+                            <span class="record-val ${r?.cjHighlight ?? ''}">${r?.CLEANJERK ?? ""}</span>
+                          </span>
+                          <span class="record-pill">
+                            <span class="record-label">${this.t?.recordT ?? "T"}</span>
+                            <span class="record-val ${r?.totalHighlight ?? ''}">${r?.TOTAL ?? ""}</span>
+                          </span>
                         `)}
-                  </div>
-
-                  ${(this.records?.recordTable ?? []).map(
-                    (c, index) =>
-                      html`
-                        <div class="${c?.recordClass}">
-                          <div class="recordCat" .innerHTML="${c?.cat}"></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordS}</span></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordCJ}</span></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordT}</span></div>
-                          ${(c?.records ?? []).map(
-                            (r, index) =>
-                              html`
-                                <div class="${"recordCell " + (r?.snatchHighlight ?? "")} ">${r?.SNATCH}</div>
-                                <div class="${"recordCell " + (r?.cjHighlight ?? "")} ">${r?.CLEANJERK}</div>
-                                <div class="${"recordCell " + (r?.totalHighlight ?? "")} ">${r?.TOTAL}</div>
-                              `)}
-                        </div>
-                      `)}
-                  <div class="${"recordNotification " + (this.recordKind ?? "")}"> ${this.recordMessage} </div>
-                  <!--DVF: hide branding--><div class="branding" style="display:none;"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>
-                </div>
+                    </div>
+                  `)}
+                <div class="record-notification ${this.recordKind ?? ''}">${this.recordMessage ?? ""}</div>
               </div>
             `
-            : html`<div style="${this.bottomSpacerStyles()}">&nbsp;
-              <!--DVF: hide branding--><div class="branding" style="display:none;"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>
-            </div>
-            `}
+            : html``}
         </div>
       </div>
     `;
@@ -220,6 +213,8 @@ class Results extends LitElement {
       showLeaders: {type: Boolean},
       showRecords: {type: Boolean},
       logoSrc: {},
+      recordKind: {},
+      recordMessage: {},
 
       // translation map
       t: { type: Object },
@@ -307,10 +302,6 @@ class Results extends LitElement {
     return "display: " + (this.mode !== "WAIT" ? "flex" : "none");
   }
 
-  bottomSpacerStyles() {
-    return "line-height: var(--bottomSpacerHeight)";
-  }
-
   athleteClasses() {
     var classes = "results "
     + (this.showTotal ? " total" : " nototal")
@@ -338,12 +329,6 @@ class Results extends LitElement {
 
   fillerStyles() { // was display:flex
     return (this.showLeaders && this.mode !== "WAIT") ? " display:grid" : " display:none";
-  }
-
-  recordsStyles() {
-    return (!this.showRecords || this.mode !== "CURRENT_ATHLETE")
-      ? "display:none"
-      : "font-size: var(--recordsFontRatio); display: block" ;
   }
 
   isBreak() {
