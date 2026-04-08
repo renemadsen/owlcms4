@@ -4,7 +4,7 @@
     */
     --nameWidth: 0.8fr;
     --clubWidth: 0.2fr;
-    --tableWidthRatio: 90%;
+    --tableWidthRatio: 100%;
     --defaultLeaderFillerHeight: 1.75em;
 
     /* left column width: adjust depending on how you name groups */
@@ -40,9 +40,9 @@
     --bestVisibility: visible;
 
     /* top part: current attempt information */
-    --topRowFontSize: 3vh;
-    --athleteNameFontSize: 4vh;
-    --groupInfoFontSize: 2.5vh;
+    --topRowFontSize: 2.0vh;
+    --athleteNameFontSize: 2.4vh;
+    --groupInfoFontSize: 1.2vh;
 
     /* records */
     --recordValueCellWidth: 4rem;
@@ -59,11 +59,14 @@
     --flagHeight: 2.7vh;
 }
 
+.wrapper {
+    padding: 1em;
+}
+
 .blockPositioningWrapper {
     background-color: var(--blockBackgroundColor);
-    padding: 0.75em;
-    /* margin-top: 1em; */
-    margin-block-start: 1em;
+    padding: 0.4em;
+    margin-block-start: 0;
     flex-grow: 0;
 }
 
@@ -78,7 +81,7 @@
 }
 :host .dark table.results {
     --spacerWidth: 1vh;
-    --rowSmallSpacerHeight: 0.25vh; /* set to 0.25vh if transparent background */
+    --rowSmallSpacerHeight: 0;
 }
 
 td.flags div img {

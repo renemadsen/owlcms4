@@ -53,61 +53,39 @@
 }
 
 .video {
-    font-size: 2rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 400;
     font-family: var(--drFontFamily, Arial, Helvetica, sans-serif);
-    background-color: var(--videoHeaderBackgroundColor);
-    color: var(--videoHeaderTextColor);
-    /* margin-bottom: 1.2rem; */
-    margin-block-end: 1.2rem;
-    border-bottom: 2px solid #FFD200;
-    padding: 0.25em;
-    /* padding-left: 0.5em; */
-    padding-inline-start: 0.5em;
+    background-color: transparent;
+    color: rgba(255,255,255,0.7);
+    margin-block-end: 0;
+    border-bottom: none;
+    padding: 0.2em 0.75em;
     display: flex;
-    align-items: center;
-    justify-items: center;
+    align-items: baseline;
+    justify-content: space-between;
 }
 
 .video .videoheader {
-    display: grid;
-    align-self: center;
-    justify-self: center;
-    justify-content: center;
-    align-items: center;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: baseline;
     flex-grow: 1;
-    flex-direction: column;
-    text-align: center;
+    text-align: start;
+}
+
+.video .videoheader .groupInfo {
+    font-weight: 600;
+    color: white;
 }
 
 .video .eventlogo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-grow: 0;
-    background-image: url('../../logos/left.png');
-    /* background-color:white; */
-    background-size: contain;
-    background-repeat: no-repeat;
-    width: 70px;
-    height: 70px;
-    background-position: center;
+    display: none;
 }
 
 .video .federationlogo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-grow: 0;
-    background-image: url('../../logos/right.png');
-    /* background-color:white; */
-    background-size: contain;
-    background-repeat: no-repeat;
-    width: 70px;
-    height: 70px;
-    /* margin-right:5px; */
-    margin-inline-end:5px;
-    background-position: center;
+    display: none;
 }
 
 .flags img {
@@ -272,8 +250,8 @@ table.results tr td.club div.clubName div.ellipsis {
 /* snatch and c&j best */
 :host table.results tr td.best,
 :host table.results tr th.best {
-    background-color: var(--TotalBackgroundColor);
-    color: var(--TotalTextColor);
+    background-color: var(--BestBackgroundColor, var(--TotalBackgroundColor));
+    color: var(--BestTextColor, var(--TotalTextColor));
     visibility: var(--bestVisibility);
 }
 
@@ -364,11 +342,10 @@ table.results tr td.club div.clubName div.ellipsis {
 /* spacer line between categories */
 :host table.results tr td.spacer {
     background-color: var(--SpacerBackgroundColor);
-    padding: 0.2vmin 0.2vmin 0.2vmin 0.2vmin; /* This is shorthand for all sides, logical */
-    /* border-right: 0; */
+    padding: 0;
     border-inline-end: 0;
     border: none;
-    max-height: 2px;
+    max-height: 1px;
 }
 
 /* filler space above leaders */
@@ -397,14 +374,13 @@ table.results tr td.club div.clubName div.ellipsis {
     font-weight: bold;
 }
 
-/* blinking text is done with a div animation */
+/* blinking disabled */
 :host .dark table.results div.blink {
-    animation: blink 1.5s step-start 0s infinite;
+    animation: none;
 }
 
-/* blinking a background is done with the changeColor animation defined below */
 :host .light table.results td.blink {
-    animation: changeColor 1.5s step-start 0s infinite;
+    animation: none;
 }
 
 /* next athlete colors */
@@ -427,6 +403,7 @@ table {
     flex: 0;
     display: grid;
     border-collapse: collapse;
+    border-top: 2px solid #FFD200;
     grid-template-rows:
         repeat(var(--top), min-content) repeat(1,var(--leaderFillerHeight)) repeat(var(--bottom), var(--leaderLineHeight));
     grid-template-columns:
@@ -524,10 +501,10 @@ td {
     justify-content: center;
     align-content: center;
     font-weight: normal;
-    /* font-size: var(--tableFontSize); */
+    text-transform: uppercase;
+    font-size: calc(var(--tableFontSize) * 0.7);
+    letter-spacing: 0.05em;
     position: relative;
-    /* padding-top: 2px; */
-    /* padding-bottom: 2px; */
     padding-block: 2px;
     border: 1px solid;
     border-bottom: 2px solid #FFD200;
@@ -574,6 +551,8 @@ td {
     font-size: var(--topRowFontSize);
     justify-content: space-between;
     width: 100%;
+    background-color: var(--blockBackgroundColor, #000038);
+    padding: 0.3em 0.75em;
 }
 
 .attemptBar .startNumber {
@@ -594,7 +573,7 @@ td {
 
 .attemptBar .athleteInfo {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.75rem;
     font-size: var(--athleteNameFontSize);
     justify-content: space-between;
     align-items: baseline;
@@ -603,12 +582,11 @@ td {
 
 .athleteInfo .fullName {
     font-weight: bold;
-    flex: 0 0 35%;
-    /* text-align: left; */
+    flex: 0 1 auto;
     text-align: start;
-    flex-grow: 0.5;
     color: var(--athleteNameColor);
-    font-size: var(--athleteNameFontSize)
+    font-size: var(--athleteNameFontSize);
+    white-space: nowrap;
 }
 
 .athleteInfo .clubName {
@@ -631,8 +609,8 @@ td {
 .athleteInfo .timer {
     text-align: end;
     font-weight: bold;
-    width: 5em;
-    height: 1.5em;
+    width: 4em;
+    height: 1.2em;
     display: flex;
     justify-content: flex-end;
 }
