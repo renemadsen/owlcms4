@@ -19,72 +19,78 @@ class TopTeamsSinclair extends LitElement {
         <timer-element id="timer"></timer-element>
         <timer-element id="breakTimer"></timer-element>
         <decision-element id="decisions"></decision-element>
-      </div> 
-     <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode??"dark"}">
+      </div>
+     <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode ?? "dark"}">
         ${this.topTeamsWomen
           ? html`
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsWomen}" ></h2>
-              <table class="results" id="orderDiv" style$="">
-                <thead>
-                  <tr>
-                    <th class="club" .innerHTML="${this.t?.Team}"></th>
-                    <th class="medium" .innerHTML="${this.t?.ScoringTitle}" ></th>
-                  </tr>
-                </thead>
-                ${(this.womensTeams ?? []).map(
-                  (item) => html`
-                    <tr>
-                      <td class="club"><div>${item.team}</div></td>
-                      <td class="medium"><div>${item.score}</div></td>
-                    </tr>
-                  `
-                )}
-              </table>
-              <h4>&nbsp;</h4>
+              <div class="team-board">
+                <div class="tb-header">
+                  <div class="tb-title" .innerHTML="${this.topTeamsWomen}"></div>
+                  <div class="tb-cat">${this.t?.ScoringTitle}</div>
+                </div>
+                <table class="team-table">
+                  <thead><tr>
+                    <th>${this.t?.Team}</th>
+                    <th>${this.t?.ScoringTitle}</th>
+                  </tr></thead>
+                  <tbody>
+                    ${(this.womensTeams ?? []).map((item) => html`
+                      <tr>
+                        <td>${item.team}</td>
+                        <td>${item.score}</td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
             `
           : html``}
-        ${this.topTeamsMen 
-          ? html` 
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsMen}"></h2>
-              <table class="results" id="orderDiv" style$="">
-                <thead>
-                  <tr>
-                    <th class="club" .innerHTML="${this.t?.Team}"></th>
-                    <th class="medium" .innerHTML="${this.t?.ScoringTitle}"></th>
-                  </tr>
-                </thead>
-                ${(this.mensTeams ?? []).map(
-                  (item) => html`
-                    <tr>
-                      <td class="club"><div>${item.team}</div></td>
-                      <td class="medium"><div>${item.score}</div></td>
-                    </tr>
-                  `
-                )}
-              </table>
-              <h4>&nbsp;</h4>
+        ${this.topTeamsMen
+          ? html`
+              <div class="team-board">
+                <div class="tb-header">
+                  <div class="tb-title" .innerHTML="${this.topTeamsMen}"></div>
+                  <div class="tb-cat">${this.t?.ScoringTitle}</div>
+                </div>
+                <table class="team-table">
+                  <thead><tr>
+                    <th>${this.t?.Team}</th>
+                    <th>${this.t?.ScoringTitle}</th>
+                  </tr></thead>
+                  <tbody>
+                    ${(this.mensTeams ?? []).map((item) => html`
+                      <tr>
+                        <td>${item.team}</td>
+                        <td>${item.score}</td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
             `
           : html``}
-        ${this.topTeamsMixed 
-          ? html` 
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topTeamsMixed}"></h2>
-              <table class="results" id="orderDiv" style$="">
-                <thead>
-                  <tr>
-                    <th class="club" .innerHTML="${this.t?.Team}"></th>
-                    <th class="medium" .innerHTML="${this.t?.ScoringTitle}"></th>
-                  </tr>
-                </thead>
-                ${(this.mixedTeams ?? []).map(
-                  (item) => html`
-                    <tr>
-                      <td class="club"><div>${item.team}</div></td>
-                      <td class="medium"><div>${item.score}</div></td>
-                    </tr>
-                  `
-                )}
-              </table>
-              <h4>&nbsp;</h4>
+        ${this.topTeamsMixed
+          ? html`
+              <div class="team-board">
+                <div class="tb-header">
+                  <div class="tb-title" .innerHTML="${this.topTeamsMixed}"></div>
+                  <div class="tb-cat">${this.t?.ScoringTitle}</div>
+                </div>
+                <table class="team-table">
+                  <thead><tr>
+                    <th>${this.t?.Team}</th>
+                    <th>${this.t?.ScoringTitle}</th>
+                  </tr></thead>
+                  <tbody>
+                    ${(this.mixedTeams ?? []).map((item) => html`
+                      <tr>
+                        <td>${item.team}</td>
+                        <td>${item.score}</td>
+                      </tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
             `
           : html``}
       </div>`;
