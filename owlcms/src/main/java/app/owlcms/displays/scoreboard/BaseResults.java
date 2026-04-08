@@ -840,12 +840,7 @@ public class BaseResults extends LitTemplate
 			if (a != null) {
 				Group group = fop != null ? fop.getGroup() : null;
 				if (group != null && !group.isDone()) {
-					if (isAbbreviatedName() || (a.getFullName().length() >= 45)) {
-						this.getElement().setProperty("fullName",
-						        a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "");
-					} else {
-						this.getElement().setProperty("fullName", a.getFullName() != null ? a.getFullName() : "");
-					}
+					this.getElement().setProperty("fullName", a.getFullName() != null ? a.getFullName() : "");
 					this.getElement().setProperty("teamName", a.getTeam());
 					this.getElement().setProperty("startNumber", a.getStartNumber());
 					String formattedAttempt = formatAttempt(a.getAttemptsDone());
@@ -897,12 +892,7 @@ public class BaseResults extends LitTemplate
 
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
-		String fullName;
-		if (isAbbreviatedName()) {
-			fullName = a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "";
-		} else {
-			fullName = a.getFullName() != null ? a.getFullName() : "";
-		}
+		String fullName = a.getFullName() != null ? a.getFullName() : "";
 		if (!a.isEligibleForIndividualRanking() && !fullName.isBlank()) {
 			fullName = Translator.translate("Scoreboard.Extra/Invited", fullName);
 		}

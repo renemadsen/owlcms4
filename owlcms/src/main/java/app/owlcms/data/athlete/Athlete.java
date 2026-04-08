@@ -2046,7 +2046,7 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String getFullName() {
-		return fixNames ? getFixedName() : computeRawFullName();
+		return computeRawFullName();
 	}
 
 	@Transient
@@ -2054,11 +2054,32 @@ public class Athlete {
 	public String computeRawFullName() {
 		String lastName = this.getLastName() != null ? this.getLastName() : "";
 		String firstName = this.getFirstName() != null ? this.getFirstName() : "";
+		// DVF: title-case names (DB stores last names uppercase)
+		lastName = toTitleCase(lastName);
+		firstName = toTitleCase(firstName);
 		if (!lastName.trim().isEmpty() && !firstName.trim().isEmpty()) {
 			return firstName + " " + lastName;
 		} else {
 			return "";
 		}
+	}
+
+	private String toTitleCase(String s) {
+		if (s == null || s.isEmpty()) return s;
+		StringBuilder sb = new StringBuilder();
+		boolean capitalizeNext = true;
+		for (char c : s.toCharArray()) {
+			if (c == ' ' || c == '-') {
+				sb.append(c);
+				capitalizeNext = true;
+			} else if (capitalizeNext) {
+				sb.append(Character.toUpperCase(c));
+				capitalizeNext = false;
+			} else {
+				sb.append(Character.toLowerCase(c));
+			}
+		}
+		return sb.toString();
 	}
 
 	@Transient
