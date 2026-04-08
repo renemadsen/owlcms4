@@ -27,6 +27,7 @@ class Results extends LitElement {
             </div>
           </div>
           <div class="header-bar" style="${this.videoHeaderStyles()}">
+            <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="event-title">${this.competitionName}</div>
             <div class="group-info">${this.groupDescription}</div>
           </div>

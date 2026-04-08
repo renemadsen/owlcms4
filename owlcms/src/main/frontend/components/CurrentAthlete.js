@@ -25,6 +25,7 @@ class CurrentAthlete extends LitElement {
         <div class="lowerThird" style="${this.attemptBarStyles()}">
           <div class="lt-label" style="${this.startNumberStyles()}">Vægtløftning</div>
           <div class="lt-bar">
+            <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
             <div class="fullName lt-name ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
             <div class="clubName lt-details ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>

@@ -24,6 +24,7 @@ class TopTeamsSinclair extends LitElement {
         ${(this.womensTeams && this.womensTeams.length > 0) ? html`
         <div class="team-board">
           <div class="tb-header">
+            <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
             <div class="tb-title">Hold Resultater &ndash; Kvinder</div>
             <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
           </div>
@@ -50,6 +51,7 @@ class TopTeamsSinclair extends LitElement {
         ${(this.mensTeams && this.mensTeams.length > 0) ? html`
         <div class="team-board">
           <div class="tb-header">
+            <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
             <div class="tb-title">Hold Resultater &ndash; M&aelig;nd</div>
             <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
           </div>
