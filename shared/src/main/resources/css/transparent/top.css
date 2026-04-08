@@ -601,3 +601,14 @@ table#leaders-table thead tr.hide th {
 h2 {
     font-size: 3.0vh;
 }
+
+/* DVF: table header accents */
+table.results thead tr th,
+table.results tr.head th,
+table.results tr.head td {
+    background: #000038;
+    color: rgba(255,255,255,0.6);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #FFD200;
+}
