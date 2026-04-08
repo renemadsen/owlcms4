@@ -2,65 +2,18 @@
     box-sizing: border-box;
 }
 
+/* ── Wrapper / chroma-key background ─────────────────────────── */
 .wrapper {
-    --attemptBarFontSize: 1.8em;
-    --fontSizeRows-height: 1.35vmax;
-}
-
-table.results {
-    display: flex;
-}
-
-table.results tr td.spacer {
-    flex-grow: 1;
-}
-
-table.results tr td {
-    --narrow-width: 4em;
-    --rank-width: 10ch;
-    --max-narrow-width: 5ch;
-    --medium-width: 6ch;
-    --divLineHeight: 2em;
-    display: table-cell;
-}
-/* 
-table.results tr td div {
-    happens to work with 1280, 1366 and 1920.
-    width: calc(var(--narrow-width) * 1.05);  
-}
-*/
-
-.showRank {
-    display: table-cell;
-    text-align: left;
-    background-color: var(--BackgroundColor);
-}
-
-.showRank div, .totalRank div {
-    /* margin-left: 0.5em; */
-    margin-inline-start: 0.5em;
-    border: none;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    font-size: var(--fontSizeRows-height);
-}
-
-div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
-    /* margin-right: 0; */
-    margin-inline-end: 0;
-}
-
-.wrapper {
-    font-family: var(--drFontFamily, Arial, Helvetica, sans-serif);
+    font-family: Arial, Helvetica, sans-serif;
     color: white;
-    background-color: var(--pageBackgroundColor);
+    background: #00ff00;
     padding: 0;
     overflow: hidden;
     min-height: 100vh;
     position: relative;
 }
 
-/* Lower-third overlay */
+/* ── Lower-third overlay ──────────────────────────────────────── */
 .lowerThird {
     position: fixed;
     bottom: 0;
@@ -69,21 +22,24 @@ div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    font-family: var(--drFontFamily, Arial, Helvetica, sans-serif);
+    font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Yellow category / discipline tag above the bar */
 .lt-label {
     display: inline-block;
     background: #FFD200;
     color: #00004B;
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 2px;
     padding: 3px 12px;
-    margin-inline-start: 60px;
+    margin-left: 60px;
+    margin-bottom: 0;
 }
 
+/* Main dark-blue gradient bar */
 .lt-bar {
     background: linear-gradient(to right, #00004B 70%, transparent);
     padding: 12px 60px;
@@ -93,6 +49,7 @@ div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
     width: 100%;
 }
 
+/* Start-number badge inside the bar */
 .lt-bar .startNumber {
     align-self: center;
 }
@@ -110,46 +67,53 @@ div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
     align-self: center;
 }
 
+/* Athlete name */
 .lt-name {
     font-weight: 700;
-    font-size: var(--attemptBarFontSize, 1.8em);
+    font-size: 28px;
     white-space: nowrap;
     color: white;
 }
 
+/* Club / nation / category details */
 .lt-details {
-    font-size: calc(var(--attemptBarFontSize, 1.8em) * 0.6);
+    font-size: 16px;
     color: white;
     opacity: 0.85;
     white-space: nowrap;
 }
 
+/* Weight-on-bar container (right side of bar) */
 .lt-weight {
-    margin-inline-start: auto;
+    margin-left: auto;
     display: flex;
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
 }
 
+/* "Attempt X" label */
 .lt-attempt {
-    font-size: calc(var(--attemptBarFontSize, 1.8em) * 0.55);
+    font-size: 14px;
     color: white;
     opacity: 0.7;
 }
 
+/* Weight in kg — large yellow number */
 .lt-kg {
-    font-size: var(--attemptBarFontSize, 1.8em);
+    font-size: 28px;
     font-weight: 700;
     color: #FFD200;
 }
 
+/* Countdown timer inside the bar */
 .lt-bar .timer {
     font-weight: bold;
     color: #FFD200;
-    font-size: var(--attemptBarFontSize, 1.8em);
+    font-size: 28px;
 }
 
+/* Decision lights placeholder */
 .lt-bar .decisionBox {
     width: 5em;
     height: 1.5em;
@@ -157,12 +121,67 @@ div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
     z-index: 10;
 }
 
+/* ── Attempt history row ──────────────────────────────────────── */
 .lt-attempts {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    right: 0;
     background: rgba(0, 0, 75, 0.85);
     width: 100%;
     padding: 6px 60px;
 }
 
+.lt-attempts-row {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    font-size: 13px;
+    color: white;
+}
+
+.lt-att-group {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.lt-att-label {
+    opacity: 0.5;
+    margin-right: 4px;
+}
+
+.lt-att-colon {
+    opacity: 0.5;
+}
+
+.lt-att-val {
+    font-weight: 600;
+}
+
+.lt-att-val.good {
+    color: white;
+    font-weight: 600;
+}
+
+.lt-att-val.fail {
+    color: #ff6666;
+    text-decoration: line-through;
+}
+
+.lt-att-val.current {
+    color: #FFD200;
+    font-weight: 700;
+}
+
+.lt-att-total {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+/* ── Timer / decision colours ─────────────────────────────────── */
 .breakTime {
     color: #FFD200;
 }
@@ -171,352 +190,7 @@ div > div.lowerThird > div.lt-attempts > table > tr > td.totalRank {
     color: #FFD200;
 }
 
-table.results {
-    border: none;
-    background-color: var(--BackgroundColor);
-    /* margin-top: 0.3em; */
-    margin-block-start: 0.3em;
-}
-
-
-:host .dark table.results tr {
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding: 0.2em;
-    /* padding-right: 1em; */
-    padding-inline-end: 1em;
-    flex-wrap: wrap;
-}
-
-:host .light table.results tr {
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    padding: 0.2em;
-    /* padding-right: 1em; */
-    padding-inline-end: 1em;
-    flex-wrap: wrap;
-}
-
-table.results th,
-table.results td {
-    padding: 0; /* This is shorthand for all sides, logical */
-    margin: 0; /* This is shorthand for all sides, logical */
-    background-clip: padding-box;
-    font-size: var(--fontSizeRows-height);
-}
-
-:host .dark th,
-:host .dark td {
-    font-weight: normal;
-    border: solid 1px var(--TableBorders);
-}
-
-:host .light th,
-:host .light td {
-    font-weight: bold;
-    /* intentional dark border */
-    border: solid 1px var(--TableBorders);
-}
-
-.name {
-    width: var(--name-width);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.name div {
-    max-width: calc(var(--name-max-width));
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-
-.club div {
-    max-width: var(--club-max-width);
-    margin: auto;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.ellipsis {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-:host .light table.results td.showRank, :host .light table.results td.totalRank {
-    white-space: nowrap;
-    border: none;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    text-align: center;
-}
-
-:host .light table.results td.showRank div, :host .light table.results td.totalRank div {
-    display: inherit;
-    font-size: var(--fontSizeRows-height);
-    /* margin-right: 0.5em; */
-    margin-inline-end: 0.5em;
-    line-height: var(--divLineHeight);
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-}
-
-
-:host .dark table.results td.showRank, :host .dark table.results td.totalRank {
-    border: none;
-    font-size: var(--tableFontSize);
-    background-color: var(--BackgroundColor);
-    color: var(--pageTextColor);
-    font-weight: normal;
-}
-
-:host .dark table.results td.showRank div, :host .dark table.results td.totalRank div {
-    display: inherit;
-    font-size: var(--fontSizeRows-height);
-    /* margin-right: 0.5em; */
-    margin-inline-end: 0.5em;
-    line-height: var(--divLineHeight);
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-}
-
-:host .dark table.results td.category {
-    white-space: nowrap;
-    border: none;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    font-size: calc(var(--fontSizeRows-height)*1.0);
-    /* padding-left: 1ch; */
-    /* padding-right: 1ch; */
-    padding-inline: 1ch;
-}
-
-:host .light table.results td.category {
-    white-space: nowrap;
-    border: none;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    font-size: calc(var(--fontSizeRows-height)*1.0);
-    /* padding-left: 1ch; */
-    /* padding-right: 1ch; */
-    padding-inline: 1ch;
-}
-
-:host .dark table.results td.category div {
-    line-height: var(--divLineHeight);
-}
-
-:host .light table.results td.category div {
-    display: inherit;
-    color: var(--TextColor);
-    background-color: var(--BackgroundColor);
-    line-height: var(--divLineHeight);
-}
-
-:host .dark table.results td.liftName {
-    white-space: nowrap;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    text-align: center;
-}
-
-:host .light table.results td.liftName {
-    white-space: nowrap;
-    border: none;
-    background-color: var(--BackgroundColor);
-    color: var(--TextColor);
-    text-align: center;
-}
-
-table.results td.liftName div {
-    display: inherit;
-    font-size: var(--fontSizeRows-height);
-    /* margin-right: 0.5em; */
-    margin-inline-end: 0.5em;
-    line-height: var(--divLineHeight);
-}
-
-:host .dark table.results td.good {
-    background-color: var(--GoodBackgroundColor);
-    color: var(--GoodTextColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight)
-}
-
-:host .light table.results td.good {
-    background-color: var(--GoodBackgroundColor);
-    color: var,--GoodTextColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight)
-}
-
-:host .dark table.results td.fail {
-    background-color: var(--FailBackgroundColor);
-    color: var(--FailTextColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .light table.results td.fail {
-    background-color: var(--FailBackgroundColor);
-    color: var(--FailTextColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .dark .spacer {
-    background-color: var(--EmptyBackgroundColor);
-    flex-grow: 1;
-    border: 0;
-}
-
-
-:host .light .spacer {
-    border: 0;
-}
-
-.english {
-    font-size: 85%;
-}
-
-:host .dark .request {
-    background-color: var(--EmptyBackgroundColor);
-    font-style: italic;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .light .request {
-    background-color: var(--EmptyBackgroundColor);
-    font-style: italic;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .dark td.current {
-/* intentionally light, we want the yellow background */
-    color: var(--CurrentTextColor);
-    background-color: var(--CurrentBackgroundColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .light td.current {
-    color: var(--CurrentTextColor);
-    background-color: var(--CurrentBackgroundColor);
-    font-weight: bold;
-    width: var(--narrow-width);
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-
-.blink {
-    animation: blink 1.5s step-start 0s infinite;
-    -webkit-animation: blink 1.5s step-start 0s infinite;
-}
-
-@keyframes blink {
-    50% {
-        opacity: 0.0;
-    }
-}
-
-@-webkit-keyframes blink {
-    50% {
-        opacity: 0.0;
-    }
-}
-
-:host .dark .next {
-    color: orange;
-    font-weight: bold;
-}
-
-:host .dark td.next {
-    color: gold;
-    font-weight: bold;
-}
-
-:host .light td.next {
-    background-color: gold;
-    font-weight: bold;
-}
-
-:host .dark table.results td.empty {
-    background-color: var(--EmptyBackgroundColor);
-    font-style: italic;
-    width: var(--narrow-width);
-}
-
-:host .light table.results td.empty {
-    background-color: var(--EmptyBackgroundColor);
-    font-style: italic;
-    width: var(--narrow-width);
-}
-
-:host .dark table.results td.total {
-    background-color: var(--TotalBackgroundColor);
-    color: var(--TotalTextColor);
-    width: var(--narrow-width);
-    text-align: center;
-    font-style: normal;
-    font-weight: bold;
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-:host .light table.results td.total {
-    background-color: var(--TotalBackgroundColor);
-    color: var(--TotalTextColor);
-    width: var(--narrow-width);
-    text-align: center;
-    font-style: normal;
-    font-weight: bold;
-    text-align: center;
-    line-height: var(--divLineHeight);
-}
-
-.v-system-error {
-    display: none;
-}
-
-thead {
-    display: none
-}
-
-.clubNameEllipsis {
-    max-width: var(--clubName-max-width);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin: auto; /* This centers, logical in this context */
-    /* text-align: left; */
-    text-align: start;
-}
-
+/* ── Waiting / between-groups screen ─────────────────────────── */
 .hiddenTitle {
     display: none;
 }
@@ -531,8 +205,38 @@ thead {
 
 .competitionName {
     font-size: 4em;
+    color: white;
 }
 
 .nextGroup {
     font-size: 2em;
+    color: white;
+}
+
+/* ── Utilities ────────────────────────────────────────────────── */
+.blink {
+    animation: blink 1.5s step-start 0s infinite;
+    -webkit-animation: blink 1.5s step-start 0s infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.0; }
+}
+
+@-webkit-keyframes blink {
+    50% { opacity: 0.0; }
+}
+
+.ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.english {
+    font-size: 85%;
+}
+
+.v-system-error {
+    display: none;
 }
