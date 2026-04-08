@@ -1,6 +1,7 @@
 /* green transparent page background, no stretching */
 * {
-    --pageBackgroundColor: transparent;
+    /*--pageBackgroundColor: transparent;*/
+    --pageBackgroundColor: #00ff00; /* DVF: green screen for video overlay */
     --pageTextColor: white;
 }
 
