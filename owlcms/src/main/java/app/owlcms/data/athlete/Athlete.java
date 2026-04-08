@@ -2052,14 +2052,10 @@ public class Athlete {
 	@Transient
 	@JsonIgnore
 	public String computeRawFullName() {
-		String upperCase = this.getLastName() != null ? this.getLastName().toUpperCase() : "";
-		// DVF: pass normal-case last name so translators can use {2} for non-uppercased last name
 		String lastName = this.getLastName() != null ? this.getLastName() : "";
-		String firstName2 = this.getFirstName() != null ? this.getFirstName() : "";
-		if ((upperCase != null) && !upperCase.trim().isEmpty() && (firstName2 != null)
-		        && !firstName2.trim().isEmpty()) {
-			String fullName = Translator.translate("FullNameFormat", upperCase, firstName2, lastName);
-			return fullName;
+		String firstName = this.getFirstName() != null ? this.getFirstName() : "";
+		if (!lastName.trim().isEmpty() && !firstName.trim().isEmpty()) {
+			return firstName + " " + lastName;
 		} else {
 			return "";
 		}

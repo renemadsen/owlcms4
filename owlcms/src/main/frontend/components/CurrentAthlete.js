@@ -23,7 +23,7 @@ class CurrentAthlete extends LitElement {
         </div>
 
         <div class="lowerThird" style="${this.attemptBarStyles()}">
-          <div class="lt-label" style="${this.startNumberStyles()}">STYRKELYFT</div>
+          <div class="lt-label" style="${this.startNumberStyles()}">Vægtløftning</div>
           <div class="lt-bar">
             <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
             <div class="fullName lt-name ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
@@ -45,62 +45,31 @@ class CurrentAthlete extends LitElement {
             </div>
           </div>
           <div class="lt-attempts" style="${this.attemptStyles()}">
-            <table class="results" id="resultsDiv">
-              ${(this.athletes ?? []).map(
-                (item) => html`
-                  ${!item.isSpacer
-                    ? html`
-                        <tr>
-                          <td class="category">
-                            <div>${item.category}</div>
-                          </td>
-                          <td class="spacer">&nbsp;</td>
-                          <td class="liftName">
-                            <div .innerHTML="${this.t?.Snatch}"></div>
-                          </td>
-                          ${(item.sattempts ?? []).map(
-                            (attempt) => html`
-                              <td class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}" >
-                                <div>${attempt.stringValue}</div>
-                              </td>
-                            `)}
-                          <td class="showRank">
-                            <div>
-                              ${this.t?.Rank} <b>${item.snatchRank}</b>
-                            </div>
-                          </td>
-                          <td class="spacer">&nbsp;</td>
-                          <td class="liftName">
-                            <div
-                              .innerHTML="${this.t?.Clean_and_Jerk}"
-                            ></div>
-                          </td>
-                          ${(item.cattempts ?? []).map(
-                            (attempt) => html`
-                              <td class="${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}">
-                                <div>${attempt.stringValue}</div>
-                              </td>
-                            `)}
-                          <td class="showRank">
-                            <div>
-                              ${this.t?.Rank} <b>${item.cleanJerkRank}</b>
-                            </div>
-                          </td>
-                          <td class="spacer">&nbsp;</td>
-                          <td class="liftName">
-                            <div id="totalNameTd" style="${this.decisionHiddenStyles()}" .innerHTML="${this.t?.Total}"></div>
-                          </td>
-                          <td class="total" style="${this.decisionHiddenStyles()}">
-                            <div id="totalCellTd" style="${this.decisionHiddenStyles()}">${item.total}</div>
-                          </td>
-                          <td class="totalRank">
-                            <div id="totalRankTd" style="${this.decisionHiddenStyles()}">${this.t?.Rank} <b>${item.totalRank}</b> </div>
-                          </td>
-                        </tr>
-                      `
-                    : html``}
-                `)}
-            </table>
+            ${(this.athletes ?? []).map(
+              (item) => html`
+                ${!item.isSpacer
+                  ? html`
+                    <div class="lt-attempts-row">
+                      <span class="lt-att-group">
+                        <span class="lt-att-label" .innerHTML="${this.t?.Snatch}"></span><span class="lt-att-colon">:</span>
+                        ${(item.sattempts ?? []).map(
+                          (attempt) => html`<span class="lt-att-val ${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}">${attempt.stringValue}</span>`
+                        )}
+                      </span>
+                      <span class="lt-att-group">
+                        <span class="lt-att-label" .innerHTML="${this.t?.Clean_and_Jerk}"></span><span class="lt-att-colon">:</span>
+                        ${(item.cattempts ?? []).map(
+                          (attempt) => html`<span class="lt-att-val ${(attempt.liftStatus ?? "") + " " + (attempt.className ?? "")}">${attempt.stringValue}</span>`
+                        )}
+                      </span>
+                      <span class="lt-att-total" style="${this.decisionHiddenStyles()}">
+                        <span class="lt-att-label" .innerHTML="${this.t?.Total}"></span><span class="lt-att-colon">:</span>
+                        <span class="lt-att-val">${item.total}</span>
+                      </span>
+                    </div>
+                  `
+                  : html``}
+              `)}
           </div>
         </div>
       </div>`;
@@ -159,41 +128,40 @@ class CurrentAthlete extends LitElement {
   }
 
   attemptBarStyles() {
-    return "display: " + ((this.mode === "WAIT") ? "none" : "grid");
+    return "display: " + ((this.mode === "WAIT") ? "none" : "flex");
   }
 
   fullNameStyles() {
-    return  "display: " + ((this.mode === "WAIT") ? "none" : "grid");
+    return  "display: " + ((this.mode === "WAIT") ? "none" : "block");
   }
 
   teamNameStyles() {
-    return "display: " + ((this.isBreak()) ? "none" : "grid");
+    return "display: " + ((this.isBreak()) ? "none" : "block");
   }
 
   attemptStyles() {
-    return "display: grid; visibility: " + ((this.isBreak()) ? "; visibility: hidden" : "");
+    return "display: block; visibility: " + ((this.isBreak()) ? "; visibility: hidden" : "");
   }
 
   startNumberStyles() {
-    return "display: " + (this.isBreak() ? "none" : "grid");
+    return "display: " + (this.isBreak() ? "none" : "block");
   }
 
   weightStyles() {
     // weights are visible during lift countdowns
-    return "display: " + ((this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY" || (this.mode === "CURRENT_ATHLETE")) ? "grid" : "none");
+    return "display: " + ((this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY" || (this.mode === "CURRENT_ATHLETE")) ? "flex" : "none");
   }
 
   athleteTimerStyles() {
-   //return "display:" + ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "flex" : "none");
-   return "display: " + (this.isBreak() ? "none" : "grid");
+   return "display: " + (this.isBreak() ? "none" : "block");
   }
 
   breakTimerStyles() {
-    return "display:" + ((this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY") ? "grid" : "none");
+    return "display:" + ((this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY") ? "block" : "none");
   }
 
   decisionStyles() {
-    return "display: " + ((this.mode === "CURRENT_ATHLETE" && this.decisionVisible) ? "grid" : "none");
+    return "display: " + ((this.mode === "CURRENT_ATHLETE" && this.decisionVisible) ? "block" : "none");
   }
 
   decisionHiddenStyles() {

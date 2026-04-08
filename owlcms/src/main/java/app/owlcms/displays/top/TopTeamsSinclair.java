@@ -305,6 +305,13 @@ public class TopTeamsSinclair extends AbstractTop {
 		String ssText = Ranking.getScoringTitle(scoringSystem);
 
 		Gender gender = this.getGender();
+		if (gender == null) {
+			// Auto-detect gender from current active group
+			FieldOfPlay fop = getFop();
+			if (fop != null && fop.getCurAthlete() != null) {
+				gender = fop.getCurAthlete().getGender();
+			}
+		}
 		if (gender == null || gender == Gender.M || gender == Gender.I) {
 			this.getElement().setProperty("topTeamsMen",
 			        this.mensTeams != null && this.mensTeams.size() > 0

@@ -40,10 +40,10 @@
     --TitleBackgroundColor: #000038;
 
     --CurrentTextColor: #FFD200;
-    --CurrentBackgroundColor: rgba(255,210,0,0.12);
+    --CurrentBackgroundColor: #000060;
 
     --NextTextColor: #FFA500;
-    --NextBackgroundColor: #00004B;
+    --NextBackgroundColor: #000055;
 
     --RequestTextColor: rgba(255,255,255,0.5);
     --RequestBackgroundColor: rgba(255,255,255,0.05);
@@ -75,12 +75,15 @@
     --TotalRankTextColor: #FFD200;
     --TotalRankBackgroundColor: #00004B;
 
+    --BestTextColor: #FFD200;
+    --BestBackgroundColor: #00004B;
+
     --TotalTextColor: #00004B;
     --TotalBackgroundColor: #FFD200;
 
     --SpacerBackgroundColor: rgba(255,255,255,0.08);
-    --EmptyTextColor: rgba(255,255,255,0.2);
-    --EmptyBackgroundColor: rgba(255,255,255,0.05);
+    --EmptyTextColor: rgba(255,255,255,0.3);
+    --EmptyBackgroundColor: rgba(255,255,255,0.08);
 
     /* records */
     --RecordBoxBorder: white;
@@ -123,10 +126,10 @@
     --TitleBackgroundColor: #000038;
 
     --CurrentTextColor: #FFD200;
-    --CurrentBackgroundColor: rgba(255,210,0,0.15);
+    --CurrentBackgroundColor: #000060;
 
     --NextTextColor: #FFA500;
-    --NextBackgroundColor: rgba(255,165,0,0.1);
+    --NextBackgroundColor: #000055;
 
     --RequestTextColor: rgba(255,255,255,0.5);
     --RequestBackgroundColor: rgba(255,255,255,0.05);
@@ -158,12 +161,15 @@
     --TotalRankTextColor: #FFD200;
     --TotalRankBackgroundColor: #00004B;
 
+    --BestTextColor: #FFD200;
+    --BestBackgroundColor: #00004B;
+
     --TotalTextColor: #00004B;
     --TotalBackgroundColor: #FFD200;
 
     --SpacerBackgroundColor: rgba(255,255,255,0.08);
-    --EmptyTextColor: rgba(255,255,255,0.2);
-    --EmptyBackgroundColor: rgba(255,255,255,0.05);
+    --EmptyTextColor: rgba(255,255,255,0.3);
+    --EmptyBackgroundColor: rgba(255,255,255,0.08);
 
     /* records */
     --RecordBoxBorder: white;

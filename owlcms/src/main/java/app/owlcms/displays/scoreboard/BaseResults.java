@@ -1225,6 +1225,12 @@ public class BaseResults extends LitTemplate
 				translations.put(curKey.replace("Scoreboard.", ""), Translator.translate(curKey));
 			}
 		}
+		translations.put("Snatch_1", "1");
+		translations.put("Snatch_2", "2");
+		translations.put("Snatch_3", "3");
+		translations.put("CJ_1", "1");
+		translations.put("CJ_2", "2");
+		translations.put("CJ_3", "3");
 		translations.put("ScoringTitle", Translator.translate("Score"));
 		if (!Config.getCurrent().featureSwitch("medalistsAsLeaders")) {
 			translations.put("Leaders", Translator.translate("Leaders.PreviousGroups"));

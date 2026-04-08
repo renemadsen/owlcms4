@@ -1,210 +1,200 @@
-/* modern style dark mode without borders */
+/* DR Sport palette — green screen page background */
 * {
-    --pageBackgroundColor: black;
+    --pageBackgroundColor: #00ff00;
     --pageTextColor: white;
-    --blockBackgroundColor: var(--pageBackgroundColor);
+    --drFontFamily: Arial, Helvetica, sans-serif;
+}
 
-    /* video header (same as page if no transparency) */
-    --videoHeaderBackgroundColor: var(--pageBackgroundColor);
-    --videoHeaderTextColor: var(--pageTextColor);
+.wrapper {
+  --zIndexRecordNotifications: 10;
 
-    /* control record notification on scoreboard and attempt board.
-       Set to 10 to show notifications, set to -10 if notifications not wanted */
-    --zIndexRecordNotifications: 10;
+  /* current attempt section — DR Sport dark blue + yellow accents */
+  --startNumberBoxColor: #FFD200;
+  --breakTimerColor: #FFD200;
+  --athleteTimerColor: #FFD200;
+  --athleteAttemptWeightColor: #FFD200;
+  --downColor: #FFD200;
 
-    /* current attempt section */
-    --startNumberBoxColor: red;
-    --breakTimerColor: skyblue;
-    --athleteTimerColor: yellow;
-    --athleteAttemptWeightColor: aqua;
-    --downColor: lime;
+  --athleteNameColor: white;
+  --athleteCategoryColor: white;
+  --athleteTeamColor: white;
+  --athleteAttemptColor: white;
 
-    --athleteNameColor: white;
-    --athleteCategoryColor: white;
-    --athleteTeamColor: white;
-    --athleteAttemptColor: white;
+  --groupInfoColor: white;
 
-    --groupInfoColor: white;
+  /* video header */
+  --videoHeaderBackgroundColor: #00004B;
+  --videoHeaderTextColor: white;
 }
 
 .dark {
-    /* results table section, "white on black", most cells have same dark background as page */
+    /* DR Sport dark theme — dark blue background, white/yellow text */
 
-    --TableBorders: var(--EmptyBackgroundColor);
+    --blockBackgroundColor: #000038;
+
+    --TableBorders: rgba(255,255,255,0.1);
     --TextColor: white;
-    --BackgroundColor: var(--EmptyBackgroundColor);
+    --BackgroundColor: #00004B;
 
-    --TitleTextColor: var(--TextColor);
-    --TitleBackgroundColor: var(--BackgroundColor);
+    --TitleTextColor: white;
+    --TitleBackgroundColor: #000038;
 
-    --CurrentTextColor: yellow;
-    --CurrentBackgroundColor: var(--EmptyBackgroundColor);
+    --CurrentTextColor: #FFD200;
+    --CurrentBackgroundColor: #000060;
 
-    --NextTextColor: orange;
-    --NextBackgroundColor: var(--EmptyBackgroundColor);
-   
-    --PreviousTextColor: lightskyblue;
-    --PreviousBackgroundColor: var(--EmptyBackgroundColor); 
+    --NextTextColor: #FFA500;
+    --NextBackgroundColor: #000055;
 
-    --RequestTextColor: silver;
-    --RequestBackgroundColor: var(--EmptyBackgroundColor);
+    --RequestTextColor: rgba(255,255,255,0.5);
+    --RequestBackgroundColor: rgba(255,255,255,0.05);
 
-    --StartBackgroundColor: var(--BackgroundColor);
-    --StartTextColor: var(--TextColor);
+    --StartBackgroundColor: #00004B;
+    --StartTextColor: white;
 
-    --NameBackgroundColor: var(--BackgroundColor);
-    --NameTextColor: var(--TextColor);
+    --NameBackgroundColor: #00004B;
+    --NameTextColor: white;
 
-    --CategoryTextColor: var(--TextColor);
-    --CategoryBackgroundColor: var(--BackgroundColor);
+    --CategoryTextColor: white;
+    --CategoryBackgroundColor: #00004B;
 
-    --BirthTextColor: var(--TextColor);
-    --BirthBackgroundColor: var(--BackgroundColor);
+    --BirthTextColor: white;
+    --BirthBackgroundColor: #00004B;
 
-    --TeamTextColor: var(--TextColor);
-    --TeamBackgroundColor: var(--BackgroundColor);
+    --TeamTextColor: white;
+    --TeamBackgroundColor: #00004B;
 
-    --GoodTextColor: black;
+    --GoodTextColor: #00004B;
     --GoodBackgroundColor: white;
 
     --FailTextColor: white;
-    --FailBackgroundColor: darkred;
+    --FailBackgroundColor: #8B0000;
 
-    --RankTextColor: var(--TextColor);
-    --RankBackgroundColor: var(--BackgroundColor);
+    --RankTextColor: #FFD200;
+    --RankBackgroundColor: #00004B;
 
-    --TotalRankTextColor: var(--TextColor);
-    --TotalRankBackgroundColor: var(--BackgroundColor);
+    --TotalRankTextColor: #FFD200;
+    --TotalRankBackgroundColor: #00004B;
 
-    --TotalTextColor: white;
-    --TotalBackgroundColor: blue;
+    --BestTextColor: #FFD200;
+    --BestBackgroundColor: #00004B;
 
-    --SpacerBackgroundColor: var(--blockBackgroundColor);
-    --EmptyTextColor: #4d4d4d;
-    --EmptyBackgroundColor: #4d4d4d;
+    --TotalTextColor: #00004B;
+    --TotalBackgroundColor: #FFD200;
 
-    /* records table section, black on white */
-    /* by default, same as white on black */
+    --SpacerBackgroundColor: rgba(255,255,255,0.08);
+    --EmptyTextColor: rgba(255,255,255,0.3);
+    --EmptyBackgroundColor: rgba(255,255,255,0.08);
 
-    --RecordBoxBorder: var(--pageTextColor);
-    --RecordBoxBackground: #4d4d4d;
+    /* records */
+    --RecordBoxBorder: white;
+    --RecordBoxBackground: #000038;
     --RecordBoxBorderWidth: medium;
-    --RecordBoxText: var(--pageTextColor);
+    --RecordBoxText: white;
 
     --RecordCellBorderWidth: thin;
-     --RecordCellBorderColor: var(--pageTextColor);
+    --RecordCellBorderColor: white;
 
-    --RecordCatBackground: var(--pageBackgroundColor);
-    --RecordCatText: var(--pageTextColor);
+    --RecordCatBackground: #000038;
+    --RecordCatText: white;
 
-    --RecordValueText: var(--TextColor);
-    --RecordValueBackground: var(--EmptyBackgroundColor);
+    --RecordValueText: white;
+    --RecordValueBackground: #000038;
 
-    --RecordNameBackground: var(--pageBackgroundColor);
+    --RecordNameBackground: #000038;
     --RecordNameText: white;
 
-    --RecordLiftTypeBackground: var(--EmptyBackgroundColor);
-    --RecordLiftTypeText: var(--TextColor);
-    --RecordLiftTypeBorder: var(--TextColor);
+    --RecordLiftTypeBackground: rgba(255,255,255,0.05);
+    --RecordLiftTypeText: white;
+    --RecordLiftTypeBorder: white;
 
-    --RecordHighlightBackground: green;
-    --RecordHighlightText: white;
+    --RecordHighlightBackground: #FFD200;
+    --RecordHighlightText: #00004B;
     --AttemptHighlightText: white;
-    --AttemptHighlightBackground: purple;
+    --AttemptHighlightBackground: #00004B;
 }
 
 .light {
-    /* results table section, "black on white", cell have a full background different from page background */
+    /* DR Sport light theme — same palette, cells have full backgrounds */
 
-    --TableBorders: grey;
-    --TextColor: black;
-    --BackgroundColor: white;
+    --blockBackgroundColor: #000038;
 
-    --TitleTextColor: black;
-    --TitleBackgroundColor: white;
+    --TableBorders: rgba(255,255,255,0.15);
+    --TextColor: white;
+    --BackgroundColor: #00004B;
 
-    --CurrentTextColor: var(--TextColor);
-    --CurrentBackgroundColor: yellow;
+    --TitleTextColor: white;
+    --TitleBackgroundColor: #000038;
 
-    --NextTextColor: var(--TextColor);
-    --NextBackgroundColor: gold;
-    
-    --PreviousTextColor: var(--TextColor);
-    --PreviousBackgroundColor: lightskyblue;
+    --CurrentTextColor: #FFD200;
+    --CurrentBackgroundColor: #000060;
 
-    --RequestTextColor: var(--TextColor);
-    --RequestBackgroundColor: var(--EmptyBackgroundColor);
+    --NextTextColor: #FFA500;
+    --NextBackgroundColor: #000055;
 
-    --StartBackgroundColor: var(--BackgroundColor);
-    --StartTextColor: var(--TextColor);
+    --RequestTextColor: rgba(255,255,255,0.5);
+    --RequestBackgroundColor: rgba(255,255,255,0.05);
 
-    --NameBackgroundColor: var(--BackgroundColor);
-    --NameTextColor: var(--TextColor);
+    --StartBackgroundColor: #00004B;
+    --StartTextColor: white;
 
-    --CategoryTextColor: var(--TextColor);
-    --CategoryBackgroundColor: var(--BackgroundColor);
+    --NameBackgroundColor: #00004B;
+    --NameTextColor: white;
 
-    --BirthTextColor: var(--TextColor);
-    --BirthBackgroundColor: var(--BackgroundColor);
+    --CategoryTextColor: white;
+    --CategoryBackgroundColor: #00004B;
 
-    --TeamTextColor: var(--TextColor);
-    --TeamBackgroundColor: var(--BackgroundColor);
+    --BirthTextColor: white;
+    --BirthBackgroundColor: #00004B;
 
-    --GoodTextColor: black;
+    --TeamTextColor: white;
+    --TeamBackgroundColor: #00004B;
+
+    --GoodTextColor: #00004B;
     --GoodBackgroundColor: white;
 
     --FailTextColor: white;
-    --FailBackgroundColor: darkred;
+    --FailBackgroundColor: #8B0000;
 
-    --RankTextColor: var(--TextColor);
-    --RankBackgroundColor: #F9E79F;
+    --RankTextColor: #FFD200;
+    --RankBackgroundColor: #00004B;
 
-    --TotalRankTextColor: var(--TextColor);
-    --TotalRankBackgroundColor: var(--RankBackgroundColor);
+    --TotalRankTextColor: #FFD200;
+    --TotalRankBackgroundColor: #00004B;
 
-    --TotalTextColor: white;
-    --TotalBackgroundColor: blue;
+    --BestTextColor: #FFD200;
+    --BestBackgroundColor: #00004B;
 
-    --SpacerBackgroundColor: var(--pageBackgroundColor);
-    --EmptyTextColor: #cccccc;
-    --EmptyBackgroundColor: #cccccc;
+    --TotalTextColor: #00004B;
+    --TotalBackgroundColor: #FFD200;
 
-     /* records table section, black on white */
-    --RecordBoxBorder: var(--pageTextColor);
-    --RecordBoxBackground: var(--pageBackgroundColor);
+    --SpacerBackgroundColor: rgba(255,255,255,0.08);
+    --EmptyTextColor: rgba(255,255,255,0.3);
+    --EmptyBackgroundColor: rgba(255,255,255,0.08);
+
+    /* records */
+    --RecordBoxBorder: white;
+    --RecordBoxBackground: #000038;
     --RecordBoxBorderWidth: medium;
-    --RecordBoxText: var(--pageTextColor);
+    --RecordBoxText: white;
 
     --RecordCellBorderWidth: thin;
-    --RecordCellBorderColor: var(--pageTextColor);
+    --RecordCellBorderColor: white;
 
-    --RecordCatBackground: var(--RecordBoxBackground);
-    --RecordCatText: var(--pageTextColor);
+    --RecordCatBackground: #000038;
+    --RecordCatText: white;
 
-    --RecordValueText: var(--pageTextColor);
-    --RecordValueBackground: var(--RecordBoxBackground);
+    --RecordValueText: white;
+    --RecordValueBackground: #000038;
 
-    --RecordNameBackground: var(--blockBackgroundColor);
-    --RecordNameText: var(--pageTextColor);
+    --RecordNameBackground: #000038;
+    --RecordNameText: white;
 
-    --RecordLiftTypeBackground: var(--RecordBoxBackground);
-    --RecordLiftTypeText: var(--pageTextColor);
-    --RecordLiftTypeBorder: var(--pageTextColor);
+    --RecordLiftTypeBackground: #000038;
+    --RecordLiftTypeText: white;
+    --RecordLiftTypeBorder: white;
 
-    --RecordHighlightBackground: green;
-    --RecordHighlightText: white;
+    --RecordHighlightBackground: #FFD200;
+    --RecordHighlightText: #00004B;
     --AttemptHighlightText: white;
-    --AttemptHighlightBackground: purple;
-
-}
-
-@font-face {
-    font-family: Teko;
-    src: url("../fonts/Teko-Regular.ttf") format("woff");
-}
-
-@font-face {
-    font-family: Teko;
-    font-weight: bold;
-    src: url("../fonts/Teko-SemiBold.ttf") format("woff");
+    --AttemptHighlightBackground: #00004B;
 }
