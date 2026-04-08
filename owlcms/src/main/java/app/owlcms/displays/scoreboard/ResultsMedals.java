@@ -647,9 +647,10 @@ public class ResultsMedals extends Results implements ResultsParameters, Display
 		doMedals(fop2);
 	}
 
+	// DVF: removed parentheses from failed lifts — red background is sufficient
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	/**

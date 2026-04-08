@@ -868,7 +868,8 @@ public class BaseResults extends LitTemplate
 		if (value == null || value == 0) {
 			return "-";
 		} else if (value < 0) {
-			return "(" + Math.abs(value) + ")";
+			// DVF: removed parentheses from failed lifts
+		return String.valueOf(Math.abs(value));
 		} else {
 			return value.toString();
 		}
@@ -876,7 +877,7 @@ public class BaseResults extends LitTemplate
 
 	protected String formatRank(Integer total) {
 		if (total == null || total == 0) {
-			return "&nbsp;";
+			return "-";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
 			return Translator.translate("Results.Extra/Invited");
@@ -1200,15 +1201,17 @@ public class BaseResults extends LitTemplate
 		setTranslationMap();
 
 		boolean showScore = scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair();
-		this.getElement().setProperty("showSinclair", showScore);
+		// DVF: always hide Sinclair columns on scoreboard
+		this.getElement().setProperty("showSinclair", false);
 
-		boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair();
-		if (Config.getCurrent().featureSwitch("noSinclairRank")) {
-			showScoreRank = false;
-		} else if (Config.getCurrent().featureSwitch("displayBestScoreRank")) {
-			showScoreRank = true;
-		}
-		this.getElement().setProperty("showSinclairRank", showScoreRank);
+		// DVF: always hide Sinclair rank on scoreboard
+		// boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair();
+		// if (Config.getCurrent().featureSwitch("noSinclairRank")) {
+		// 	showScoreRank = false;
+		// } else if (Config.getCurrent().featureSwitch("displayBestScoreRank")) {
+		// 	showScoreRank = true;
+		// }
+		this.getElement().setProperty("showSinclairRank", false);
 
 		this.displayOrder = ImmutableList.of();
 	}
@@ -1317,9 +1320,10 @@ public class BaseResults extends LitTemplate
 		return translate;
 	}
 
+	// DVF: removed parentheses from failed lifts — red background is sufficient
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	private boolean isAllBWCategory(Athlete cur) {

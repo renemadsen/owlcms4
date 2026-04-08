@@ -344,9 +344,10 @@ public class NCurrentAthlete extends Results {
 		return liftType + "<br>" + translate;
 	}
 	
+	// DVF: removed parentheses from failed lifts — red background is sufficient
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 	
 	private void computeIndicators(Athlete a, int liftOrderRank, FieldOfPlay fop) {
