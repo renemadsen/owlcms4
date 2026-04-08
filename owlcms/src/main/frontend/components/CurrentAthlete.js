@@ -12,34 +12,39 @@ class CurrentAthlete extends LitElement {
   }
 
   render() {
-    return html` 
+    return html`
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/colors" + (this.autoversion ?? "")}.css"/>
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/currentathlete" + (this.autoversion ?? "")}.css"/>
-     
+
       <div class="${this.wrapperClasses()}" style="${this.colorOverride}">
         <div class="waiting" style="${this.waitingStyles()}">
           <!-- div class="competitionName">[[competitionName]]</div><br -->
           <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
         </div>
 
-        <div class="attemptBar" style="${this.attemptBarStyles()}">
-          <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
-          <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
-          <div class="clubName ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
-          <div class="attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
-          <div class="weight" style="${this.weightStyles()}">
-            <span >${this.weight}<span style="font-size: 75%" >&nbsp;${this.t?.KgSymbol}</span></span>
+        <div class="lowerThird" style="${this.attemptBarStyles()}">
+          <div class="lt-label" style="${this.startNumberStyles()}">STYRKELYFT</div>
+          <div class="lt-bar">
+            <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
+            <div class="fullName lt-name ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
+            <div class="clubName lt-details ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
+            <div class="lt-weight" style="${this.weightStyles()}">
+              <div class="attempt lt-attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
+              <div class="weight lt-kg">
+                <span >${this.weight}<span style="font-size: 75%" >&nbsp;${this.t?.KgSymbol}</span></span>
+              </div>
+            </div>
+            <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
+              <timer-element id="timer"></timer-element>
+            </div>
+            <div class="timer breakTime" style="${this.breakTimerStyles()}">
+              <timer-element id="breakTimer"></timer-element>
+            </div>
+            <div class="decisionBox" style="${this.decisionStyles()}">
+              <decision-element id="decisions" style="padding:1ex"></decision-element>
+            </div>
           </div>
-          <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
-            <timer-element id="timer"></timer-element>
-          </div>
-          <div class="timer breakTime" style="${this.breakTimerStyles()}">
-            <timer-element id="breakTimer"></timer-element>
-          </div>
-          <div class="decisionBox" style="${this.decisionStyles()}">
-            <decision-element id="decisions" style="padding:1ex"></decision-element>
-          </div>
-          <div class="attempts" style="${this.attemptStyles()}">
+          <div class="lt-attempts" style="${this.attemptStyles()}">
             <table class="results" id="resultsDiv">
               ${(this.athletes ?? []).map(
                 (item) => html`
