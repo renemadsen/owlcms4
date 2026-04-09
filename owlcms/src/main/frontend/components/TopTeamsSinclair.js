@@ -27,6 +27,10 @@ class TopTeamsSinclair extends LitElement {
             <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
             <div class="tb-title">Hold Resultater &ndash; Kvinder</div>
             <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:5px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:18px;opacity:0.9;">
+            </div>
           </div>
           <table class="team-table">
             <thead><tr>
@@ -54,6 +58,10 @@ class TopTeamsSinclair extends LitElement {
             <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
             <div class="tb-title">Hold Resultater &ndash; M&aelig;nd</div>
             <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:5px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:18px;opacity:0.9;">
+            </div>
           </div>
           <table class="team-table">
             <thead><tr>
