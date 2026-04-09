@@ -54,7 +54,7 @@ public class WarmupLiftingOrderPage extends AbstractResultsDisplayPage {
 		        DisplayParameters.DARK, "true",
 		        DisplayParameters.LEADERS, "true",
 		        DisplayParameters.RECORDS, "true",
-		        DisplayParameters.VIDEO, "false",
+		        DisplayParameters.VIDEO, "true",
 		        DisplayParameters.PUBLIC, "false",
 		        SoundParameters.SINGLEREF, "false",
 		        DisplayParameters.ABBREVIATED, Boolean.toString(Config.getCurrent().featureSwitch("shortScoreboardNames")));
@@ -77,6 +77,8 @@ public class WarmupLiftingOrderPage extends AbstractResultsDisplayPage {
 //		board.setLeadersDisplay(true);
 //		board.setRecordsDisplay(true);
 
+		// DVF: dark blue background instead of chroma-key green
+		((Component) board).getElement().setProperty("colorOverride", "--pageBackgroundColor: #00004B;");
 		this.addComponent((Component) board);
 	}
 
