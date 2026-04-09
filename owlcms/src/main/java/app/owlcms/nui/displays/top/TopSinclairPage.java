@@ -404,6 +404,8 @@ public class TopSinclairPage extends AbstractResultsDisplayPage implements TopPa
 		var board = new TopSinclair();
 		board.setNbAthletes(this.nbAthletes);
 		this.setBoard(board);
+		// DVF: dark blue background instead of chroma-key green
+		board.getElement().setProperty("colorOverride", "--pageBackgroundColor: #00004B;");
 		this.addComponent(board);
 
 		// when navigating to the page, Vaadin will call setParameter+readParameters

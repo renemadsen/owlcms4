@@ -41,6 +41,7 @@ class TopSinclair extends LitElement {
                     <th class="best" .innerHTML="${this.t?.Clean_and_Jerk || 'Best Stød'}"></th>
                     <th .innerHTML="${this.t?.Total || 'Total'}"></th>
                     <th class="sinclair" .innerHTML="${this.t?.ScoringTitle || 'Sinclair'}"></th>
+                    <th class="needed" .innerHTML="${this.t?.Needed}"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -62,6 +63,7 @@ class TopSinclair extends LitElement {
                         <td class="best">${item.bestCleanJerk ?? ''}</td>
                         <td>${item.total}</td>
                         <td class="sinclair">${item.sinclair}</td>
+                        <td class="needed"><div>${item.needed}</div></td>
                       </tr>
                     `
                   )}
@@ -90,6 +92,7 @@ class TopSinclair extends LitElement {
                     <th class="best" .innerHTML="${this.t?.Clean_and_Jerk || 'Best Stød'}"></th>
                     <th .innerHTML="${this.t?.Total || 'Total'}"></th>
                     <th class="sinclair" .innerHTML="${this.t?.ScoringTitle || 'Sinclair'}"></th>
+                    <th class="needed" .innerHTML="${this.t?.Needed}"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -111,6 +114,7 @@ class TopSinclair extends LitElement {
                         <td class="best">${item.bestCleanJerk ?? ''}</td>
                         <td>${item.total}</td>
                         <td class="sinclair">${item.sinclair}</td>
+                        <td class="needed"><div>${item.needed}</div></td>
                       </tr>
                     `
                   )}
