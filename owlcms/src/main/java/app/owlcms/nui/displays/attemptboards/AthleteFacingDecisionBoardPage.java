@@ -74,6 +74,8 @@ public class AthleteFacingDecisionBoardPage extends AbstractAttemptBoardPage {
 		board.getDecisions().setDisplaySize("x-large");
 		board.setPublicFacing(false);
 		board.setShowBarbell(false);
+		// DVF: dark blue background instead of chroma-key green
+		board.getElement().setProperty("colorOverride", "--pageBackgroundColor: #00004B;");
 		setSilenced(false);
 		setDownSilenced(false);
 		this.addComponent(board);

@@ -1,5 +1,5 @@
-/* DR Sport palette — green screen page background */
-* {
+/* DVF palette — green screen page background */
+:host {
     --pageBackgroundColor: #00ff00;
     --pageTextColor: white;
     --drFontFamily: Arial, Helvetica, sans-serif;
@@ -8,7 +8,7 @@
 .wrapper {
   --zIndexRecordNotifications: 10;
 
-  /* current attempt section — DR Sport dark blue + yellow accents */
+  /* current attempt section — DVF dark blue + yellow accents */
   --startNumberBoxColor: #FFD200;
   --breakTimerColor: #FFD200;
   --athleteTimerColor: #FFD200;
@@ -28,7 +28,7 @@
 }
 
 .dark {
-    /* DR Sport dark theme — dark blue background, white/yellow text */
+    /* DVF dark theme — dark blue background, white/yellow text */
 
     --blockBackgroundColor: #000038;
 
@@ -114,7 +114,7 @@
 }
 
 .light {
-    /* DR Sport light theme — same palette, cells have full backgrounds */
+    /* DVF light theme — same palette, cells have full backgrounds */
 
     --blockBackgroundColor: #000038;
 

@@ -141,6 +141,7 @@ class DecisionBoard extends LitElement {
       stylesDir: {},
       autoVersion: {},
       video: {},
+      colorOverride: {},
 
       // translation map
       t: { type: Object }
