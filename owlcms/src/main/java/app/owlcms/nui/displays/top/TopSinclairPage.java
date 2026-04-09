@@ -489,6 +489,10 @@ public class TopSinclairPage extends AbstractResultsDisplayPage implements TopPa
 	   public java.util.HashMap<String, java.util.List<String>> readParams(com.vaadin.flow.router.Location location, java.util.Map<String, java.util.List<String>> parametersMap) {
 		   // Use default param reading, but treat missing/empty gender as null (all athletes)
 		   var params = TopParametersReader.super.readParams(location, parametersMap);
+	   // Ensure FOP is set for gender auto-detection
+	   if (getFop() == null) {
+		   setFop(app.owlcms.init.OwlcmsFactory.getDefaultFOP());
+	   }
 		   java.util.List<String> genderParams = params.get("gender");
 		   String genderString = (genderParams != null && !genderParams.isEmpty() && genderParams.get(0) != null && !genderParams.get(0).isEmpty())
 				   ? genderParams.get(0)
