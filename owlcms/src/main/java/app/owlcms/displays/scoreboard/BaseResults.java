@@ -1358,7 +1358,7 @@ public class BaseResults extends LitTemplate
 
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	private boolean isAllBWCategory(Athlete cur) {

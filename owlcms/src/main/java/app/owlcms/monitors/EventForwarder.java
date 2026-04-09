@@ -1649,7 +1649,7 @@ public class EventForwarder implements BreakDisplay, HasBoardMode, IUnregister {
 
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	private void getAthleteJson(Athlete a, JsonObject ja, Category curCat, int liftOrderRank) {

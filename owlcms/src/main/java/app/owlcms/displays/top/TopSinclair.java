@@ -390,7 +390,7 @@ public class TopSinclair extends AbstractTop {
 
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
+		        : (total.startsWith("-") ? total.substring(1) : total);
 	}
 
 	private JsonValue getAthletesJson(List<Athlete> list2, boolean overrideTeamWidth) {
