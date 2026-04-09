@@ -102,6 +102,10 @@
   font-weight: 600;
   font-size: 20px;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .attempt-bar .club {
@@ -135,6 +139,8 @@
   font-weight: 700;
   font-size: 22px;
   text-align: right;
+  grid-row: 1;
+  grid-column: 4;
 }
 
 .record-badge {
@@ -167,6 +173,8 @@
   background-color: transparent;
   align-self: center;
   z-index: 10;
+  grid-row: 1;
+  grid-column: 4;
 }
 
 .breakTime {

@@ -275,31 +275,27 @@ class Results extends LitElement {
   }
 
   teamNameStyles() {
-    return "display: " + (this.isBreak() ? "none" : "block");
+    return "";
   }
 
   attemptStyles() {
-    return "display: " + (this.isBreak() ? "none" : "flex");
+    return "";
   }
 
   startNumberStyles() {
-    return "display: " + (this.isBreak() ? "none" : "flex");
+    return "";
   }
 
   weightStyles() {
-    // weights are visible during lift countdowns
-    return "display: " + ((this.mode === "LIFT_COUNTDOWN" || (this.mode === "CURRENT_ATHLETE")) ? "flex" : "none");
+    return "";
   }
 
   athleteTimerStyles() {
-  //  let visible = ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "display" : "hidden");
-  //  return "visibility: " + (this.isBreak() ? "hidden" : visible);
-   let visible = ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "flex" : "none");
-   return "display: " + (this.isBreak() ? "none" : visible);
+    return "display: " + ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "flex" : "none");
   }
 
   breakTimerStyles() {
-    return "display:" + ((this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY") ? "flex" : "none");
+    return "display:" + (this.isCountdown() ? "flex" : "none");
   }
 
   decisionStyles() {
