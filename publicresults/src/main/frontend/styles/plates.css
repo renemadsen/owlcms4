@@ -38,44 +38,44 @@
 .L_25 {
 	height: 12em;
 	width: 1.70em;
-	background-color: red;
+	background-color: #C41E3A;
 }
 
 .L_20 {
 	height: 12em;
 	width: 1.60em;
-	background-color: blue;
+	background-color: #1A3A7A;
 }
 
 .L_15 {
 	height: 12em;
 	width: 1.50em;
-	background-color: yellow;
+	background-color: #FFD200;
 }
 
 .L_10 {
 	height: 12em;
 	width: 1.40em;
-	background-color: green;
+	background-color: #2D6A4F;
 }
 
 .L_5 {
 	height: 12em;
 	width: 1.30em;
-	background-color: white;
+	background-color: #E8E8E8;
 }
 
 .L_2_5 {
 	height: 12em;
 	width: 1.20em;
-	background-color: red;
+	background-color: #C41E3A;
 }
 
 .C_2_5 {
 	height: 5ex;
 	width: 1.5em;
-	background-color: black;
-	border-color: black;
+	background-color: #1A1A2E;
+	border-color: #1A1A2E;
 	border-width: 2px;
 	border-style: solid;
 	-moz-border-radius: 0.1em;
@@ -90,35 +90,35 @@
 .S_5 {
 	height: 7em;
 	width: 0.65em;
-	background-color: white;
+	background-color: #E8E8E8;
 }
 
 .S_2_5 {
 	height: 6em;
 	width: 0.65em;
-	background-color: red;
+	background-color: #C41E3A;
 }
 
 .S_2 {
 	height: 5.5em;
 	width: 0.65em;
-	background-color: blue;
+	background-color: #1A3A7A;
 }
 
 .S_1_5 {
 	height: 5em;
 	width: 0.65em;
-	background-color: yellow;
+	background-color: #FFD200;
 }
 
 .S_1 {
 	height: 4.5em;
 	width: 0.65em;
-	background-color: green;
+	background-color: #2D6A4F;
 }
 
 .S_0_5 {
 	height: 4em;
 	width: 0.65em;
-	background-color: white;
+	background-color: #E8E8E8;
 }
