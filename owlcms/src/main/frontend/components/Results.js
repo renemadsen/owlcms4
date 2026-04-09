@@ -30,6 +30,10 @@ class Results extends LitElement {
             <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="event-title">${this.competitionName}</div>
             <div class="group-info">${this.groupDescription}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
+            </div>
           </div>
           <div class="attempt-bar" style="${this.attemptBarStyles()}">
             <div class="start-num" style="${this.startNumberStyles()}">${this.startNumber}</div>

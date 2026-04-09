@@ -47,6 +47,10 @@ class CurrentAthlete extends LitElement {
             <div class="decisionBox" style="${this.decisionStyles()}">
               <decision-element id="decisions" style="padding:1ex"></decision-element>
             </div>
+            <div style="border-left:1px solid rgba(255,255,255,0.2);padding-left:10px;display:flex;align-items:center;gap:5px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.45em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:16px;opacity:0.9;">
+            </div>
           </div>
           <div class="lt-attempts" style="${this.attemptStyles()}">
             ${(this.athletes ?? []).map(

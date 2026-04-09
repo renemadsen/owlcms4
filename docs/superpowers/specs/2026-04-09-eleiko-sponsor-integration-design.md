@@ -33,11 +33,12 @@ Every header bar that currently contains the DVF logo gets an Eleiko badge on th
 | Medals | `ResultsMedals.js` | Right side of header bar |
 | Start List | `ResultsStartList.js` | Right side of header bar |
 
-### Asset Required
+### Asset
 
-An Eleiko logo image file (`eleiko-logo-white.png` or similar) placed in `shared/src/main/resources/logos/`. Alternatively, use text-only "ELEIKO" in a white badge (as shown in mockups), which requires no image file.
+- `shared/src/main/resources/logos/eleiko-logo.svg` — original (dark teal #025775)
+- `shared/src/main/resources/logos/eleiko-logo-white.svg` — white version for dark headers
 
-**Recommendation:** Use text-only badge. Eleiko's wordmark is simple enough that styled text is indistinguishable from the logo at these sizes, and avoids needing to source/license an image file.
+Use the white SVG in all displays: `<img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">`
 
 ### CSS Changes
 

@@ -21,6 +21,15 @@ class CurrentAttempt extends LitElement {
     <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/attemptboard" + (this.autoversion ?? "") + ".css"}"/>
 
     <div class="${this.wrapperClasses()}" style="${this.colorOverride}">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.5vh 3vmin;border-bottom:2px solid #FFD200;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:rgba(255,255,255,0.4);font-size:1.5vh;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+          <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
+        </div>
+      </div>
       <div class="${this.wrapperClasses()} bigTitle" style="${this.waitingStyles()}">
         <div class="competitionName">${this.competitionName}</div>
         <br />
