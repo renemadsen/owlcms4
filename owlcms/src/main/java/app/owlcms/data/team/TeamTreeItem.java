@@ -10,16 +10,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.html.NativeLabel;
 
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.i18n.Translator;
 import ch.qos.logback.classic.Logger;
 
@@ -60,34 +61,47 @@ public class TeamTreeItem {
 	private List<TeamTreeItem> teamMembers;
 	private boolean combinedPoints;
 	private NativeLabel membershipLabel;
+	private NativeLabel mixedMembershipLabel;
 	private boolean warning;
 	private Ranking scoringSystem;
+	private boolean countedForTeam;
 
 	public TeamTreeItem(String curTeamName, Gender gender, Athlete teamMember, boolean done) {
-		this.scoringSystem = Competition.getCurrent().getScoringSystem();
+		this(curTeamName, gender, teamMember, done, Championship.of(null));
+	}
+
+	public TeamTreeItem(String curTeamName, Gender gender, Athlete teamMember, boolean done, Championship championship) {
+		Championship effectiveChampionship = championship != null ? championship : Championship.of(null);
+		this.scoringSystem = effectiveChampionship.getScoringSystem();
 		this.athlete = teamMember;
 		this.setDone(done);
 		if (this.athlete == null) {
 			// this node is a team
-			this.setTeam(new Team(curTeamName, gender));
+			this.setTeam(new Team(curTeamName, gender, this.scoringSystem));
 			this.setTeamMembers(new ArrayList<>());
 		}
-		this.combinedPoints = Competition.getCurrent().isSnatchCJTotalMedals();
+		this.combinedPoints = effectiveChampionship.isSnatchCJTotalMedals();
 	}
 
-	public void addTreeItemChild(Athlete a, boolean done) {
+	public TeamTreeItem addTreeItemChild(Athlete a, boolean done) {
 		List<TeamTreeItem> members = getTeamMembers();
-		boolean already = members.stream().anyMatch(m -> m.getAthlete().getId().equals(a.getId()));
-		if (already) {
-			return;
+		TeamTreeItem existing = members.stream()
+		        .filter(m -> m.getAthlete().getId().equals(a.getId()))
+		        .findFirst()
+		        .orElse(null);
+		if (existing != null) {
+			return existing;
 		}
-		TeamTreeItem child = new TeamTreeItem(null, a.getGender(), a, done);
+		Championship championship = a.getAgeGroup() != null ? a.getAgeGroup().getChampionship() : Championship.of(null);
+		TeamTreeItem child = new TeamTreeItem(null, a.getGender(), a, done, championship);
 		child.setParent(this);
 		getTeamMembers().add(child);
+		return child;
 	}
 
 	public void addTreeItemChild(TeamSelectionTreeData teamSelectionTreeData, Athlete a, boolean done) {
-		TeamTreeItem child = new TeamTreeItem(null, a.getGender(), a, done);
+		Championship championship = a.getAgeGroup() != null ? a.getAgeGroup().getChampionship() : Championship.of(null);
+		TeamTreeItem child = new TeamTreeItem(null, a.getGender(), a, done, championship);
 		child.setParent(this);
 		getTeamMembers().add(child);
 		teamSelectionTreeData.addItem(this, child);
@@ -134,6 +148,17 @@ public class TeamTreeItem {
 		return this.team != null ? this.team.getCounted() : null;
 	}
 
+	/**
+	 * For member nodes: whether this athlete was included in the team's topN scoring.
+	 */
+	public boolean isCountedForTeam() {
+		return this.countedForTeam;
+	}
+
+	public void setCountedForTeam(boolean countedForTeam) {
+		this.countedForTeam = countedForTeam;
+	}
+
 	public Integer getCustomPoints() {
 		return this.athlete.getCustomPoints();
 	}
@@ -144,6 +169,10 @@ public class TeamTreeItem {
 
 	public NativeLabel getMembershipLabel() {
 		return this.membershipLabel;
+	}
+
+	public NativeLabel getMixedMembershipLabel() {
+		return this.mixedMembershipLabel;
 	}
 
 	public String getName() {
@@ -172,6 +201,13 @@ public class TeamTreeItem {
 		return (this.team != null ? this.team.getScore() : Ranking.getRankingValue(this.athlete, this.scoringSystem));
 	}
 
+	public void setScoringSystem(Ranking scoringSystem) {
+		this.scoringSystem = scoringSystem;
+		if (this.team != null) {
+			this.team.setScoringSystem(scoringSystem);
+		}
+	}
+
 	public Double getSinclairScore() {
 		return (this.team != null ? this.team.getSinclairScore() : this.athlete.getSinclairForDelta());
 	}
@@ -182,6 +218,34 @@ public class TeamTreeItem {
 	
 	public Double getQMastersScore() {
 		return (this.team != null ? this.team.getQMasters() : this.athlete.getQMastersForDelta());
+	}
+
+	public Double getCatGamxScore() {
+		return (this.team != null ? this.team.getCatGamxScore() : this.athlete.getCategoryGAMXForDelta());
+	}
+
+	public Double getCatQPointsMetric() {
+		return (this.team != null ? this.team.getCatQPointsScore() : this.athlete.getCategoryQPointsForDelta());
+	}
+
+	public Double getCatSinclairMetric() {
+		return (this.team != null ? this.team.getCatSinclairScore() : this.athlete.getCategorySinclairForDelta());
+	}
+
+	public Double getGamxScore() {
+		return (this.team != null ? this.team.getGamx() : this.athlete.getGamx());
+	}
+
+	public int getRawCombinedPoints() {
+		return (this.athlete != null ? this.athlete.getRawCombinedPoints() : 0);
+	}
+
+	public int getRawTotalPoints() {
+		return (this.athlete != null ? this.athlete.getRawTotalPoints() : 0);
+	}
+
+	public Double getRobiScore() {
+		return (this.team != null ? this.team.getRobi() : this.athlete.getRobi());
 	}
 
 
@@ -206,6 +270,16 @@ public class TeamTreeItem {
 		return getTeamMembers();
 	}
 
+	/**
+	 * @return only team members that were included in the topN scoring, sorted by points.
+	 *         When no topN limit is configured, all members are counted and this returns the same as getSortedTeamMembers().
+	 */
+	public List<TeamTreeItem> getCountedTeamMembers() {
+		return getSortedTeamMembers().stream()
+		        .filter(TeamTreeItem::isCountedForTeam)
+		        .collect(Collectors.toList());
+	}
+
 	public Team getTeam() {
 		return this.team;
 	}
@@ -221,6 +295,10 @@ public class TeamTreeItem {
 		return this.athlete.getTeam();
 	}
 
+	public boolean isDone() {
+		return this.done;
+	}
+
 	public Integer getTotalPoints() {
 		return (this.athlete != null ? this.athlete.getTotalPoints() : null);
 	}
@@ -229,12 +307,20 @@ public class TeamTreeItem {
 		return (this.athlete != null ? this.athlete.isTeamMember() : null);
 	}
 
+	public Boolean isMixedTeamMember() {
+		return (this.athlete != null ? this.athlete.isMixedTeamMember() : null);
+	}
+
 	public boolean isWarning() {
 		return this.warning;
 	}
 
 	public void setMembershipLabel(NativeLabel label) {
 		this.membershipLabel = label;
+	}
+
+	public void setMixedMembershipLabel(NativeLabel label) {
+		this.mixedMembershipLabel = label;
 	}
 
 	public void setParent(TeamTreeItem parent) {
@@ -247,16 +333,18 @@ public class TeamTreeItem {
 		}
 	}
 
+	public void setMixedTeamMember(boolean b) {
+		if (this.athlete != null) {
+			this.athlete.setMixedTeamMember(b);
+		}
+	}
+
 	public void setTeamMembers(List<TeamTreeItem> teamMembers) {
 		this.teamMembers = teamMembers;
 	}
 
 	public void setWarning(boolean contains) {
 		this.warning = contains;
-	}
-
-	private boolean isDone() {
-		return this.done;
 	}
 
 	private void setDone(boolean done) {

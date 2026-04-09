@@ -29,7 +29,6 @@ import app.owlcms.apputils.queryparameters.TopParametersReader;
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
-import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Category;
@@ -37,6 +36,7 @@ import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.displays.options.DisplayOptions;
 import app.owlcms.displays.top.TopTeamsSinclair;
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.i18n.Translator;
 import app.owlcms.nui.displays.scoreboards.AbstractResultsDisplayPage;
 import ch.qos.logback.classic.Logger;
@@ -96,7 +96,7 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 			List<String> activeAgeGroups = setAgeGroupPrefixItems(ageGroupPrefixComboBox, championship);
 			if (existingAgeGroupPrefix != null) {
 				ageGroupPrefixComboBox.setValue(existingAgeGroupPrefix);
-			} else if (activeAgeGroups != null && !activeAgeGroups.isEmpty() && championship.getType() != ChampionshipType.MASTERS) {
+			} else if (activeAgeGroups != null && !activeAgeGroups.isEmpty() && !championship.getType().isMasters()) {
 				ageGroupPrefixComboBox.setValue(activeAgeGroups.get(0));
 			}
 			// Restart timer after value change
@@ -170,7 +170,8 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	 */
 	@Override
 	public String getPageTitle() {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		Championship championship = getChampionship() != null ? getChampionship() : Championship.of(null);
+		Ranking scoringSystem = championship.getTeamScoringSystem() != null ? championship.getTeamScoringSystem() : Ranking.TOTAL;
 		String ssText = Ranking.getScoringTitle(scoringSystem);
 		return Translator.translate("Scoreboard.TopTeamsScore", ssText);
 	}
@@ -180,20 +181,16 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 	 */
 	@Override
 	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
-		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
+		// Call parent chain to initialize FOP, dark mode, silent mode, etc.
+		HashMap<String, List<String>> params1 = new HashMap<>(TopParametersReader.super.readParams(location, parametersMap));
+
+		// Ensure FOP is set — the parent chain may not always resolve it
+		if (getFop() == null) {
+			setFop(OwlcmsFactory.getDefaultFOP());
+		}
 
 		List<String> darkParams = params1.get(DARK);
-		// dark is the default. dark=false or dark=no or ... will turn off dark mode.
-		boolean darkMode = darkParams == null || darkParams.isEmpty() || darkParams.get(0).toLowerCase().equals("true");
-		setDarkMode(darkMode);
-		updateParam(params1, DARK, !isDarkMode() ? "false" : null);
-
 		List<String> silentParams = params1.get(SILENT);
-		// dark is the default. dark=false or dark=no or ... will turn off dark mode.
-		boolean silentMode = silentParams == null || silentParams.isEmpty()
-		        || silentParams.get(0).toLowerCase().equals("true");
-		setSilenced(silentMode);
-		updateParam(params1, SILENT, !isSilenced() ? "false" : null);
 
 		   List<String> ageDivisionParams = params1.get("ad");
 		   String ageDivisionName = (ageDivisionParams != null && !ageDivisionParams.isEmpty() && ageDivisionParams.get(0) != null && !ageDivisionParams.get(0).isEmpty())
@@ -241,7 +238,6 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		   }
 		   updateParam(params1, "gender", gValue == null ? null : gValue.toString());
 
-		switchLightingMode(darkMode, false);
 		updateURLLocations();
 		setShowInitialDialog(
 		        darkParams == null && ageDivisionParams == null && genderParams == null && silentParams == null);
@@ -310,7 +306,9 @@ public class TopTeamsSinclairPage extends AbstractResultsDisplayPage implements 
 		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
-		        SoundParameters.START_ORDER, "false");
+		        SoundParameters.START_ORDER, "false",
+		        DisplayParameters.CURRENT_ATTEMPT, "false",
+		        DisplayParameters.SHOW_MEDALS, "auto");
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);

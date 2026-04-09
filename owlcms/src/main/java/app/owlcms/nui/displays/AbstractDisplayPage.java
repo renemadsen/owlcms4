@@ -6,6 +6,8 @@
  *******************************************************************************/
 package app.owlcms.nui.displays;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Timer;
@@ -26,7 +28,10 @@ import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.DisplayParametersReader;
 import app.owlcms.apputils.queryparameters.FOPParameters;
 import app.owlcms.apputils.queryparameters.SoundParameters;
+import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.group.Group;
+import app.owlcms.displays.scoreboard.BaseResults;
+import app.owlcms.displays.scoreboard.ResultsMedals;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import ch.qos.logback.classic.Logger;
@@ -64,6 +69,7 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	private boolean leadersDisplay;
 	private boolean recordsDisplay;
 	private boolean publicDisplay;
+	private String showMedals = "auto";
 	private Double teamWidth;
 	private Component board;
 
@@ -283,6 +289,9 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	@Override
 	final public void setGroup(Group group) {
 		this.group = group;
+		if (this.board instanceof FOPParameters) {
+			((FOPParameters) this.board).setGroup(group);
+		}
 	}
 
 	@Override
@@ -345,12 +354,47 @@ public abstract class AbstractDisplayPage extends Div implements DisplayParamete
 	@Override
 	final public void setUrlParameterMap(Map<String, List<String>> urlParameterMap) {
 		this.urlParameterMap = removeDefaultValues(urlParameterMap);
+		if (this.board instanceof BaseResults) {
+			BaseResults baseResults = (BaseResults) this.board;
+			boolean hasGroupInUrl = this.urlParameterMap != null && this.urlParameterMap.containsKey(FOPParameters.GROUP);
+			baseResults.setGroupPinnedFromURL(hasGroupInUrl);
+		}
+		if (this.board instanceof ResultsMedals) {
+			ResultsMedals medals = (ResultsMedals) this.board;
+			boolean hasCategoryInUrl = false;
+			if (this.urlParameterMap != null) {
+				List<String> catValues = this.urlParameterMap.get(DisplayParameters.CATEGORY);
+				hasCategoryInUrl = catValues != null && !catValues.isEmpty() && catValues.get(0) != null
+				        && !catValues.get(0).isBlank();
+				if (hasCategoryInUrl) {
+					String decoded = URLDecoder.decode(catValues.get(0), StandardCharsets.UTF_8);
+					medals.setCategory(CategoryRepository.findByCode(decoded));
+				}
+			}
+			medals.setCategoryPinnedFromURL(hasCategoryInUrl);
+		}
 	}
 
 	@Override
 	final public void setVideo(boolean b) {
 		((DisplayParameters) this.board).setVideo(b);
 		this.video = b;
+	}
+
+	@Override
+	public boolean isGroupURLAllowedToMutateFop() {
+		return false;
+	}
+
+	@Override
+	public String isShowMedals() {
+		return this.showMedals;
+	}
+
+	@Override
+	public void setShowMedals(String value) {
+		((DisplayParameters) this.board).setShowMedals(value);
+		this.showMedals = value;
 	}
 
 	protected Component getBoard() {

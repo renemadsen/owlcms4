@@ -34,7 +34,25 @@ class TimerElement extends LitElement {
       _formattedTime: {
         type: String,
       },
+      initialWarningThresholdSeconds: {
+        type: Number,
+      },
+      finalWarningThresholdSeconds: {
+        type: Number,
+      },
     };
+  }
+
+  getInitialWarningThresholdSeconds() {
+    return Number.isFinite(this.initialWarningThresholdSeconds)
+      ? this.initialWarningThresholdSeconds
+      : -1;
+  }
+
+  getFinalWarningThresholdSeconds() {
+    return Number.isFinite(this.finalWarningThresholdSeconds)
+      ? this.finalWarningThresholdSeconds
+      : -1;
   }
 
   firstUpdated(_changedProperties) {
@@ -97,12 +115,6 @@ class TimerElement extends LitElement {
     }
 
     console.warn("timer start " + seconds + " late = " + lateMillis + "ms");
-    this.$server.clientTimerStarting(
-      this.fopName,
-      seconds,
-      lateMillis,
-      (this.isIOS() ? "iPad" : "browser") + " " + from
-    );
 
     this.currentTime = seconds - lateMillis / 1000;
     if (
@@ -114,8 +126,10 @@ class TimerElement extends LitElement {
     }
 
     this.silent = silent;
-    this._initialWarningGiven = this.currentTime < 90;
-    this._finalWarningGiven = this.currentTime < 30;
+    const initialWarningThresholdSeconds = this.getInitialWarningThresholdSeconds();
+    const finalWarningThresholdSeconds = this.getFinalWarningThresholdSeconds();
+    this._initialWarningGiven = initialWarningThresholdSeconds < 0 || this.currentTime < initialWarningThresholdSeconds;
+    this._finalWarningGiven = finalWarningThresholdSeconds < 0 || this.currentTime < finalWarningThresholdSeconds;
     this._timeOverWarningGiven = this.currentTime < 0;
 
     this._elapsed = null;  // Will be initialized on first _decreaseTimer call
@@ -132,13 +146,6 @@ class TimerElement extends LitElement {
 
     this.running = false;
     console.warn("paused" + " running=false");
-    // if (this.$server != null) {
-    this.$server.clientTimerStopped(
-      this.fopName,
-      this.currentTime,
-      (this.isIOS() ? "iPad" : "browser") + " " + from
-    );
-
 
     console.warn("timer pause " + seconds);
     this.currentTime = seconds;
@@ -244,27 +251,22 @@ class TimerElement extends LitElement {
         this.soundTimeOver();
       }
 
-      // tell server to emit sound if server-side sounds
-      console.warn("timeOver " + this.fopName + " " + this.$server);
-      if (this.$server != null) this.$server.clientTimeOver(this.fopName);
       this._timeOverWarningGiven = true;
     }
-    if (this.currentTime <= 30.05 && !this._finalWarningGiven) {
+    const finalWarningThresholdSeconds = this.getFinalWarningThresholdSeconds();
+    if (finalWarningThresholdSeconds >= 0 && this.currentTime <= finalWarningThresholdSeconds + 0.05 && !this._finalWarningGiven) {
       console.warn("final warning " + this.currentTime + " " + this.silent + " " + this.$server);
       if (!this.silent) {
         console.warn("about to play final warning " + window.finalWarning);
         this.soundFinalWarning();
       }
-      // tell server to emit sound if server-side sounds
-      if (this.$server != null) this.$server.clientFinalWarning(this.fopName);
       this._finalWarningGiven = true;
     }
-    if (this.currentTime <= 90.05 && !this._initialWarningGiven) {
+    const initialWarningThresholdSeconds = this.getInitialWarningThresholdSeconds();
+    if (initialWarningThresholdSeconds >= 0 && this.currentTime <= initialWarningThresholdSeconds + 0.05 && !this._initialWarningGiven) {
       if (!this.silent) {
         this.soundInitialWarning();
       }
-      // tell server to emit sound if server-side sounds
-      if (this.$server != null) this.$server.clientInitialWarning(this.fopName);
       this._initialWarningGiven = true;
     }
 
@@ -278,8 +280,6 @@ class TimerElement extends LitElement {
     if ((this.currentTime < -0.1 && !this.countUp) || (this.currentTime >= this.startTime && this.countUp)) {
       console.warn("time over stop running " + this.$server + " running=false");
 
-      // timer is over; tell server to emit sound if server-side sounds
-      if (this.$server != null) this.$server.clientTimeOver(this.fopName);
       this.running = false;
       this.formatted_time = this._formatTime(0);
       this.currentTime = this.countUp ? this.startTime : 0;
@@ -318,6 +318,8 @@ class TimerElement extends LitElement {
     this.indefinite = false;
     this._elapsedTime = 0;
     this._formattedTime = "&nbsp;&nbsp;&nbsp;&nbsp;";
+    this.initialWarningThresholdSeconds = -1;
+    this.finalWarningThresholdSeconds = -1;
     this._initialWarningGiven = false;
     this._finalWarningGiven = false;
     this._timeOverWarningGiven = false;

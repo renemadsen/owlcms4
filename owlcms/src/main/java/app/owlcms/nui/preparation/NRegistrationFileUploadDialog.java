@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.text.MessageFormat;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.apache.poi.ss.usermodel.Cell;
@@ -21,6 +22,7 @@ import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.slf4j.LoggerFactory;
 
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.html.H3;
 import com.vaadin.flow.component.html.H5;
@@ -31,20 +33,30 @@ import com.vaadin.flow.component.textfield.TextArea;
 import com.vaadin.flow.component.upload.Upload;
 import com.vaadin.flow.server.streams.UploadHandler;
 
+import app.owlcms.components.ConfirmationDialog;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.category.CategoryRepository;
 import app.owlcms.data.config.Config;
+import app.owlcms.data.export.FormatDetector;
+import app.owlcms.data.jpa.JPAService;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.spreadsheet.NRegistrationFileProcessor;
 import app.owlcms.spreadsheet.NRegistrationFileProcessor.AthleteOptions;
 import app.owlcms.spreadsheet.NRegistrationFileProcessor.SessionOptions;
 import app.owlcms.spreadsheet.RCompetition;
+import org.apache.maven.artifact.versioning.ComparableVersion;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
 @SuppressWarnings("serial")
 public class NRegistrationFileUploadDialog extends Dialog {
+	private static final Set<String> ACCEPTED_SPREADSHEET_EXTENSIONS = Set.of(".xls", ".xlsx");
+	private static final String XLS_CONTENT_TYPE = "application/vnd.ms-excel";
+	private static final String XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+	private static final String REGISTRATION_REPLACE_WARNING_KEY = "Upload.RegistrationWarningWillReplaceAll";
+	private static final String UNSUPPORTED_REGISTRATION_UPLOAD_MESSAGE = "Only XLSX and XLS formats are supported";
+	private static final String UNSUPPORTED_REGISTRATION_UPLOAD_MESSAGE_KEY = "Upload.UnsupportedSpreadsheetFormat";
 
 	public final static Logger logger = (Logger) LoggerFactory.getLogger(NRegistrationFileUploadDialog.class);
 	final static Logger jxlsLogger = (Logger) LoggerFactory.getLogger("net.sf.jxls.reader.SimpleBlockReaderImpl");
@@ -58,15 +70,15 @@ public class NRegistrationFileUploadDialog extends Dialog {
 	private AthleteOptions athleteOption;
 	private SessionOptions sessionOption;
 	private Locale capturedLocale;
+	private boolean isRestartScenario;
 
 	public NRegistrationFileUploadDialog(boolean sbdeFormat) {
 		this.sbdeFormat = sbdeFormat;
+		this.isRestartScenario = checkIfRestartScenario();
 		// Capture locale now while still on UI thread - will be used in upload callback
 		this.capturedLocale = OwlcmsSession.getLocale();
 
-		// Keep the exported-Excel translation in the master file, but in the interactive UI we
-		// show a simple English warning text (non-translated) and log the canonical warning if needed.
-		H5 label = new H5("Warning: this will replace all existing data.");
+		H5 label = new H5(Translator.translate(REGISTRATION_REPLACE_WARNING_KEY));
 		label.getStyle().set("color", "red");
 		H5 sbdeLabel = new H5(Translator.translate("SBDE.AthleteOptions_WARNING"));
 		sbdeLabel.getStyle().set("color", "red");
@@ -92,6 +104,11 @@ public class NRegistrationFileUploadDialog extends Dialog {
 			        ? new NRegistrationFileProcessor(sbdeFormat, this.capturedLocale)
 			        : new NRegistrationFileProcessor(sbdeFormat, this.capturedLocale);
 			this.fileName = metadata.fileName();
+			if (!isAcceptedSpreadsheetUpload(metadata.fileName(), metadata.contentType())) {
+				logger./**/warn("Rejected registration upload fileName={} contentType={}", metadata.fileName(), metadata.contentType());
+				appendErrors(ta, getUnsupportedRegistrationUploadMessage());
+				return;
+			}
 			
 			// Check if this is a sessions-only file by looking at A2 of first sheet
 			boolean isSessionsOnly = false;
@@ -103,6 +120,7 @@ public class NRegistrationFileUploadDialog extends Dialog {
 			
 			try (ByteArrayInputStream inputStream = new ByteArrayInputStream(data)) {
 				processInput(inputStream, ta, isSessionsOnly);
+				openRestartConfirmation();
 			} catch (Exception e) {
 				logger.error("Error processing uploaded registration file", e);
 				throw new RuntimeException(e);
@@ -115,6 +133,8 @@ public class NRegistrationFileUploadDialog extends Dialog {
 
 		Upload upload = new Upload(uploadHandler);
 		upload.setWidth("40em");
+		upload.setAcceptedFileTypes(XLS_CONTENT_TYPE, XLSX_CONTENT_TYPE, ".xls", ".xlsx");
+		upload.addFileRejectedListener(event -> appendErrors(ta, getUnsupportedRegistrationUploadMessage()));
 
 		H3 title = new H3(Translator.translate("UploadRegistrationFile"));
 		VerticalLayout vl;
@@ -371,6 +391,91 @@ public class NRegistrationFileUploadDialog extends Dialog {
 				ta.setValue(existing + System.lineSeparator() + newText);
 			}
 			ta.setVisible(true);
+		}
+	}
+
+	private void appendErrors(TextArea ta, String message) {
+		if (message == null || message.isBlank()) {
+			return;
+		}
+		StringBuffer sb = new StringBuffer();
+		sb.append(message).append('\n');
+		updateDisplay(ta, sb);
+	}
+
+	private String getUnsupportedRegistrationUploadMessage() {
+		String translated = Translator.translateOrElseNull(UNSUPPORTED_REGISTRATION_UPLOAD_MESSAGE_KEY, capturedLocale);
+		return translated != null && !translated.isBlank() ? translated : UNSUPPORTED_REGISTRATION_UPLOAD_MESSAGE;
+	}
+
+	private boolean isAcceptedSpreadsheetUpload(String uploadedFileName, String contentType) {
+		String normalizedFileName = uploadedFileName == null ? "" : uploadedFileName.toLowerCase(Locale.ROOT);
+		boolean acceptedExtension = ACCEPTED_SPREADSHEET_EXTENSIONS.stream().anyMatch(normalizedFileName::endsWith);
+		if (!acceptedExtension) {
+			return false;
+		}
+		if (contentType == null || contentType.isBlank()) {
+			return true;
+		}
+		return XLS_CONTENT_TYPE.equalsIgnoreCase(contentType) || XLSX_CONTENT_TYPE.equalsIgnoreCase(contentType);
+	}
+
+	private void openRestartConfirmation() {
+		UI ui = this.getUI().orElse(UI.getCurrent());
+
+		String titleKey = isRestartScenario ? "ImportR.Success" : "Import.Success";
+		String controlPanelKey = isRestartScenario ? "ImportR.ControlPanelRestart" : "Import.ControlPanelRestart";
+		String localKey = isRestartScenario ? "ImportR.ControlPanelRestart" : "Import.LocalRestart";
+		String cloudKey = isRestartScenario ? "ImportR.CloudRestart" : "Import.CloudRestart";
+		String confirmKey = isRestartScenario ? "ImportR.DoIt" : "Import.DoIt";
+
+		String owlcmsLauncher = System.getenv("OWLCMS_CONTROLPANEL");
+		String preamble = Translator.translate("SBDE.RestartWarning");
+		String message;
+		if (owlcmsLauncher != null) {
+			message = preamble + " " + Translator.translate(controlPanelKey);
+		} else if (JPAService.isLocalDb()) {
+			message = preamble + " " + Translator.translate(localKey);
+		} else {
+			message = preamble + " " + Translator.translate(cloudKey);
+		}
+
+		new ConfirmationDialog(
+		        Translator.translate(titleKey),
+		        message,
+		        Translator.translate(confirmKey),
+		        null,
+		        () -> {
+			        NRegistrationFileUploadDialog.this.close();
+			        if (ui != null) {
+				        ui.push();
+			        }
+			        try {
+				        Thread.sleep(2000);
+			        } catch (InterruptedException e) {
+				        Thread.currentThread().interrupt();
+			        }
+			        FormatDetector.checkAndRestartIfNeeded();
+		        }
+		).open();
+		if (ui != null) {
+			ui.push();
+		}
+	}
+
+	private boolean checkIfRestartScenario() {
+		String controlPanelVersion = System.getenv("OWLCMS_CONTROLPANEL");
+		if (controlPanelVersion == null || controlPanelVersion.trim().isEmpty()) {
+			return false;
+		}
+
+		try {
+			ComparableVersion currentVersion = new ComparableVersion(controlPanelVersion);
+			ComparableVersion minVersion = new ComparableVersion("3.1.0-alpha00");
+			return currentVersion.compareTo(minVersion) >= 0;
+		} catch (Exception e) {
+			logger.error("Error checking control panel version: {}", e.getMessage());
+			return false;
 		}
 	}
 

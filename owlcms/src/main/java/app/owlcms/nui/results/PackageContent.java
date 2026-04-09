@@ -383,8 +383,12 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 	}
 
 	public Ranking getScoringSystem() {
-		// Return global default if not yet set
-		return this.scoringSystem != null ? this.scoringSystem : Competition.getCurrent().getScoringSystem();
+		if (this.scoringSystem != null) {
+			return this.scoringSystem;
+		}
+		Championship effectiveChampionship = this.championship != null ? this.championship : Championship.of(null);
+		Ranking championshipScoring = effectiveChampionship.getBestAthleteScoringSystem();
+		return championshipScoring != null ? championshipScoring : effectiveChampionship.getScoringSystem();
 	}
 
 	@Override
@@ -492,7 +496,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		HashMap<String, List<String>> params = new HashMap<>(
 		        location.getQueryParameters().getParameters());
 		if (!isIgnoreGroupFromURL() && newGroup != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(newGroup.getName())));
+			params.put("group", Arrays.asList(newGroup.getName()));
 		} else {
 			params.remove("group");
 		}
@@ -592,7 +596,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 				bestAthleteScoringSelected(event.getValue());
 			});
 			// Initialize to current value or global default
-			Ranking initialValue = this.scoringSystem != null ? this.scoringSystem : Competition.getCurrent().getScoringSystem();
+			Ranking initialValue = getScoringSystem();
 			scoringCombo.setValue(initialValue);
 			if (this.scoringSystem == null) {
 				setScoringSystem(initialValue); // Set field on first initialization
@@ -684,7 +688,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		if (getRankingSelector() != null && getRankingSelector().getValue() != null) {
 			ranking = getRankingSelector().getValue();
 		} else {
-			ranking = Competition.getCurrent().getScoringSystem();
+			ranking = getScoringSystem();
 		}
 		return ranking;
 	}
@@ -694,7 +698,7 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		if (getRankingSelector() != null && getRankingSelector().getValue() != null) {
 			ranking = getRankingSelector().getValue();
 		} else {
-			ranking = Competition.getCurrent().getScoringSystem();
+			ranking = getScoringSystem();
 		}
 		return ranking;
 	}
@@ -703,8 +707,10 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
 			        JXLSWinningSheet rs = new JXLSWinningSheet(true);
+			        rs.setRespectNoInterimScoresInResults(true);
 			        rs.setChampionship(this.championship);
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
+			        rs.setGender(this.gender);
 			        rs.setCategory(getCategoryValue());
 			        // group may have been edited since the page was loaded
 			        rs.setGroup(this.currentGroup != null ? GroupRepository.getById(this.currentGroup.getId()) : null);
@@ -733,8 +739,10 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		this.downloadDialog = new JXLSDownloader(
 				() -> {
 					JXLSCompetitionBook rs = new JXLSCompetitionBook(this.locationUI);
+					rs.setRespectNoInterimScoresInResults(true);
 					rs.setChampionship(this.championship);
 					rs.setAgeGroupPrefix(this.ageGroupPrefix);
+					rs.setGender(this.gender);
 					rs.setCategory(this.categoryValue);
 					rs.setIncludeUnfinished(Boolean.TRUE.equals(this.includeUnfinishedCategories.getValue()));
 					rs.setWinnersOnly(this.winnersOnly);
@@ -758,8 +766,10 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		this.downloadDialog = new JXLSDownloader(
 		        () -> {
 			        JXLSWinningSheet rs = new JXLSWinningSheet(false);
+			        rs.setRespectNoInterimScoresInResults(true);
 			        rs.setChampionship(this.championship);
 			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
+			        rs.setGender(this.gender);
 			        rs.setCategory(getCategoryValue());
 			        rs.setGroup(null);
 			        rs.setSortedAthletes((List<Athlete>) findAll());
@@ -837,14 +847,12 @@ public class PackageContent extends AthleteGridContent implements HasDynamicTitl
 		if (this.getRankingSelector() != null) {
 			Ranking newRanking;
 			if (championship != null) {
-				// Get scoring system for the championship (across all age groups)
-				// The age group prefix will be recomputed by the cascade
-				newRanking = championship.getBestAthleteScoringSystem(null);
+				newRanking = championship.getBestAthleteScoringSystem();
 			} else {
 				newRanking = null;
 			}
 			if (newRanking == null) {
-				newRanking = Competition.getCurrent().getScoringSystem();
+				newRanking = Championship.of(null).getBestAthleteScoringSystem();
 			}
 			// Update dropdown and field, then refresh grid via helper
 			this.getRankingSelector().setValue(newRanking);

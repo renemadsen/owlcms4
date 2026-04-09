@@ -304,9 +304,9 @@ public class TopSinclairPage extends AbstractResultsDisplayPage implements TopPa
 				topSinclairBoard.setUseFilteredResults(true);
 			}
 
-			java.util.List<app.owlcms.data.athlete.Athlete> allMen = app.owlcms.data.competition.Competition.getCurrent()
+			java.util.List<app.owlcms.data.athlete.Athlete> allMen = Competition.getCurrent()
 			        .getGlobalScoreRanking(app.owlcms.data.athlete.Gender.M);
-			java.util.List<app.owlcms.data.athlete.Athlete> allWomen = app.owlcms.data.competition.Competition.getCurrent()
+			java.util.List<app.owlcms.data.athlete.Athlete> allWomen = Competition.getCurrent()
 			        .getGlobalScoreRanking(app.owlcms.data.athlete.Gender.F);
 			java.util.List<app.owlcms.data.athlete.Athlete> filteredMen = filterAthletesByChampionshipAndAgeGroup(allMen, championship, ageGroup);
 			java.util.List<app.owlcms.data.athlete.Athlete> filteredWomen = filterAthletesByChampionshipAndAgeGroup(allWomen, championship, ageGroup);
@@ -337,8 +337,9 @@ public class TopSinclairPage extends AbstractResultsDisplayPage implements TopPa
 
 	@Override
 	public String getPageTitle() {
+		Championship championship = getChampionship() != null ? getChampionship() : Championship.of(null);
 		return Translator.translate("Scoreboard.TopScore",
-		        Ranking.getScoringTitle(Competition.getCurrent().getScoringSystem()));
+		        Ranking.getScoringTitle(championship.getScoringSystem()));
 	}
 
 	@Override
@@ -424,7 +425,9 @@ public class TopSinclairPage extends AbstractResultsDisplayPage implements TopPa
 		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
-		        SoundParameters.START_ORDER, "false");
+		        SoundParameters.START_ORDER, "false",
+		        DisplayParameters.CURRENT_ATTEMPT, "false",
+		        DisplayParameters.SHOW_MEDALS, "auto");
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);

@@ -28,16 +28,51 @@ import elemental.json.JsonArray;
 import elemental.json.JsonObject;
 import elemental.json.JsonValue;
 
+/**
+ * Rankings by Category display.
+ * 
+ * Uses the narrow Results grid styling (resultsCustomization.css) with
+ * category name grouping headers. Medal decorations are optional.
+ * 
+ * Extends ResultsMedals to reuse event handling, category-grouped data
+ * computation, and lifecycle management.
+ */
 @SuppressWarnings({ "serial", "deprecation" })
-@Tag("resultsmedals-template")
-@JsModule("./components/ResultsMedals.js")
+@Tag("resultsrankings-template")
+@JsModule("./components/ResultsRankingsByCategory.js")
 
 public class ResultsRankings extends ResultsMedals implements ResultsParameters {
 
-	final private Logger logger = (Logger) LoggerFactory.getLogger(ResultsMedals.class);
+	final private Logger logger = (Logger) LoggerFactory.getLogger(ResultsRankings.class);
+
+	/** Category set from URL parameter — must not be cleared by event handlers. */
+	private Category urlCategory;
 
 	public ResultsRankings() {
 
+	}
+
+	/**
+	 * Remember the URL-specified category so event handlers don't clear it.
+	 * When urlCategory is set, block any attempt to null the category.
+	 */
+	@Override
+	public void setCategory(Category category) {
+		if (category != null && this.urlCategory == null) {
+			// First non-null category set (from URL param reading) becomes the sticky URL category
+			this.urlCategory = category;
+		}
+		if (category == null && this.urlCategory != null) {
+			// Don't allow event handlers to clear the URL-specified category
+			return;
+		}
+		super.setCategory(category);
+	}
+
+	@Override
+	protected boolean isOnlyFinished() {
+		// Rankings should show all athletes, not just finished categories
+		return false;
 	}
 
 	@Override
@@ -61,7 +96,7 @@ public class ResultsRankings extends ResultsMedals implements ResultsParameters 
 				        return Integer.compare(aTotalRank, bTotalRank);
 			        }
 		        })
-		        .limit(15)
+		        .limit(getTopN())
 		        .forEach(a -> {
 			        JsonObject ja = Json.createObject();
 			        Category curCat = a.getCategory();

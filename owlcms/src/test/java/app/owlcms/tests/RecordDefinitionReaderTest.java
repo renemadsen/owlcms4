@@ -8,15 +8,19 @@ package app.owlcms.tests;
 
 import static app.owlcms.tests.AllTests.assertEqualsToReferenceFile;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
+import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -212,5 +216,133 @@ public class RecordDefinitionReaderTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void _11_testOfficialImportReplacesByLogicalKeyAcrossFileNames() throws IOException {
+        try (Workbook firstWorkbook = createWorkbook("QC", "Provincial", "F", "SR", 15, 999, 71, 76, "SNATCH", 101);
+                Workbook secondWorkbook = createWorkbook("QC", "Provincial", "F", "SR", 15, 999, 71, 76, "SNATCH", 99)) {
+            new RecordDefinitionReader().createRecords(firstWorkbook, "first.xlsx", "first_upload");
+            assertEquals(1, RecordRepository.findAll().size());
+
+            new RecordDefinitionReader().createRecords(secondWorkbook, "second.xlsx", "second_upload");
+
+            List<RecordEvent> allRecords = RecordRepository.findAll();
+            assertEquals(1, allRecords.size());
+            RecordEvent correctedRecord = allRecords.get(0);
+            assertEquals(99.0D, correctedRecord.getRecordValue(), 0.001D);
+            assertEquals("second_upload", correctedRecord.getFileName());
+        }
+    }
+
+    @Test
+    public void _12_testOfficialImportAbsorbsMatchingLocalProvisional() throws IOException {
+        RecordEvent provisional = new RecordEvent();
+        provisional.setRecordFederation("QC");
+        provisional.setRecordName("Provincial");
+        provisional.setGender(Gender.F);
+        provisional.setAgeGrp("SR");
+        provisional.setAgeGrpLower(15);
+        provisional.setAgeGrpUpper(999);
+        provisional.setBwCatLower(71);
+        provisional.setBwCatUpper(76);
+        provisional.setRecordLift(app.owlcms.data.athleteSort.Ranking.SNATCH);
+        provisional.setRecordValue(101.0D);
+        provisional.setAthleteName("Athlete One");
+        provisional.setRecordDate(LocalDate.of(2026, 3, 7));
+        provisional.setEvent("Reference Meet");
+        provisional.setEventLocation("Montreal");
+        provisional.setGroupNameString("A");
+        provisional.setFileName("local_export");
+        RecordRepository.save(provisional);
+
+        try (Workbook workbook = createWorkbook(
+                "QC", "Provincial", "F", "SR", 15, 999, 71, 76, "SNATCH", 101,
+                "Athlete One", "2026-03-07", "Reference Meet", "Montreal", null)) {
+            new RecordDefinitionReader().createRecords(workbook, "reference.xlsx", "reference_upload");
+        }
+
+        List<RecordEvent> allRecords = RecordRepository.findAll();
+        assertEquals(1, allRecords.size());
+        assertTrue(allRecords.get(0).getGroupNameString() == null || allRecords.get(0).getGroupNameString().isBlank());
+        assertEquals("reference_upload", allRecords.get(0).getFileName());
+    }
+
+    private Workbook createWorkbook(
+            String federation,
+            String recordName,
+            String gender,
+            String ageGroup,
+            int ageLower,
+            int ageUpper,
+            int bwLower,
+            int bwUpper,
+            String lift,
+            double recordValue) {
+        return createWorkbook(federation, recordName, gender, ageGroup, ageLower, ageUpper, bwLower, bwUpper, lift, recordValue, null, null, null, null, null);
+    }
+
+    private Workbook createWorkbook(
+            String federation,
+            String recordName,
+            String gender,
+            String ageGroup,
+            int ageLower,
+            int ageUpper,
+            int bwLower,
+            int bwUpper,
+            String lift,
+            double recordValue,
+            String athleteName,
+            String recordDate,
+            String event,
+            String place,
+            String group) {
+        Workbook workbook = new XSSFWorkbook();
+        var sheet = workbook.createSheet("records");
+        Row header = sheet.createRow(0);
+        header.createCell(0).setCellValue("federation");
+        header.createCell(1).setCellValue("recordname");
+        header.createCell(2).setCellValue("agegroup");
+        header.createCell(3).setCellValue("gender");
+        header.createCell(4).setCellValue("agelow");
+        header.createCell(5).setCellValue("ageupper");
+        header.createCell(6).setCellValue("bwlow");
+        header.createCell(7).setCellValue("bwupper");
+        header.createCell(8).setCellValue("recordlift");
+        header.createCell(9).setCellValue("recordvalue");
+		header.createCell(10).setCellValue("athletename");
+		header.createCell(11).setCellValue("date");
+		header.createCell(12).setCellValue("event");
+		header.createCell(13).setCellValue("place");
+		header.createCell(14).setCellValue("group");
+
+        Row row = sheet.createRow(1);
+        row.createCell(0).setCellValue(federation);
+        row.createCell(1).setCellValue(recordName);
+        row.createCell(2).setCellValue(ageGroup);
+        row.createCell(3).setCellValue(gender);
+        row.createCell(4).setCellValue(ageLower);
+        row.createCell(5).setCellValue(ageUpper);
+        row.createCell(6).setCellValue(bwLower);
+        row.createCell(7).setCellValue(bwUpper);
+        row.createCell(8).setCellValue(lift);
+        row.createCell(9).setCellValue(recordValue);
+        if (athleteName != null) {
+            row.createCell(10).setCellValue(athleteName);
+        }
+        if (recordDate != null) {
+            row.createCell(11).setCellValue(recordDate);
+        }
+        if (event != null) {
+            row.createCell(12).setCellValue(event);
+        }
+        if (place != null) {
+            row.createCell(13).setCellValue(place);
+        }
+        if (group != null) {
+            row.createCell(14).setCellValue(group);
+        }
+        return workbook;
     }
 }

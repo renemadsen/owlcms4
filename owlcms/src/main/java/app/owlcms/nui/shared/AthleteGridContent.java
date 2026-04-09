@@ -73,6 +73,7 @@ import app.owlcms.components.elements.BreakTimerElement;
 import app.owlcms.components.elements.JuryDisplayDecisionElement;
 import app.owlcms.components.elements.TimerElement;
 import app.owlcms.data.athlete.Athlete;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.config.Config;
@@ -983,13 +984,18 @@ public abstract class AthleteGridContent extends BaseContent
 	}
 
 	protected void create1MinButton() {
-		this._1min = new Button("1:00", (e) -> do1Minute());
+		this._1min = new Button(formatDuration(Competition.athleteTimerOneMinute), (e) -> do1Minute());
 		this._1min.getElement().setAttribute("theme", "icon");
 	}
 
 	protected void create2MinButton() {
-		this._2min = new Button("2:00", (e) -> do2Minutes());
+		this._2min = new Button(formatDuration(Competition.athleteTimerTwoMinutes), (e) -> do2Minutes());
 		this._2min.getElement().setAttribute("theme", "icon");
+	}
+
+	private static String formatDuration(int millis) {
+		int totalSeconds = millis / 1000;
+		return String.format("%d:%02d", totalSeconds / 60, totalSeconds % 60);
 	}
 
 	/**
@@ -1063,7 +1069,9 @@ public abstract class AthleteGridContent extends BaseContent
 	protected void createDecisionLights() {
 		this.decisionDisplay = new JuryDisplayDecisionElement();
 		this.decisionDisplay.setFop(getFop());
+		this.decisionDisplay.doReset();
 		this.decisionDisplay.setSilenced(isDownSilenced());
+		this.decisionDisplay.setDisplaySize("small");
 		// Icon silenceIcon = AvIcons.MIC_OFF.create();
 		this.setDecisionLights(new HorizontalLayout(this.decisionDisplay));
 		this.getDecisionLights().addClassName("announcerLeft");
@@ -1072,6 +1080,7 @@ public abstract class AthleteGridContent extends BaseContent
 		this.decisionDisplay.getStyle().set("width", "9em");
 		// Set small size for top bar decision display
 		this.decisionDisplay.getStyle().set("--attemptFontSize", "1.2em");
+		this.decisionDisplay.getStyle().set("--soloDecisionSize", "1.8em");
 	}
 
 	/**
@@ -1314,11 +1323,11 @@ public abstract class AthleteGridContent extends BaseContent
 	}
 
 	protected void do1Minute() {
-		getFop().fopEventPost(new FOPEvent.ForceTime(60000, this.getOrigin()));
+		getFop().fopEventPost(new FOPEvent.ForceTime(Competition.athleteTimerOneMinute, this.getOrigin()));
 	}
 
 	protected void do2Minutes() {
-		getFop().fopEventPost(new FOPEvent.ForceTime(120000, this.getOrigin()));
+		getFop().fopEventPost(new FOPEvent.ForceTime(Competition.athleteTimerTwoMinutes, this.getOrigin()));
 	}
 
 	/**
@@ -1652,10 +1661,10 @@ public abstract class AthleteGridContent extends BaseContent
 			String string = Translator.translate("NoGroupSelected");
 			String text = group == null ? "\u2013" : string;
 			if (!this.initialBar) {
-				logger.debug("====== initial bar");
+				logger.debug("initial bar");
 				topBarMessage(string, text);
 			} else {
-				logger.debug("====== hiding buttons");
+				logger.debug("hiding buttons");
 				hideButtons();
 				this.warning.setText(string);
 			}
@@ -1707,11 +1716,11 @@ public abstract class AthleteGridContent extends BaseContent
 		// the FOP that corresponds to this page's actual context
 		FieldOfPlay pageFop = this.getFop();
 		if (pageFop != null) {
-			params.put("fop", Arrays.asList(URLUtils.urlEncode(pageFop.getName())));
+			params.put("fop", Arrays.asList(pageFop.getName()));
 		}
 
 		if (newGroup != null && !isIgnoreGroupFromURL()) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(newGroup.getName())));
+			params.put("group", Arrays.asList(newGroup.getName()));
 		} else {
 			params.remove("group");
 		}

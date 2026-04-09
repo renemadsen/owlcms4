@@ -14,7 +14,6 @@ import java.util.TimerTask;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.LoggerFactory;
 
-import app.owlcms.data.config.Config;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.CeremonyType;
 import app.owlcms.uievents.UIEvent;
@@ -240,10 +239,6 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 		getFop().pushOutUIEvent(event);
 		setRunning(true);
 
-		if (Config.getCurrent().featureSwitch("oldTimers")) {
-			return;
-		}
-
 		// if a break is running, need to stop it before starting another.
 		if (this.serverTimer != null) {
 			this.logger.debug("ProxyBreakTimer.start(): cancelling existing serverTimer");
@@ -326,11 +321,11 @@ public class ProxyBreakTimer implements IProxyTimer, IBreakTimer {
 	}
 
 	private TimerTask computeTask(int timeRemaining2) {
-		this.logger.info("{}+++++ scheduling serverTimer break over {}", FieldOfPlay.getLoggingName(this.fop), this.timeRemaining);
+		this.logger.info("{}scheduling serverTimer break over {}", FieldOfPlay.getLoggingName(this.fop), this.timeRemaining);
 		return new TimerTask() {
 			@Override
 			public void run() {
-				ProxyBreakTimer.this.logger.info("{}+++++ running break over", FieldOfPlay.getLoggingName(ProxyBreakTimer.this.fop));
+				ProxyBreakTimer.this.logger.info("{}running break over", FieldOfPlay.getLoggingName(ProxyBreakTimer.this.fop));
 				timeOver(this);
 			}
 		};

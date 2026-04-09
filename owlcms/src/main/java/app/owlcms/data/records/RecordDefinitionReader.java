@@ -13,8 +13,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 
 import org.apache.commons.io.FilenameUtils;
@@ -48,8 +51,18 @@ import ch.qos.logback.classic.Logger;
  */
 public class RecordDefinitionReader {
 
+	public RecordDefinitionReader() {
+		this(null);
+	}
+
+	public RecordDefinitionReader(Locale locale) {
+		this.locale = locale;
+	}
+
 	private final static Logger logger = (Logger) LoggerFactory.getLogger(RecordDefinitionReader.class);
 	private final static Logger startupLogger = Main.getStartupLogger();
+
+	private Locale locale;
 
 	@FunctionalInterface
 	private interface CellSetter {
@@ -82,8 +95,8 @@ public class RecordDefinitionReader {
 	        Map.entry("bwhigh", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)), // synonym
 	        Map.entry("bodyweightmax", (rec, cell) -> RecordEventSetters.setBwUpper(rec, cell)), // synonym
 
-	        Map.entry("recordlift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell)),  
-	        Map.entry("lift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell)), // synonym
+	        Map.entry("recordlift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell, this.locale)),  
+	        Map.entry("lift", (rec, cell) -> RecordEventSetters.setRecordLift(rec, cell, this.locale)), // synonym
 
 	        Map.entry("recordvalue", (rec, cell) -> RecordEventSetters.setRecordValue(rec, cell)),
 	        Map.entry("record", (rec, cell) -> RecordEventSetters.setRecordValue(rec, cell)), // synonym
@@ -132,11 +145,10 @@ public class RecordDefinitionReader {
 	}
 
 	public List<String> createRecords(Workbook workbook, String name, String baseName) {
-		cleanUp(baseName);
-
 		return JPAService.runInTransaction(em -> {
 			int iRecord = 0;
 			List<String> errors = new ArrayList<>();
+			List<RecordEvent> importedRecords = new ArrayList<>();
 			CellSetter[] setterTable = null;
 
 			for (Sheet sheet : workbook) {
@@ -182,16 +194,41 @@ public class RecordDefinitionReader {
 						} catch (MissingAgeGroup | MissingGender | UnknownIWFBodyWeightCategory e1) {
 							throw new RuntimeException(e1 + " row " + iRow);
 						}
-
-						try {
-							em.persist(rec);
-							iRecord++;
-						} catch (Exception e) {
-							logger.error("could not persist RecordEvent {}", LoggerUtils./**/stackTrace(e));
-						}
+						importedRecords.add(rec);
 					}
 				}
 			}
+
+			Set<String> clearedOfficialKeys = new HashSet<>();
+			for (RecordEvent importedRecord : importedRecords) {
+				if (!RecordRepository.isProvisional(importedRecord) && clearedOfficialKeys.add(importedRecord.getKey())) {
+					RecordRepository.clearOfficialRecordsMatchingLogicalKey(em, importedRecord);
+				}
+			}
+
+			for (RecordEvent importedRecord : importedRecords) {
+				try {
+					if (!RecordRepository.isProvisional(importedRecord)) {
+						RecordRepository.clearMatchingProvisionalRecordsForImportedOfficial(em, importedRecord);
+					}
+					if (RecordRepository.isProvisional(importedRecord)
+					        && RecordRepository.findExactDuplicate(em, importedRecord) != null) {
+						logger.info("skipping duplicate provisional record {} {}", importedRecord.getKey(), importedRecord.getRecordValue());
+						continue;
+					}
+					em.persist(importedRecord);
+					iRecord++;
+					if (iRecord % 100 == 0) {
+						em.flush();
+						em.clear();
+					}
+				} catch (Exception e) {
+					logger.error("could not persist RecordEvent {}", LoggerUtils./**/stackTrace(e));
+				}
+			}
+			em.flush();
+			em.clear();
+
 			Competition comp = Competition.getCurrent();
 			Competition comp2 = em.contains(comp) ? comp : em.merge(comp);
 			comp2.setAgeGroupsFileName(name);
@@ -310,12 +347,6 @@ public class RecordDefinitionReader {
 		} catch (FileNotFoundException e1) {
 			logger.error("cannot find records {}", LoggerUtils.stackTrace(e1));
 		}
-	}
-
-	private static void cleanUp(String fileName) {
-		logger.info("removing records originally from {}", fileName);
-		RecordRepository.clearRecordsOriginallyFromFile(fileName);
-
 	}
 
 	private static boolean isEmptyRow(RecordEvent rec) {

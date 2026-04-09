@@ -7,8 +7,13 @@
 package app.owlcms.nui.preparation;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.LoggerFactory;
 import org.vaadin.crudui.crud.CrudListener;
@@ -34,14 +39,21 @@ import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.BeforeEnterEvent;
+import com.vaadin.flow.router.BeforeEvent;
+import com.vaadin.flow.router.Location;
+import com.vaadin.flow.router.OptionalParameter;
+import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.components.ConfirmationDialog;
+import app.owlcms.utils.URLUtils;
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.records.RecordEvent;
 import app.owlcms.data.records.RecordRepository;
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.crudui.OwlcmsGridLayout;
 import app.owlcms.nui.shared.OwlcmsContent;
@@ -65,30 +77,43 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 	}
 	
 	// Filter fields
-	private ComboBox<String> federationFilter = new ComboBox<>();
-	private ComboBox<String> ageGroupFilter = new ComboBox<>();
-	private ComboBox<Gender> genderFilter = new ComboBox<>();
-	private ComboBox<RecordFilters.ProvisionalFilter> provisionalFilter = new ComboBox<>();
-	private ComboBox<RecordFilters.CurrentHistoryFilter> currentHistoryFilter = new ComboBox<>();
-	private TextField nameFilter = new TextField();
+	protected ComboBox<String> federationFilter = new ComboBox<>();
+	protected ComboBox<String> recordNameFilter = new ComboBox<>();
+	protected ComboBox<String> ageGroupFilter = new ComboBox<>();
+	protected ComboBox<Gender> genderFilter = new ComboBox<>();
+	protected ComboBox<RecordFilters.ProvisionalFilter> provisionalFilter = new ComboBox<>();
+	protected ComboBox<RecordFilters.CurrentHistoryFilter> currentHistoryFilter = new ComboBox<>();
+	protected TextField nameFilter = new TextField();
 
 	// Filter values
-	private String federation;
-	private String ageGroup;
-	private Gender gender;
-	private String name;
-	
+	protected String federation;
+	protected String recordName;
+	protected String ageGroup;
+	protected Gender gender;
+	protected String name;
+
+	protected boolean readOnly;
 	boolean documentPage;
-	private RecordGrid crud;
-	private OwlcmsCrudFormFactory<RecordEvent> editingFormFactory;
-	private OwlcmsLayout routerLayout;
-	private FlexLayout topBar;
+	private boolean updatingFilters;
+	protected RecordGrid crud;
+	protected OwlcmsCrudFormFactory<RecordEvent> editingFormFactory;
+	protected OwlcmsLayout routerLayout;
+	protected FlexLayout topBar;
+
+	/**
+	 * Instantiates the RecordEvent crudGrid (editing mode).
+	 */
+	public RecordContent() {
+		this(false);
+	}
 
 	/**
 	 * Instantiates the RecordEvent crudGrid.
+	 * @param readOnly true for the public page (no editing, no selection)
 	 */
-	public RecordContent() {
-		this.editingFormFactory = new RecordEditingFormFactory(RecordEvent.class, this);
+	protected RecordContent(boolean readOnly) {
+		this.readOnly = readOnly;
+		this.editingFormFactory = new RecordEditingFormFactory(RecordEvent.class, readOnly ? null : this);
 		GridCrud<RecordEvent> crud = createGrid(this.editingFormFactory);
 		defineFilters(crud);
 		fillHW(crud, this);
@@ -96,16 +121,94 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 
 	@Override
 	public RecordEvent add(RecordEvent domainObjectToAdd) {
+		if (this.readOnly) return domainObjectToAdd;
 		return this.editingFormFactory.add(domainObjectToAdd);
 	}
 
 	@Override
 	public void beforeEnter(BeforeEnterEvent event) {
+		OwlcmsContent.super.beforeEnter(event);
 		String path = event.getLocation().getPath();
 		this.documentPage = path.contains("documents");
 	}
 
+	@Override
+	public void setParameter(BeforeEvent event, @OptionalParameter String parameter) {
+		Location location = event.getLocation();
+		setLocation(location);
+		setLocationUI(event.getUI());
+
+		Map<String, List<String>> params = location.getQueryParameters().getParameters();
+
+		this.updatingFilters = true;
+		try {
+			String fed = getFirstParam(params, "federation");
+			String recName = getFirstParam(params, "recordName");
+			String ag = getFirstParam(params, "ageGroup");
+			String g = getFirstParam(params, "gender");
+			String n = getFirstParam(params, "name");
+			String prov = getFirstParam(params, "provisional");
+			String curHist = getFirstParam(params, "currentHistory");
+
+			// Federation first (dependent filters rely on it)
+			if (fed != null && !fed.isBlank()) {
+				setFederation(fed);
+				this.federationFilter.setValue(fed);
+			} else {
+				autoSelectSingleFederation();
+			}
+
+			// Populate dependent combo items
+			refreshDependentFilterOptions();
+
+			if (recName != null && !recName.isBlank()) {
+				setRecordName(recName);
+				this.recordNameFilter.setValue(recName);
+			}
+			if (ag != null && !ag.isBlank()) {
+				setAgeGroup(ag);
+				this.ageGroupFilter.setValue(ag);
+			}
+			if (g != null) {
+				try {
+					Gender gv = Gender.valueOf(g);
+					setGender(gv);
+					this.genderFilter.setValue(gv);
+				} catch (IllegalArgumentException ignored) {
+				}
+			}
+			if (n != null && !n.isBlank()) {
+				setName(n);
+				this.nameFilter.setValue(n);
+			}
+			if (prov != null) {
+				try {
+					this.provisionalFilter.setValue(RecordFilters.ProvisionalFilter.valueOf(prov));
+				} catch (IllegalArgumentException ignored) {
+				}
+			}
+			if (curHist != null) {
+				try {
+					this.currentHistoryFilter.setValue(RecordFilters.CurrentHistoryFilter.valueOf(curHist));
+				} catch (IllegalArgumentException ignored) {
+				}
+			}
+			syncCurrentHistoryFilterForProvisional();
+		} finally {
+			this.updatingFilters = false;
+		}
+
+		this.crud.refreshGrid();
+		updateUrlParameters();
+	}
+
 	public void closeDialog() {
+	}
+
+	public void updateDialogCaption(String caption) {
+		if (this.crud != null) {
+			this.crud.updateDialogCaption(caption);
+		}
 	}
 
 	@Override
@@ -115,28 +218,58 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.topBar.getStyle().set("flex", "100 1");
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
+		applyRecordsOnlyToolbarOffset();
 
 		// Add export button for filtered records
 		Button exportRecordsButton = createExportRecordsButton();
 		
-		// Add Clear New Records button (Accept Provisional Records)
-		Button clearNewRecordsButton = createClearNewRecordsButton();
+		// Add Accept Provisional Records button
+		Button acceptProvisionalRecordsButton = createAcceptProvisionalRecordsButton();
 		
 		// Add Recompute Records button
 		Button recomputeRecordsButton = createRecomputeRecordsButton();
 		
 		// Add Keep Current Records button
-		Button keepCurrentRecordsButton = createKeepCurrentRecordsButton();
+		Button keepLatestOfficialRecordsButton = createKeepLatestOfficialRecordsButton();
 		
 		// Add Remove Selected button
 		Button removeSelectedButton = createRemoveSelectedButton();
-		
-		this.topBar.add(exportRecordsButton, recomputeRecordsButton, clearNewRecordsButton, keepCurrentRecordsButton, removeSelectedButton);
+
+		this.topBar.add(exportRecordsButton, createImportButton(), recomputeRecordsButton,
+		        acceptProvisionalRecordsButton, keepLatestOfficialRecordsButton, removeSelectedButton);
+		if (Config.getCurrent().isRecordRepository()) {
+			this.topBar.add(createLogoutButton());
+		}
 
 		return this.topBar;
 	}
 
-	private Button createExportRecordsButton() {
+	protected void applyRecordsOnlyToolbarOffset() {
+		this.topBar.getStyle().set("margin-left", "1.5em");
+		this.topBar.getStyle().set("padding-left", "0");
+	}
+
+	protected Button createImportButton() {
+		Button importButton = new Button(Translator.translate("Import"), buttonClickEvent -> {
+			UI.getCurrent().navigate(RecordsConfigContent.class);
+		});
+		importButton.addThemeVariants(ButtonVariant.LUMO_SUCCESS);
+		importButton.getElement().getStyle().set("margin-right", "1em");
+		return importButton;
+	}
+
+	private Button createLogoutButton() {
+		Button logoutButton = new Button("Logout", buttonClickEvent -> {
+			UI currentUi = UI.getCurrent();
+			OwlcmsSession.invalidate();
+			currentUi.getPage().setLocation("publicRecords");
+		});
+		logoutButton.addThemeVariants(ButtonVariant.LUMO_ERROR);
+		logoutButton.getElement().getStyle().set("margin-right", "1em");
+		return logoutButton;
+	}
+
+	protected Button createExportRecordsButton() {
 		JXLSDownloader downloadDialog = new JXLSDownloader(
 			() -> {
 				// Get the same filtered records that are shown in the grid
@@ -154,8 +287,8 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		return exportButton;
 	}
 
-	private Button createClearNewRecordsButton() {
-		Button clearNewRecordsButton = new Button(Translator.translate("Preparation.ClearNewRecords"),
+	private Button createAcceptProvisionalRecordsButton() {
+		Button acceptProvisionalRecordsButton = new Button(Translator.translate("Preparation.ClearNewRecords"),
 			buttonClickEvent -> {
 				try {
 					// Use the same filter parameters as the grid display
@@ -169,9 +302,10 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 						currentHistoryFilterStr = this.currentHistoryFilter.getValue().name();
 					}
 					
-					// Clear provisional flags only for the filtered records
-					RecordRepository.clearNewRecordsWithFilters(
+					// Accept provisional rows only for the filtered records.
+					RecordRepository.acceptProvisionalRecordsWithFilters(
 						getFederation(),
+						getRecordName(),
 						getAgeGroup(),
 						getGender(),
 						getName(),
@@ -185,9 +319,9 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 					throw new RuntimeException(e);
 				}
 			});
-		clearNewRecordsButton.getElement().getStyle().set("margin-right", "1em");
-		clearNewRecordsButton.getElement().setAttribute("title", Translator.translate("Preparation.ClearNewRecordsExplanation"));
-		return clearNewRecordsButton;
+		acceptProvisionalRecordsButton.getElement().getStyle().set("margin-right", "1em");
+		acceptProvisionalRecordsButton.getElement().setAttribute("title", Translator.translate("Preparation.ClearNewRecordsExplanation"));
+		return acceptProvisionalRecordsButton;
 	}
 
 	private Button createRecomputeRecordsButton() {
@@ -202,23 +336,17 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		return recomputeRecordsButton;
 	}
 
-	private Button createKeepCurrentRecordsButton() {
-		Button keepCurrentRecordsButton = new Button(Translator.translate("RecordEvent.KeepCurrentRecords"),
+	private Button createKeepLatestOfficialRecordsButton() {
+		Button keepLatestOfficialRecordsButton = new Button(Translator.translate("RecordEvent.KeepCurrentRecords"),
 			buttonClickEvent -> {
 				try {
-					// Use the same filter parameters as the grid display
-					String provisionalFilterStr = "ALL";
-					if (this.provisionalFilter != null && this.provisionalFilter.getValue() != null) {
-						provisionalFilterStr = this.provisionalFilter.getValue().name();
-					}
-					
-					// Keep only current records within the filtered subset
-					RecordRepository.keepOnlyCurrentRecordsWithFilters(
+					// Prune official history only, keeping the latest official row per logical key.
+					RecordRepository.keepLatestOfficialRecordsWithFilters(
 						getFederation(),
+						getRecordName(),
 						getAgeGroup(),
 						getGender(),
-						getName(),
-						provisionalFilterStr
+						getName()
 					);
 					
 					// Refresh the grid to show the updated records
@@ -227,9 +355,9 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 					throw new RuntimeException(e);
 				}
 			});
-		keepCurrentRecordsButton.getElement().getStyle().set("margin-right", "1em");
-		keepCurrentRecordsButton.getElement().setAttribute("title", Translator.translate("RecordEvent.KeepCurrentRecordsExplanation"));
-		return keepCurrentRecordsButton;
+		keepLatestOfficialRecordsButton.getElement().getStyle().set("margin-right", "1em");
+		keepLatestOfficialRecordsButton.getElement().setAttribute("title", Translator.translate("RecordEvent.KeepCurrentRecordsExplanation"));
+		return keepLatestOfficialRecordsButton;
 	}
 
 	private Button createRemoveSelectedButton() {
@@ -256,6 +384,7 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 							// Delete all records matching the current filters
 							RecordRepository.deleteRecordsWithFilters(
 								getFederation(),
+								getRecordName(),
 								getAgeGroup(),
 								getGender(),
 								getName(),
@@ -279,6 +408,7 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 
 	@Override
 	public void delete(RecordEvent domainObjectToDelete) {
+		if (this.readOnly) return;
 		this.editingFormFactory.delete(domainObjectToDelete);
 	}
 
@@ -311,6 +441,15 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 	}
 
 	@Override
+	public void setHeaderContent() {
+		this.routerLayout.setMenuTitle(getMenuTitle());
+		this.routerLayout.setMenuArea(createMenuArea());
+		this.routerLayout.showLocaleDropdown(true);
+		this.routerLayout.setDrawerOpened(false);
+		this.routerLayout.updateHeader(true);
+	}
+
+	@Override
 	public OwlcmsLayout getRouterLayout() {
 		return this.routerLayout;
 	}
@@ -322,6 +461,7 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 
 	@Override
 	public RecordEvent update(RecordEvent domainObjectToUpdate) {
+		if (this.readOnly) return domainObjectToUpdate;
 		return this.editingFormFactory.update(domainObjectToUpdate);
 	}
 
@@ -344,12 +484,23 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 	 * Filter methods
 	 */
 	public void clearFilters() {
-		this.federationFilter.clear();
-		this.ageGroupFilter.clear();
-		this.genderFilter.clear();
-		this.provisionalFilter.setValue(RecordFilters.ProvisionalFilter.ALL);
-		this.currentHistoryFilter.setValue(RecordFilters.CurrentHistoryFilter.CURRENT);
-		this.nameFilter.clear();
+		this.updatingFilters = true;
+		try {
+			this.federationFilter.clear();
+			autoSelectSingleFederation();
+			this.recordNameFilter.clear();
+			this.ageGroupFilter.clear();
+			refreshDependentFilterOptions();
+			this.genderFilter.clear();
+			setGender(null);
+			this.provisionalFilter.setValue(RecordFilters.ProvisionalFilter.ALL);
+			this.currentHistoryFilter.setValue(RecordFilters.CurrentHistoryFilter.CURRENT);
+			syncCurrentHistoryFilterForProvisional();
+			this.nameFilter.clear();
+			setName(null);
+		} finally {
+			this.updatingFilters = false;
+		}
 	}
 
 	public String getFederation() {
@@ -358,6 +509,14 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 
 	public void setFederation(String federation) {
 		this.federation = federation;
+	}
+
+	public String getRecordName() {
+		return recordName;
+	}
+
+	public void setRecordName(String recordName) {
+		this.recordName = recordName;
 	}
 
 	public String getAgeGroup() {
@@ -400,10 +559,55 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.currentHistoryFilter.setValue(currentHistoryFilter);
 	}
 
+	// ---- URL parameter persistence ----
+
+	private String getFirstParam(Map<String, List<String>> params, String key) {
+		List<String> values = params.get(key);
+		if (values == null || values.isEmpty()) {
+			return null;
+		}
+		String val = values.get(0);
+		return (val != null && !val.isBlank()) ? URLDecoder.decode(val, StandardCharsets.UTF_8) : null;
+	}
+
+	private void updateUrlParameters() {
+		if (this.updatingFilters || getLocationUI() == null || getLocation() == null) {
+			return;
+		}
+		HashMap<String, List<String>> params = new HashMap<>();
+		if (federation != null && !federation.isBlank()) {
+			params.put("federation", List.of(federation));
+		}
+		if (recordName != null && !recordName.isBlank()) {
+			params.put("recordName", List.of(recordName));
+		}
+		if (ageGroup != null && !ageGroup.isBlank()) {
+			params.put("ageGroup", List.of(ageGroup));
+		}
+		if (gender != null) {
+			params.put("gender", List.of(gender.name()));
+		}
+		if (name != null && !name.isBlank()) {
+			params.put("name", List.of(name));
+		}
+		RecordFilters.ProvisionalFilter pv = this.provisionalFilter.getValue();
+		if (pv != null && pv != RecordFilters.ProvisionalFilter.ALL) {
+			params.put("provisional", List.of(pv.name()));
+		}
+		RecordFilters.CurrentHistoryFilter cv = this.currentHistoryFilter.getValue();
+		if (cv != null && cv != RecordFilters.CurrentHistoryFilter.CURRENT) {
+			params.put("currentHistory", List.of(cv.name()));
+		}
+
+		Location newLocation = new Location(getLocation().getPath(), new QueryParameters(URLUtils.cleanParams(params)));
+		getLocationUI().getPage().getHistory().replaceState(null, newLocation);
+		setLocation(newLocation);
+	}
+
 	/**
 	 * Get filtered records using RecordRepository to ensure consistency between grid and export
 	 */
-	private List<RecordEvent> getFilteredRecords() {
+	protected List<RecordEvent> getFilteredRecords() {
 		// Convert enum values to strings for the repository method
 		String provisionalFilterStr = "ALL";
 		if (this.provisionalFilter != null && this.provisionalFilter.getValue() != null) {
@@ -414,9 +618,11 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		if (this.currentHistoryFilter != null && this.currentHistoryFilter.getValue() != null) {
 			currentHistoryFilterStr = this.currentHistoryFilter.getValue().name();
 		}
+		currentHistoryFilterStr = RecordRepository.normalizeCurrentHistoryFilter(provisionalFilterStr, currentHistoryFilterStr);
 		
 		return RecordRepository.findWithFilters(
 			getFederation(),
+			getRecordName(),
 			getAgeGroup(),
 			getGender(),
 			getName(),
@@ -428,28 +634,55 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 	/**
 	 * Define the filters for the record grid
 	 */
-	private void defineFilters(GridCrud<RecordEvent> crud) {
+	protected void defineFilters(GridCrud<RecordEvent> crud) {
 		// Federation filter
 		this.federationFilter.setPlaceholder(Translator.translate("RecordEvent.Federation"));
 		this.federationFilter.setItems(RecordRepository.findDistinctFederations());
 		this.federationFilter.setClearButtonVisible(true);
 		this.federationFilter.addValueChangeListener(e -> {
+			if (!e.isFromClient()) {
+				return;
+			}
 			setFederation(e.getValue());
+			resetFederationCascade();
+			refreshDependentFilterOptions();
 			crud.refreshGrid();
+			updateUrlParameters();
 		});
 		this.federationFilter.setWidth("12em");
 		crud.getCrudLayout().addFilterComponent(this.federationFilter);
+		autoSelectSingleFederation();
+
+		// Record Name filter
+		this.recordNameFilter.setPlaceholder(Translator.translate("Records.RecordName"));
+		this.recordNameFilter.setClearButtonVisible(true);
+		this.recordNameFilter.addValueChangeListener(e -> {
+			if (!e.isFromClient()) {
+				return;
+			}
+			setRecordName(e.getValue());
+			refreshDependentFilterOptions();
+			crud.refreshGrid();
+			updateUrlParameters();
+		});
+		this.recordNameFilter.setWidth("12em");
+		crud.getCrudLayout().addFilterComponent(this.recordNameFilter);
 
 		// Age Group filter
 		this.ageGroupFilter.setPlaceholder(Translator.translate("AgeGroup"));
-		this.ageGroupFilter.setItems(RecordRepository.findDistinctAgeGroups());
 		this.ageGroupFilter.setClearButtonVisible(true);
 		this.ageGroupFilter.addValueChangeListener(e -> {
+			if (!e.isFromClient()) {
+				return;
+			}
 			setAgeGroup(e.getValue());
+			refreshDependentFilterOptions();
 			crud.refreshGrid();
+			updateUrlParameters();
 		});
 		this.ageGroupFilter.setWidth("10em");
 		crud.getCrudLayout().addFilterComponent(this.ageGroupFilter);
+		refreshDependentFilterOptions();
 
 		// Gender filter
 		this.genderFilter.setPlaceholder(Translator.translate("Gender"));
@@ -458,7 +691,10 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.genderFilter.setClearButtonVisible(true);
 		this.genderFilter.addValueChangeListener(e -> {
 			setGender(e.getValue());
-			crud.refreshGrid();
+			if (!this.updatingFilters) {
+				crud.refreshGrid();
+				updateUrlParameters();
+			}
 		});
 		this.genderFilter.setWidth("8em");
 		crud.getCrudLayout().addFilterComponent(this.genderFilter);
@@ -469,7 +705,10 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.nameFilter.setValueChangeMode(ValueChangeMode.EAGER);
 		this.nameFilter.addValueChangeListener(e -> {
 			setName(e.getValue());
-			crud.refreshGrid();
+			if (!this.updatingFilters) {
+				crud.refreshGrid();
+				updateUrlParameters();
+			}
 		});
 		this.nameFilter.setWidth("12em");
 		crud.getCrudLayout().addFilterComponent(this.nameFilter);
@@ -482,7 +721,11 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.provisionalFilter.setClearButtonVisible(true);
 		this.provisionalFilter.addValueChangeListener(e -> {
 			setProvisionalFilter(e.getValue());
-			crud.refreshGrid();
+			syncCurrentHistoryFilterForProvisional();
+			if (!this.updatingFilters) {
+				crud.refreshGrid();
+				updateUrlParameters();
+			}
 		});
 		this.provisionalFilter.setWidth("10em");
 		
@@ -500,18 +743,130 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		this.currentHistoryFilter.setClearButtonVisible(true);
 		this.currentHistoryFilter.addValueChangeListener(e -> {
 			setCurrentHistoryFilter(e.getValue());
-			crud.refreshGrid();
+			syncCurrentHistoryFilterForProvisional();
+			if (!this.updatingFilters) {
+				crud.refreshGrid();
+				updateUrlParameters();
+			}
 		});
 		this.currentHistoryFilter.setWidth("12em");
 		crud.getCrudLayout().addFilterComponent(this.currentHistoryFilter);
+		syncCurrentHistoryFilterForProvisional();
 
 		// Clear filters button
 		Button clearFilters = new Button(null, VaadinIcon.CLOSE.create());
 		clearFilters.addClickListener(event -> {
 			clearFilters();
 			crud.refreshGrid();
+			updateUrlParameters();
 		});
 		crud.getCrudLayout().addFilterComponent(clearFilters);
+	}
+
+	protected void autoSelectSingleFederation() {
+		if (this.federationFilter.getValue() != null && !this.federationFilter.getValue().isBlank()) {
+			return;
+		}
+
+		List<String> availableFederations = RecordRepository.findDistinctFederations();
+		if (availableFederations.size() == 1) {
+			this.federationFilter.setValue(availableFederations.get(0));
+			setFederation(availableFederations.get(0));
+		}
+	}
+
+	protected void refreshFilterOptionsFromRepository() {
+		String selectedFederation = this.federationFilter.getValue();
+		List<String> availableFederations = preserveSelectedValue(RecordRepository.findDistinctFederations(), selectedFederation);
+		this.federationFilter.setItems(availableFederations);
+
+		if (selectedFederation != null && !selectedFederation.isBlank()) {
+			this.federationFilter.setValue(selectedFederation);
+			setFederation(selectedFederation);
+		} else {
+			autoSelectSingleFederation();
+		}
+
+		refreshDependentFilterOptions();
+	}
+
+	protected void refreshDependentFilterOptions() {
+		String selectedFederation = this.federationFilter.getValue();
+		String selectedRecordName = this.recordNameFilter.getValue();
+		String selectedAgeGroup = this.ageGroupFilter.getValue();
+
+		if (selectedFederation == null || selectedFederation.isBlank()) {
+			this.recordNameFilter.clear();
+			this.ageGroupFilter.clear();
+			this.recordNameFilter.setItems(List.of());
+			this.ageGroupFilter.setItems(List.of());
+			this.recordNameFilter.setReadOnly(true);
+			this.ageGroupFilter.setReadOnly(true);
+			setRecordName(null);
+			setAgeGroup(null);
+			return;
+		}
+
+		List<String> availableRecordNames = RecordRepository.findDistinctRecordNames(selectedFederation, selectedAgeGroup);
+		List<String> availableAgeGroups = RecordRepository.findDistinctAgeGroups(selectedFederation, selectedRecordName);
+
+		updateSingleValueFilter(this.recordNameFilter, availableRecordNames, selectedRecordName, this::setRecordName);
+		updateSingleValueFilter(this.ageGroupFilter, availableAgeGroups, selectedAgeGroup, this::setAgeGroup);
+	}
+
+	private void resetFederationCascade() {
+		this.recordNameFilter.clear();
+		this.ageGroupFilter.clear();
+		setRecordName(null);
+		setAgeGroup(null);
+	}
+
+	private void updateSingleValueFilter(ComboBox<String> filter, List<String> availableValues, String selectedValue,
+	        java.util.function.Consumer<String> setter) {
+		List<String> valuesToShow = preserveSelectedValue(availableValues, selectedValue);
+		filter.setItems(valuesToShow);
+
+		if (valuesToShow.isEmpty()) {
+			filter.clear();
+			filter.setReadOnly(true);
+			setter.accept(null);
+			return;
+		}
+
+		if (availableValues.size() == 1 && (selectedValue == null || selectedValue.isBlank() || availableValues.contains(selectedValue))) {
+			String onlyValue = availableValues.get(0);
+			if (!onlyValue.equals(filter.getValue())) {
+				filter.setValue(onlyValue);
+			}
+			filter.setReadOnly(true);
+			setter.accept(onlyValue);
+			return;
+		}
+
+		filter.setReadOnly(false);
+		if (selectedValue != null) {
+			filter.setValue(selectedValue);
+			setter.accept(selectedValue);
+		}
+	}
+
+	private List<String> preserveSelectedValue(List<String> availableValues, String selectedValue) {
+		List<String> valuesToShow = new ArrayList<>(availableValues);
+		if (selectedValue != null && !selectedValue.isBlank() && !valuesToShow.contains(selectedValue)) {
+			valuesToShow.add(0, selectedValue);
+		}
+		return valuesToShow;
+	}
+
+	protected void syncCurrentHistoryFilterForProvisional() {
+		boolean provisionalOnly = this.provisionalFilter != null
+		        && this.provisionalFilter.getValue() == RecordFilters.ProvisionalFilter.PROVISIONAL;
+		if (this.currentHistoryFilter != null) {
+			if (provisionalOnly && this.currentHistoryFilter.getValue() != RecordFilters.CurrentHistoryFilter.HISTORY) {
+				this.currentHistoryFilter.setValue(RecordFilters.CurrentHistoryFilter.HISTORY);
+			}
+			this.currentHistoryFilter.setEnabled(!provisionalOnly);
+		}
 	}
 
 	/**
@@ -520,9 +875,10 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 	 * @param crudFormFactory what to call to create the form for editing a record event
 	 * @return
 	 */
-	private GridCrud<RecordEvent> createGrid(OwlcmsCrudFormFactory<RecordEvent> crudFormFactory) {
+	protected GridCrud<RecordEvent> createGrid(OwlcmsCrudFormFactory<RecordEvent> crudFormFactory) {
 		Grid<RecordEvent> grid = new Grid<>(RecordEvent.class, false);
-		this.crud = new RecordGrid(RecordEvent.class, new OwlcmsGridLayout(RecordEvent.class), crudFormFactory, grid);
+		this.crud = new RecordGrid(RecordEvent.class, new OwlcmsGridLayout(RecordEvent.class), crudFormFactory, grid,
+		        this::refreshFilterOptionsFromRepository, this::getFilteredRecords);
 		grid.getThemeNames().add("row-stripes");
 		
 		// Record identification columns
@@ -558,8 +914,17 @@ public class RecordContent extends BaseContent implements CrudListener<RecordEve
 		}
 
 		this.crud.setCrudListener(this);
-		this.crud.setClickRowToUpdate(true);
-		grid.setSelectionMode(SelectionMode.SINGLE);
+		if (this.readOnly) {
+			this.crud.setClickable(false);
+			this.crud.setClickRowToUpdate(false);
+			grid.setSelectionMode(SelectionMode.NONE);
+			this.crud.setAddOperationVisible(false);
+			this.crud.setUpdateOperationVisible(false);
+			this.crud.setDeleteOperationVisible(false);
+		} else {
+			this.crud.setClickRowToUpdate(true);
+			grid.setSelectionMode(SelectionMode.SINGLE);
+		}
 		return this.crud;
 	}
 

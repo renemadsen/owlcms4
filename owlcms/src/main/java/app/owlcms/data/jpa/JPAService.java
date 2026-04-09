@@ -50,6 +50,7 @@ import com.zaxxer.hikari.HikariDataSource;
 
 import app.owlcms.Main;
 import app.owlcms.data.agegroup.AgeGroup;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
@@ -168,7 +169,7 @@ public class JPAService {
 			// explicit url provided
 			if (inMemory || (dbUrl != null && dbUrl.startsWith("jdbc:h2:mem"))) {
 				embeddedH2Server = true;
-				properties = h2MemProperties(schemaGeneration);
+				properties = h2MemProperties(schemaGeneration, dbUrl, userName, password);
 			} else if (dbUrl != null && dbUrl.startsWith("jdbc:h2:file")) {
 				embeddedH2Server = true;
 				properties = h2FileProperties(schemaGeneration, dbUrl, userName, password);
@@ -301,6 +302,7 @@ public class JPAService {
 		        .add(Platform.class.getName())
 		        .add(Competition.class.getName())
 		        .add(AgeGroup.class.getName())
+		        .add(Championship.class.getName())
 		        .add(Config.class.getName())
 		        .add(RecordEvent.class.getName())
 		        .add(Participation.class.getName())
@@ -318,6 +320,11 @@ public class JPAService {
 	 * @return the properties
 	 */
 	protected static Properties h2MemProperties(String schemaGeneration) {
+		return h2MemProperties(schemaGeneration, null, null, null);
+	}
+
+	protected static Properties h2MemProperties(String schemaGeneration, String dbUrl, String userName,
+	        String password) {
 		setLocalDb(true);
 
 		ImmutableMap<String, Object> vals = jpaProperties();
@@ -326,10 +333,10 @@ public class JPAService {
 
 		// keep the database even if all the connections have timed out
 		// to turn off transactions MVCC=FALSE;MV_STORE=FALSE;LOCK_MODE=0;
-		String url = "jdbc:h2:mem:owlcms;DB_CLOSE_DELAY=-1;TRACE_LEVEL_FILE=4";
+		String url = dbUrl != null && !dbUrl.isBlank() ? dbUrl : "jdbc:h2:mem:owlcms;DB_CLOSE_DELAY=-1;TRACE_LEVEL_FILE=4";
 		props.put(JPA_JDBC_URL, url);
-		props.put(JPA_JDBC_USER, "sa");
-		props.put(JPA_JDBC_PASSWORD, "");
+		props.put(JPA_JDBC_USER, userName != null ? userName : "sa");
+		props.put(JPA_JDBC_PASSWORD, password != null ? password : "");
 
 		props.put(JPA_JDBC_DRIVER, org.h2.Driver.class.getName());
 		props.put("javax.persistence.schema-generation.database.action", schemaGeneration);

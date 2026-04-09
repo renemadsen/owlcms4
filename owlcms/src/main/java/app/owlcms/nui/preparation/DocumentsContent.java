@@ -407,36 +407,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 	 * be null.
 	 */
 	private Optional<Exception> runDefaultScopePrecheck(PreCompetitionTemplate templateEnum, List<Athlete> a, Group g, boolean allowNoSelection) {
-		try {
-			if (!allowNoSelection && g == null) {
-				return Optional.of(new NoSessionException());
-			}
-
-			int incomingCount = a == null ? 0 : a.size();
-			String sampleIds = "";
-			if (a != null && !a.isEmpty()) {
-				sampleIds = a.stream().limit(10).map(ath -> String.valueOf(ath.getId())).collect(Collectors.joining(","));
-			}
-			String groupInfo = (g == null) ? "<no-group>" : (g.getId() + ":" + g.getName());
-			Optional<Exception> outcome = Optional.empty();
-
-			if (g != null) {
-				if (incomingCount == 0) {
-					outcome = Optional.of(new StopProcessingException("NoAthletes", new RuntimeException(Translator.translate("NoAthletes"))));
-				}
-			}
-
-			String resultText = outcome.isEmpty() ? "OK" : (outcome.get().getMessage() == null ? outcome.get().toString() : outcome.get().getMessage());
-			logger.debug("scopePrecheck %s for template=%s received: incomingCount=%d, sampleIds=[%s], group=%s, resolvedCount=%d, outcome=%s",
-			        allowNoSelection ? "allow-no-selection" : "default",
-			        templateEnum.name(), incomingCount, sampleIds, groupInfo, incomingCount, resultText);
-			return outcome;
-		} catch (Throwable t) {
-			LoggerUtils.logError(logger, t, true);
-			logger.debug("scopePrecheck %s for template=%s threw exception: %s", allowNoSelection ? "allow-no-selection" : "default", templateEnum.name(),
-			        t.toString());
-			return Optional.of(new Exception(t));
-		}
+		return this.precheckService.runDefaultScopePrecheck(templateEnum, a, g, allowNoSelection);
 	}
 
 	private Div createBodyweightButton() {
@@ -991,10 +962,8 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 
 		// Precheck: validate session requirement
 		BiFunction<List<Athlete>, Group, Optional<Exception>> pre = (a, grp) -> {
-			if (requiresSession && grp == null) {
-				return Optional.of(new NoSessionException());
-			}
-			return Optional.empty();
+			DocumentsPrecheckService precheckService = new DocumentsPrecheckService();
+			return precheckService.runDefaultScopePrecheck(template, a, grp, !requiresSession);
 		};
 
 		Supplier<String> processingMessageSupplier = () -> "Processing";
@@ -1553,10 +1522,10 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 		        templateDefinition,
 		        defaultScopePrecheckAllowNoSelectionFor(templateDefinition),
 		        (a, ignored) -> {
-			        logger.debug("*** doElementStartList for {}", templateDefinition.name());
+			        logger.debug("doElementStartList for {}", templateDefinition.name());
 			        try {
 				        JXLSStartingListDocs xlsWriter = new JXLSStartingListDocs();
-				        logger.debug("*** doElementStartList created xlsWriter for {}: {}", templateDefinition.name(), xlsWriter);
+				        logger.debug("doElementStartList created xlsWriter for {}: {}", templateDefinition.name(), xlsWriter);
 				        xlsWriter.setGroup(null);
 				        // get current version of athletes.
 				        List<Athlete> athletesFindAll = athletesFindAll(true);
@@ -1659,7 +1628,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 	        throws IOException {
 		// always called with a single template
 		// for items that are one per session, selected sessions will be non-empty.
-		logger.debug("*** excelKitElement for {} elements and {} sessions {}",
+		logger.debug("excelKitElement for {} elements and {} sessions {}",
 		        (elements == null ? "null" : elements.size()),
 		        (selectedSessions == null ? "null" : selectedSessions.size()),
 		        LoggerUtils.whereFrom());
@@ -1679,7 +1648,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 
 		// writerFactory can apply custom sorting order to the athletes
 		JXLSWorkbookStreamSource xlsWriter = elem.writerFactory().apply(athletes, g);
-		logger.debug("*** excelKitElement created {} {}", xlsWriter, LoggerUtils.whereFrom());
+		logger.debug("excelKitElement created {} {}", xlsWriter, LoggerUtils.whereFrom());
 		xlsWriter.setUi(ui);
 		if (xlsWriter.getSortedAthletes() == null) {
 			// writerFactory did not set them explicitly, set default
@@ -1765,7 +1734,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 		try {
 			return excelKitElement(selectedSessions, elements, ui, doneCallback);
 		} catch (Exception e) {
-			logger.debug("%%%%%%%%%% Exception context %%%%%%%%%%%%%\n{}", context);
+			logger.debug("Exception context\n{}", context);
 			// propagate as StopProcessingException so caller can handle and notify once
 			throw new StopProcessingException(e.getMessage(), e);
 		}
@@ -2242,7 +2211,7 @@ public class DocumentsContent extends BaseContent implements CrudListener<Group>
 
 	@SuppressWarnings("unused")
 	private InputStream zipOrExcelInputStream(UI ui, List<KitElement> elements, Consumer<Throwable> doneCallback) {
-		logger.debug("*** zipOrExcelInputStream called {} with elements {}", ui, elements);
+		logger.debug("zipOrExcelInputStream called {} with elements {}", ui, elements);
 		InputStream z;
 		// logger removed
 		if (getSortedSelection().size() > 1 || elements.size() > 1) {

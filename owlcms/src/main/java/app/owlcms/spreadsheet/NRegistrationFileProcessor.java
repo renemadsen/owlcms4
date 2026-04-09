@@ -41,6 +41,7 @@ import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.category.Category;
 import app.owlcms.data.category.Participation;
 import app.owlcms.data.competition.Competition;
+import app.owlcms.data.competition.CompetitionRepository;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.jpa.JPAService;
@@ -48,7 +49,6 @@ import app.owlcms.data.platform.Platform;
 import app.owlcms.data.platform.PlatformRepository;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsFactory;
-import app.owlcms.init.OwlcmsSession;
 import app.owlcms.utils.DateTimeUtils;
 import app.owlcms.utils.LoggerUtils;
 import ch.qos.logback.classic.Logger;
@@ -108,6 +108,7 @@ public class NRegistrationFileProcessor {
 			if (isDeleteAthletes()) {
 				RCompetition.resetAthleteToEligibles();
 				RCompetition.resetAthleteToTeams();
+				RCompetition.resetAthleteToMixedTeams();
 			}
 
 			List<RAthlete> athletes = new ArrayList<>();
@@ -201,14 +202,15 @@ public class NRegistrationFileProcessor {
 					        // copy the participation categories away
 					        RCompetition.putEligibles(a.getId(), new LinkedHashSet<>(a.getEligibleCategories()));
 					        RCompetition.putTeams(a.getId(), a.computeTeams());
+							RCompetition.putMixedTeams(a.getId(), a.computeMixedTeams());
 					        a.getParticipations().clear();
 
 					        if (isDeleteSessions()) {
 						        // reset the group that was cleared.
 						        String sessionCode = RCompetition.getSessionCode(a.getId());
-						        // logger.debug("++++++ prior session code for {} = {}", a.getFullId(), sessionCode);
+						        // logger.debug("+prior session code for {} = {}", a.getFullId(), sessionCode);
 						        a.setGroup(RCompetition.activeGroups.get(sessionCode));
-						        // logger.debug("++++++ new session for {} = {}", a.getFullId(), a.getGroup());
+						        // logger.debug("+new session for {} = {}", a.getFullId(), a.getGroup());
 					        }
 				        } else {
 					        // logger.debug("skipping prior {}",a.getAbbreviatedName());
@@ -280,9 +282,15 @@ public class NRegistrationFileProcessor {
 				LinkedHashSet<Category> teams = RCompetition
 				        .getAthleteToTeams()
 				        .get(a2.getId());
+				LinkedHashSet<Category> mixedTeams = RCompetition
+				        .getAthleteToMixedTeams()
+				        .get(a2.getId());
 				if (teams == null) {
 					// logger.debug("no teams for athlete {}", a2.getFullId());
 					teams = new LinkedHashSet<Category>();
+				}
+				if (mixedTeams == null) {
+					mixedTeams = new LinkedHashSet<Category>();
 				}
 				// logger.debug("athlete {} eligibles {}", a2.getId(), eligibles);
 				if (eligibles != null) {
@@ -305,6 +313,7 @@ public class NRegistrationFileProcessor {
 							        p.getCategory().getComputedCode());
 							p.setTeamMember(false);
 						}
+						p.setMixedTeamMember(mixedTeams.contains(p.getCategory()));
 					}
 					// logger.debug("participations {} {}", a2.getShortName(), a2.getParticipations());
 					em.merge(a2);
@@ -333,6 +342,7 @@ public class NRegistrationFileProcessor {
 		Athlete.conditionalCopy(existingAthlete, sbdeAthlete, false, false, false);
 		RCompetition.putEligibles(existingAthlete.getId(), RCompetition.getEligibles(sbdeAthlete.getId()));
 		RCompetition.putTeams(existingAthlete.getId(), RCompetition.getTeams(sbdeAthlete.getId()));
+		RCompetition.putMixedTeams(existingAthlete.getId(), RCompetition.getMixedTeams(sbdeAthlete.getId()));
 		// System.err./**/println("< updateExistingAthlete");
 	}
 
@@ -620,7 +630,7 @@ public class NRegistrationFileProcessor {
 	}
 
 	private Map<String, AthleteHeaderInfo> buildAthleteSetterMap() {
-		logger.info("Building athlete setter map for locale: {}", this.locale);
+		logger.debug("Building athlete setter map for locale: {}", this.locale);
 		Map<String, AthleteHeaderInfo> base = new HashMap<>();
 		// simple setters
 		base.put("Membership", new AthleteHeaderInfo((a, s, c) -> a.setMembership(s), null));
@@ -700,11 +710,11 @@ public class NRegistrationFileProcessor {
 					tCurrent = Translator.translateExplicitLocale(key, this.locale);
 				}
 				if (tCurrent != null && !tCurrent.isBlank()) {
-					logger.info("Athlete header: '{}' -> current locale '{}' (lowercase: '{}')", key, tCurrent, tCurrent.trim().toLowerCase());
+					logger.debug("Athlete header: '{}' -> current locale '{}' (lowercase: '{}')", key, tCurrent, tCurrent.trim().toLowerCase());
 					result.putIfAbsent(tCurrent.trim().toLowerCase(), info);
 				}
 			} catch (Exception ex) {
-				logger.warn("Failed to translate athlete header '{}': {}", key, ex.getMessage());
+				logger./**/warn("Failed to translate athlete header '{}': {}", key, ex.getMessage());
 			}
 			// also register the explicit English translation
 			try {
@@ -724,11 +734,11 @@ public class NRegistrationFileProcessor {
 					tEng = Translator.translateExplicitLocale(key, Locale.ENGLISH);
 				}
 				if (tEng != null && !tEng.isBlank()) {
-					logger.info("Athlete header: '{}' -> English '{}' (lowercase: '{}')", key, tEng, tEng.trim().toLowerCase());
+					logger.debug("Athlete header: '{}' -> English '{}' (lowercase: '{}')", key, tEng, tEng.trim().toLowerCase());
 					result.putIfAbsent(tEng.trim().toLowerCase(), info);
 				}
 			} catch (Exception ex) {
-				logger.warn("Failed to translate athlete header '{}' to English: {}", key, ex.getMessage());
+				logger./**/warn("Failed to translate athlete header '{}' to English: {}", key, ex.getMessage());
 			}
 		}
 		return result;
@@ -908,10 +918,10 @@ public class NRegistrationFileProcessor {
 					}
 					String trimmedCellValue = cellValue.trim();
 					String lookupKey = trimmedCellValue.toLowerCase();
-					logger.info("Looking up athlete header '{}' (lowercase: '{}') in setter map", trimmedCellValue, lookupKey);
+					logger.debug("Looking up athlete header '{}' (lowercase: '{}') in setter map", trimmedCellValue, lookupKey);
 					AthleteHeaderInfo info = athleteSetterMap.get(lookupKey);
 					if (info == null) {
-						logger.warn("No setter found for athlete header '{}' (tried lowercase: '{}')", trimmedCellValue, lookupKey);
+						logger.error("No setter found for athlete header '{}' (tried lowercase: '{}')", trimmedCellValue, lookupKey);
 					}
 					orderedAthleteHeaderInfo.add(info);
 					if (info != null) {
@@ -1096,6 +1106,11 @@ public class NRegistrationFileProcessor {
 					setCompetitionString(competition::setFederationEMail, row.getCell('A' - 'A')); // A4
 					setCompetitionString(competition::setCompetitionOrganizer, row.getCell('F' - 'A')); // F4
 				}
+
+				CompetitionRepository.save(competition);
+				if (displayUpdater != null) {
+					displayUpdater.run();
+				}
 			} catch (IOException | EncryptedDocumentException e) {
 				errorConsumer.accept(e.getLocalizedMessage());
 				LoggerUtils.logError(this.logger, e);
@@ -1116,7 +1131,7 @@ public class NRegistrationFileProcessor {
 			ld = cell.getLocalDateTimeCellValue().toLocalDate();
 		} else if (cell.getCellType() == CellType.STRING) {
 			try {
-				ld = DateTimeUtils.parseExcelDate(cell.getStringCellValue(), OwlcmsSession.getLocale());
+				ld = DateTimeUtils.parseExcelDate(cell.getStringCellValue(), this.locale);
 			} catch (Exception e) {
 			}
 		}

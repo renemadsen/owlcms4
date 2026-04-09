@@ -117,6 +117,9 @@ public class ForwarderPayloadBuilder {
 
 		Integer breakMillisRemaining = null;
 		Integer athleteMillisRemaining = null;
+		Integer athleteTimeAllowed = null;
+		Integer athleteInitialWarningMillis = null;
+		Integer athleteFinalWarningMillis = null;
 		Long breakStartTimeMillis = null;
 		Long athleteStartTimeMillis = null;
 		Boolean indefiniteBreak = null;
@@ -132,16 +135,19 @@ public class ForwarderPayloadBuilder {
 			athleteTimerEventType = timerEventType;
 			athleteStartTimeMillis = null;
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(fop, athleteMillisRemaining);
 		} else if (e instanceof StartTime) {
 			athleteTimerEventType = timerEventType;
 			StartTime st = (StartTime) e;
 			athleteStartTimeMillis = System.currentTimeMillis();
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(fop, athleteMillisRemaining);
 		} else if (e instanceof StopTime) {
 			athleteTimerEventType = timerEventType;
 			StopTime st = (StopTime) e;
 			athleteStartTimeMillis = System.currentTimeMillis();
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(fop, athleteMillisRemaining);
 		} else if (e instanceof BreakSetTime) {
 			breakTimerEventType = timerEventType;
 			BreakSetTime bst = (BreakSetTime) e;
@@ -167,12 +173,19 @@ public class ForwarderPayloadBuilder {
 		}
 
 		if (e instanceof StartTime || e instanceof SetTime || e instanceof StopTime) {
+			athleteInitialWarningMillis = resolveAthleteInitialWarningMillis(athleteTimeAllowed);
+			athleteFinalWarningMillis = resolveAthleteFinalWarningMillis(athleteTimeAllowed);
 			mapPut(sb, "athleteTimerEventType", athleteTimerEventType);
 			athleteMillisRemaining = athleteMillisRemaining != null ? athleteMillisRemaining : 0;
+			mapPut(sb, "timeAllowed", athleteTimeAllowed != null ? athleteTimeAllowed.toString() : null);
 			mapPut(sb, "athleteStartTimeMillis",
 			        athleteStartTimeMillis != null ? Long.toString(athleteStartTimeMillis) : null);
 			mapPut(sb, "athleteMillisRemaining",
 			        athleteMillisRemaining != null ? athleteMillisRemaining.toString() : null);
+			mapPut(sb, "athleteInitialWarningMillis",
+			        athleteInitialWarningMillis != null ? athleteInitialWarningMillis.toString() : null);
+			mapPut(sb, "athleteFinalWarningMillis",
+			        athleteFinalWarningMillis != null ? athleteFinalWarningMillis.toString() : null);
 		} else {
 			mapPut(sb, "breakTimerEventType", breakTimerEventType);
 			mapPut(sb, "break", String.valueOf(isBreak));
@@ -193,6 +206,31 @@ public class ForwarderPayloadBuilder {
 			}
 		}
 		return sb;
+	}
+
+	private static Integer resolveAthleteTimeAllowed(FieldOfPlay fop, Integer athleteMillisRemaining) {
+		int currentAllowed = fop.getClockOwnerInitialTimeAllowed();
+		if (currentAllowed > 0) {
+			return currentAllowed;
+		}
+		return athleteMillisRemaining;
+	}
+
+	private static Integer resolveAthleteInitialWarningMillis(Integer athleteTimeAllowed) {
+		if (athleteTimeAllowed == null || athleteTimeAllowed < 1) {
+			return null;
+		}
+		if (athleteTimeAllowed == Competition.athleteTimerOneMinute) {
+			return -1;
+		}
+		return Competition.athleteTimerInitialWarning <= athleteTimeAllowed ? Competition.athleteTimerInitialWarning : -1;
+	}
+
+	private static Integer resolveAthleteFinalWarningMillis(Integer athleteTimeAllowed) {
+		if (athleteTimeAllowed == null || athleteTimeAllowed < 1) {
+			return null;
+		}
+		return Competition.athleteTimerFinalWarning <= athleteTimeAllowed ? Competition.athleteTimerFinalWarning : -1;
 	}
 
 	/**
@@ -226,10 +264,27 @@ public class ForwarderPayloadBuilder {
 		mapPut(sb, "decisionsVisible", Boolean.toString(decisionLightsVisible));
 		mapPut(sb, "down", Boolean.toString(down));
 		
-		// Add singleReferee flag if this is a Decision event
+		// Add decision metadata flags
 		if (event instanceof UIEvent.Decision) {
 			UIEvent.Decision decisionEvent = (UIEvent.Decision) event;
-			mapPut(sb, "singleReferee", Boolean.toString(decisionEvent.isSingleReferee()));
+			mapPut(sb, "singleReferee", Boolean.toString(decisionEvent.isSingleLight())); // backward compat
+			mapPut(sb, "singleLight", Boolean.toString(decisionEvent.isSingleLight()));
+			if (decisionEvent.getTimingPolicy() != null) {
+				mapPut(sb, "timingPolicy", decisionEvent.getTimingPolicy().name());
+			}
+			if (decisionEvent.getInputKind() != null) {
+				mapPut(sb, "inputKind", decisionEvent.getInputKind().name());
+			}
+		} else if (event instanceof UIEvent.InitialDecision) {
+			UIEvent.InitialDecision initialDecisionEvent = (UIEvent.InitialDecision) event;
+			mapPut(sb, "singleReferee", Boolean.toString(initialDecisionEvent.isSingleLight())); // backward compat
+			mapPut(sb, "singleLight", Boolean.toString(initialDecisionEvent.isSingleLight()));
+			if (initialDecisionEvent.getTimingPolicy() != null) {
+				mapPut(sb, "timingPolicy", initialDecisionEvent.getTimingPolicy().name());
+			}
+			if (initialDecisionEvent.getInputKind() != null) {
+				mapPut(sb, "inputKind", initialDecisionEvent.getInputKind().name());
+			}
 		}
 
 		populateRecordInfoStrings(sb, records, fop);

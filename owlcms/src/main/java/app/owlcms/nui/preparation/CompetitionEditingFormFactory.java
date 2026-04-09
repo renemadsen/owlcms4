@@ -468,7 +468,7 @@ public class CompetitionEditingFormFactory
 
 		RadioButtonGroup<Integer> sinclairYearLocal = new RadioButtonGroup<>();
 		layout.addFormItem(sinclairYearLocal, Translator.translate("sinclair"));
-		sinclairYearLocal.setItems(2020, 2024);
+		sinclairYearLocal.setItems(2020, 2024, 2028);
 		this.binder.forField(sinclairYearLocal)
 		        .bind(Competition::getSinclairYear, Competition::setSinclairYear);
 
@@ -659,6 +659,15 @@ public class CompetitionEditingFormFactory
 		        .withConverter(new StringToIntegerConverter(message))
 		        .withValidator(new IntegerRangeValidator(message, 0, 99))
 		        .bind(Competition::getWomensBestN, Competition::setWomensBestN);
+
+		TextField mixedTeamSizeField = new TextField();
+		layout.addFormItem(mixedTeamSizeField,
+		        labelWithHelp("Championship.mixedTeamSize", "Competition.teamSizeExplanation"));
+		this.binder.forField(mixedTeamSizeField)
+		        .withNullRepresentation("")
+		        .withConverter(new StringToIntegerConverter(message))
+		        .withValidator(new IntegerRangeValidator(message, 0, 99))
+		        .bind(Competition::getMixedBestN, Competition::setMixedBestN);
 
 		IntegerField teamPoints1stField = new IntegerField();
 		layout.addFormItem(teamPoints1stField, Translator.translate("Competition.teamPoints1st"));

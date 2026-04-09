@@ -4,15 +4,16 @@ export LC_ALL=C.UTF-8
 # Configuration variables - edit these as needed
 REMOTE_HOST="jflamy@143.110.208.71"
 REMOTE_PORT=8084
-REMOTE_DIR="/home/jflamy/asu"
+REMOTE_DIR="/home/jflamy/isg2025"
 DATABASE_FOLDER="database"
-LOCAL_SOURCE_DIR1="/c/Dev/git/owlcms-video/competitions/asu/local/css"
-LOCAL_SOURCE_DIR2="/c/Users/lamyj/git/owlcms4/owlcms/local/logos"
-LOCAL_SOURCE_DIR3="/c/Users/lamyj/git/owlcms4/owlcms/local/flags"
+LOCAL_SOURCE_ROOT="/c/Dev/git/owlcms-meets/competitions/isg2025/local"
+LOCAL_SOURCE_DIR1="${LOCAL_SOURCE_ROOT}/css"
+LOCAL_SOURCE_DIR2="${LOCAL_SOURCE_ROOT}/logos"
+LOCAL_SOURCE_DIR3="${LOCAL_SOURCE_ROOT}/flags"
+LOCAL_SOURCE_DIR4="${LOCAL_SOURCE_ROOT}/img"
 
 # SSH to the remote server for all operations
 echo "Connecting to remote server for port cleanup and owlcms download..."
-
 
 # Set up variables locally
 REPO_OWNER="owlcms"
@@ -49,26 +50,47 @@ echo "lsof result: $PIDS"
 if [ -z "$PIDS" ]; then
     echo "No processes found running on port $REMOTE_PORT"
 else
-    echo "Found processes to kill: $PIDS"
-    echo "Process details:"
+    echo "Found processes on port (may include threads): $(echo $PIDS | wc -w) entries"
+    
+    # Collect unique parent PIDs (all threads share the same parent)
+    KILL_PIDS=""
     for pid in $PIDS; do
-        ps -p $pid -o pid,user,command 2>/dev/null
-    done
-
-    echo "Killing processes..."
-    for pid in $PIDS; do
-        if [ ! -z "$pid" ] && [ "$pid" != "-" ]; then
-            echo "Attempting to kill process $pid"
-            kill -TERM $pid 2>/dev/null
-            sleep 2
-
-            # Check if process is still running, force kill if necessary
-            if kill -0 $pid 2>/dev/null; then
-                echo "Process $pid still running, force killing..."
-                kill -KILL $pid 2>/dev/null
-            else
-                echo "Process $pid terminated successfully"
+        # Get parent PID for this process/thread
+        PARENT_PID=$(ps -o ppid= -p $pid 2>/dev/null | tr -d ' ')
+        if [ ! -z "$PARENT_PID" ] && [ "$PARENT_PID" != "1" ]; then
+            # Add parent if not already in list
+            if ! echo "$KILL_PIDS" | grep -qw "$PARENT_PID"; then
+                KILL_PIDS="$KILL_PIDS $PARENT_PID"
             fi
+        else
+            # No parent or orphan, add the process itself
+            if ! echo "$KILL_PIDS" | grep -qw "$pid"; then
+                KILL_PIDS="$KILL_PIDS $pid"
+            fi
+        fi
+    done
+    
+    echo "Unique processes to kill:$KILL_PIDS"
+    for pid in $KILL_PIDS; do
+        echo "Process $pid:"
+        ps -p $pid -o pid,ppid,user,command 2>/dev/null
+    done
+    
+    # Kill all collected PIDs
+    for pid in $KILL_PIDS; do
+        if kill -0 $pid 2>/dev/null; then
+            echo "Killing $pid..."
+            kill -TERM $pid 2>/dev/null
+        fi
+    done
+    
+    sleep 2
+    
+    # Force kill any remaining
+    for pid in $KILL_PIDS; do
+        if kill -0 $pid 2>/dev/null; then
+            echo "Force killing $pid..."
+            kill -KILL $pid 2>/dev/null
         fi
     done
 
@@ -84,14 +106,14 @@ fi
 
 echo ""
 pwd
-rm -f *.zip
+rm -f *.zip *.jar
 echo "Retrieving latest owlcms release..."
 echo "Downloading: $DOWNLOAD_URL"
 curl -LJO "$DOWNLOAD_URL"
 
 if [ $? -eq 0 ]; then
     echo "Successfully downloaded latest owlcms release"
-    DOWNLOADED_FILE=$(ls -1 $FILE_PREFIX*.jar $FILE_PREFIX*.zip 2>/dev/null | tail -1)
+    DOWNLOADED_FILE=$(ls -1t $FILE_PREFIX*.jar $FILE_PREFIX*.zip 2>/dev/null | head -1)
     echo "Downloaded file: $DOWNLOADED_FILE"
     if [[ "$DOWNLOADED_FILE" == *.zip ]]; then
         echo "Unzipping $DOWNLOADED_FILE..."
@@ -112,22 +134,18 @@ fi
 EOSSH
 
 # Copy local files to remote server if local source directory exists
-if [ -d "${LOCAL_SOURCE_DIR1}" ]; then
-    echo ""
-    echo "Copying local files from ${LOCAL_SOURCE_DIR} to remote server..."
-    
-    # Use scp to copy files with directory structure preserved
-    # First create the local directory on remote server, then copy contents
-    ssh ${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}/local"
-    scp -r "${LOCAL_SOURCE_DIR1}" "${LOCAL_SOURCE_DIR2}" "${LOCAL_SOURCE_DIR3}" ${REMOTE_HOST}:"${REMOTE_DIR}/local/"
+if [ -d "${LOCAL_SOURCE_ROOT}" ]; then
+    echo "Copying local files to remote server..."
+    ssh ${REMOTE_HOST} -q "mkdir -p ${REMOTE_DIR}/local"
+    scp -q -r "${LOCAL_SOURCE_DIR1}" "${LOCAL_SOURCE_DIR2}" "${LOCAL_SOURCE_DIR3}" "${LOCAL_SOURCE_DIR4}" ${REMOTE_HOST}:"${REMOTE_DIR}/local/"
     
     if [ $? -eq 0 ]; then
-        echo "Successfully copied local files ${LOCAL_SOURCE_DIR1} to remote server"
+        echo "Successfully copied local files to remote server"
     else
         echo "Error copying local files to remote server"
     fi
 else
-    echo "Local source directory ${LOCAL_SOURCE_DIR} not found, skipping file copy"
+    echo "Local source directory ${LOCAL_SOURCE_ROOT} not found, skipping file copy"
 fi
 
 # Start owlcms.jar as a background process on remote server
@@ -144,7 +162,8 @@ echo switching to $(pwd)
 export OWLCMS_PORT=$REMOTE_PORT
 export OWLCMS_ENABLEEMBEDDEDMQTT=false
 export OWLCMS_FEATURESWITCHES=iwfLook
-nohup java -jar owlcms*.jar > owlcms.log 2>&1 &echo "owlcms started in background with PID: $!"
+nohup java -cp owlcms*.jar app.owlcms.MainWrapper > owlcms.log 2>&1 &
+echo "owlcms started in background with PID: $!"
 echo "Logs will be written to owlcms.log"
 EOF
 

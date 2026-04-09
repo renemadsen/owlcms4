@@ -13,14 +13,12 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.eventbus.EventBus;
 import com.vaadin.flow.component.AttachEvent;
-import com.vaadin.flow.component.ClientCallable;
 import com.vaadin.flow.component.DetachEvent;
 import com.vaadin.flow.component.Focusable;
 import com.vaadin.flow.component.Tag;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dependency.JsModule;
 import com.vaadin.flow.component.html.Div;
-import com.vaadin.flow.component.internal.AllowInert;
 import com.vaadin.flow.component.littemplate.LitTemplate;
 import com.vaadin.flow.dom.Element;
 import com.vaadin.flow.server.VaadinSession;
@@ -85,41 +83,6 @@ public abstract class TimerElement extends LitTemplate
 		return this.origin;
 	}
 
-	@AllowInert
-	@ClientCallable
-	abstract public void clientFinalWarning(String fopName);
-
-	@AllowInert
-	@ClientCallable
-	abstract public void clientInitialWarning(String fopName);
-
-	/**
-	 * Client requests that the server send back the remaining time. Intended to be used after client has been hidden and is made visible again.
-	 */
-	@AllowInert
-	@ClientCallable
-	abstract public void clientSyncTime(String fopName);
-
-	/**
-	 * Timer ran down to zero.
-	 */
-	@AllowInert
-	@ClientCallable
-	abstract public void clientTimeOver(String fopName);
-
-	@AllowInert
-	@ClientCallable
-	abstract public void clientTimerStarting(String fopName, double remainingTime, double lateMillis, String from);
-
-	/**
-	 * Timer has been stopped on the client side.
-	 *
-	 * @param remainingTime
-	 */
-	@AllowInert
-	@ClientCallable
-	abstract public void clientTimerStopped(String fopName, double remainingTime, String from);
-
 	@Override
 	public void focus() {
 	}
@@ -131,6 +94,14 @@ public abstract class TimerElement extends LitTemplate
 	public void setSilenced(boolean b) {
 		// this.logger.debug("======= {} silenced = {} from {}", this.getClass().getSimpleName(), b, LoggerUtils.stackTrace());
 		this.silenced = b;
+	}
+
+	protected double getInitialWarningThresholdSeconds() {
+		return -1.0D;
+	}
+
+	protected double getFinalWarningThresholdSeconds() {
+		return -1.0D;
 	}
 
 	public abstract void syncWithFopTimer(FieldOfPlay fop);
@@ -145,7 +116,7 @@ public abstract class TimerElement extends LitTemplate
 
 	protected final void doSetTimer(Integer milliseconds) {
 		if (this.logger.isDebugEnabled()) {
-		this.logger.debug("====== {} doSetTimer {} {}", this, milliseconds,
+		this.logger.debug("{} doSetTimer {} {}", this, milliseconds,
 		        LoggerUtils.stackTrace());
 		}
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
@@ -157,7 +128,7 @@ public abstract class TimerElement extends LitTemplate
 	}
 
 	protected void doStartTimer(Integer milliseconds, boolean serverSound) {
-		this.logger.debug("====== {} doStartTimer {}", this, milliseconds);
+		this.logger.debug("{} doStartTimer {}", this, milliseconds);
 		setServerSound(serverSound);
 		// String trace = LoggerUtils.stackTrace();
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
@@ -212,8 +183,17 @@ public abstract class TimerElement extends LitTemplate
 			getElement().setProperty("running", false);
 			getElement().setProperty("silent", true);
 			getElement().setProperty("fopName", fopName);
+			syncWarningThresholdProperties(getElement());
 		});
 		this.vsession = VaadinSession.getCurrent();
+	}
+
+	protected void syncWarningThresholdProperties(Element timerElement2) {
+		if (timerElement2 == null) {
+			return;
+		}
+		timerElement2.setProperty("initialWarningThresholdSeconds", getInitialWarningThresholdSeconds());
+		timerElement2.setProperty("finalWarningThresholdSeconds", getFinalWarningThresholdSeconds());
 	}
 
 	protected boolean isIndefinite() {
@@ -276,6 +256,7 @@ public abstract class TimerElement extends LitTemplate
 	protected void start(Integer milliseconds, Boolean indefinite, Boolean silent, String from) {
 		Element timerElement2 = getTimerElement();
 		if (timerElement2 != null && (indefinite || milliseconds != null)) {
+			syncWarningThresholdProperties(timerElement2);
 			double seconds = (indefinite) ? 0.0D : milliseconds / 1000.0D;
 			if (this instanceof BreakTimerElement) {
 				if (this.logger.isDebugEnabled()) {
@@ -322,6 +303,7 @@ public abstract class TimerElement extends LitTemplate
 			this.logger.debug("setDisplay {} {}", milliseconds, timerElement2);
 		}
 		if (timerElement2 != null) {
+			syncWarningThresholdProperties(timerElement2);
 			double seconds = indefinite ? 0.0D : (milliseconds != null ? milliseconds / 1000.0D : 0D);
 			timerElement2.callJsFunction("display", seconds, indefinite, silent, timerElement2);
 		}
@@ -330,6 +312,7 @@ public abstract class TimerElement extends LitTemplate
 	private void stop(Integer milliseconds, Boolean indefinite, Boolean silent, String from) {
 		Element timerElement2 = getTimerElement();
 		if (timerElement2 != null && (indefinite || milliseconds != null)) {
+			syncWarningThresholdProperties(timerElement2);
 			double seconds = (indefinite) ? 0.0D : milliseconds / 1000.0D;
 			if (this instanceof BreakTimerElement) {
 				this.logger.debug("stop {}s", seconds);

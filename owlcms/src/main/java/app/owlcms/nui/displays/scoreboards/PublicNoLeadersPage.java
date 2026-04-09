@@ -34,7 +34,7 @@ public class PublicNoLeadersPage extends PublicScoreboardPage {
 	@Override
 	public String getPageTitle() {
 		String suffix = FieldOfPlay.getFopNameIfMultiple(getFop());
-		return Translator.translate("PublicScoreboard") + suffix;
+		return Translator.translate("DisplayParameters.PublicDisplay") + suffix;
 	}
 
 	@Override
@@ -55,7 +55,9 @@ public class PublicNoLeadersPage extends PublicScoreboardPage {
 		        SoundParameters.LIVE_LIGHTS, Boolean.toString(!Config.getCurrent().featureSwitch("noLiveLights")),
 		        SoundParameters.SHOW_DECLARATIONS, "false",
 		        SoundParameters.CENTER_NOTIFICATIONS, Boolean.toString(Config.getCurrent().featureSwitch("centerAnnouncerNotifications")),
-		        SoundParameters.START_ORDER, "false");
+		        SoundParameters.START_ORDER, "false",
+		        DisplayParameters.CURRENT_ATTEMPT, "false",
+		        DisplayParameters.SHOW_MEDALS, "auto");
 		Map<String, String> fullMap = new TreeMap<>();
 		fullMap.putAll(initialMap);
 		fullMap.putAll(additionalMap);

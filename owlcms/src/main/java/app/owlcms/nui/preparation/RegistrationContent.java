@@ -460,7 +460,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			setGroup(null);
 		}
 		if (getGroup() != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(getGroup().getName())));
+			params.put("group", Arrays.asList(getGroup().getName()));
 			OwlcmsCrudFormFactory<Athlete> crudFormFactory = createFormFactory();
 			this.crudGrid.setCrudFormFactory(crudFormFactory);
 		} else {
@@ -512,7 +512,7 @@ public class RegistrationContent extends BaseContent implements CrudListener<Ath
 			try {
 				AthleteSorter.registrationOrder(regCatAthletesList);
 			} catch (Exception e) {
-				logger.error("***** Error sorting athletes", e);
+				logger.error("Error sorting athletes", e);
 			}
 		}
 

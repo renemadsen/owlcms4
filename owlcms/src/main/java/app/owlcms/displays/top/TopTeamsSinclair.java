@@ -82,12 +82,10 @@ public class TopTeamsSinclair extends AbstractTop {
 	public void doBreak(UIEvent e) {
 		UIEventProcessor.uiAccess(this, this.uiEventBus, () -> {
 			FieldOfPlay fop = getFop();
-			if (fop == null) {
-				return;
+			if (fop != null) {
+				setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 			}
-			// just update the display
-			setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
-			doUpdate(fop.getCurAthlete(), null);
+			doUpdate(fop != null ? fop.getCurAthlete() : null, null);
 		});
 	}
 
@@ -98,14 +96,13 @@ public class TopTeamsSinclair extends AbstractTop {
 
 	public void doUpdate(Competition competition) {
 		FieldOfPlay fop = getFop();
-		if (fop == null) {
-			return;
+		if (fop != null) {
+			setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 		}
-		setBoardMode(fop.getState(), fop.getBreakType(), fop.getCeremonyType(), getElement());
 
 		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
 		        null,
-		        Competition.getCurrent().getScoringSystem(), true);
+		        getTeamScoringRanking(), true);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamResultsTreeData.getTeamItemsByGender();
 
 		this.mensTeams = teamsByGender.get(Gender.M);
@@ -220,7 +217,7 @@ public class TopTeamsSinclair extends AbstractTop {
 				translations.put(curKey.replace("Scoreboard.", ""), Translator.translate(curKey));
 			}
 		}
-		String scoringTitle = Ranking.getScoringTitle(Competition.getCurrent().getScoringSystem());
+		String scoringTitle = Ranking.getScoringTitle(getTeamScoringRanking());
 		translations.put("ScoringTitle", scoringTitle != null ? scoringTitle : Translator.translate("Sinclair"));
 		this.getElement().setPropertyJson("t", translations);
 	}
@@ -247,6 +244,13 @@ public class TopTeamsSinclair extends AbstractTop {
 	@SuppressWarnings("unused")
 	private Object getOrigin() {
 		return this;
+	}
+
+	private Ranking getTeamScoringRanking() {
+		if (getChampionship() != null && getChampionship().getTeamScoringSystem() != null) {
+			return getChampionship().getTeamScoringSystem();
+		}
+		return Ranking.TOTAL;
 	}
 
 	private void getTeamJson(Team t, JsonObject ja) {
@@ -301,7 +305,7 @@ public class TopTeamsSinclair extends AbstractTop {
 	}
 
 	private void updateBottom() {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		Ranking scoringSystem = getTeamScoringRanking();
 		String ssText = Ranking.getScoringTitle(scoringSystem);
 
 		Gender gender = this.getGender();

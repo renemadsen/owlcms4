@@ -30,6 +30,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.checkbox.Checkbox;
 import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.grid.Grid.Column;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
 import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Div;
@@ -51,16 +52,15 @@ import app.owlcms.apputils.queryparameters.BaseContent;
 import app.owlcms.components.JXLSDownloader;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
-import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.Participation;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.team.Team;
+import app.owlcms.data.team.TeamSelectionDisplayRules;
 import app.owlcms.data.team.TeamSelectionTreeData;
 import app.owlcms.data.team.TeamTreeItem;
 import app.owlcms.i18n.Translator;
@@ -71,7 +71,6 @@ import app.owlcms.nui.crudui.OwlcmsGridLayout;
 import app.owlcms.nui.shared.IAthleteEditing;
 import app.owlcms.nui.shared.OwlcmsContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
-import app.owlcms.nui.shared.RequireLogin;
 import app.owlcms.spreadsheet.JXLSCompetitionBook;
 import app.owlcms.spreadsheet.JXLSStartingListDocs;
 import app.owlcms.spreadsheet.PAthlete;
@@ -87,15 +86,25 @@ import ch.qos.logback.classic.Logger;
 @SuppressWarnings("serial")
 @Route(value = "preparation/teams", layout = OwlcmsLayout.class)
 public class TeamSelectionContent extends BaseContent
-		implements OwlcmsContent, RequireLogin, IAthleteEditing {
+		implements OwlcmsContent, IAthleteEditing {
 
 	// Copied from DocumentsContent to support team list report
 	protected java.util.List<app.owlcms.data.athlete.Athlete> participationFindAll() {
-		java.util.List<app.owlcms.data.athlete.Athlete> athletes = app.owlcms.data.agegroup.AgeGroupRepository.allPAthletesForAgeGroupAgeDivision(null, null);
-		// If you have a filterAthletes method, use it; otherwise, just return athletes
-		// java.util.List<app.owlcms.data.athlete.Athlete> found = filterAthletes(athletes);
-		// return found;
-		return athletes;
+		java.util.LinkedHashMap<String, app.owlcms.data.athlete.Athlete> athletesByKey = new java.util.LinkedHashMap<>();
+		app.owlcms.data.agegroup.AgeGroupRepository.allParticipationsForAgeGroupAgeDivision(getAgeGroupPrefix(), getChampionship())
+		        .forEach(participation -> {
+		        	app.owlcms.data.athlete.Athlete athlete = participation.getAthlete();
+		        	Long athleteId = athlete.getId();
+		        	String athleteKey = athleteId != null
+		        	        ? "id:" + athleteId
+		        	        : String.join("|",
+		        	                athlete.getLastName() != null ? athlete.getLastName() : "",
+		        	                athlete.getFirstName() != null ? athlete.getFirstName() : "",
+		        	                athlete.getTeam() != null ? athlete.getTeam() : "",
+		        	                athlete.getFullBirthDate() != null ? athlete.getFullBirthDate().toString() : "");
+		        	athletesByKey.putIfAbsent(athleteKey, athlete);
+		        });
+		return new java.util.ArrayList<>(athletesByKey.values());
 	}
 
 	public static final String TITLE = "TeamMembership.Title";
@@ -110,7 +119,7 @@ public class TeamSelectionContent extends BaseContent
 	protected ComboBox<Group> topBarGroupSelect;
 	// private boolean teamFilterRecusion;
 	private List<Championship> adItems;
-	private Championship ageDivision;
+	private Championship championship;
 	private String ageGroupPrefix;
 	private OwlcmsCrudGrid<TeamTreeItem> crudGrid;
 	private Group currentGroup;
@@ -119,8 +128,10 @@ public class TeamSelectionContent extends BaseContent
 	// private DecimalFormat floatFormat;
 	// private ComboBox<Category> categoryFilter;
 	private ComboBox<Gender> genderFilter;
+	private Column<TeamTreeItem> membershipColumn;
+	private Column<TeamTreeItem> mixedMembershipColumn;
 	private OwlcmsLayout routerLayout;
-	private ComboBox<Championship> topBarAgeDivisionSelect;
+	private ComboBox<Championship> topBarChampionshipSelect;
 	// private ComboBox<String> teamFilter;
 	private ComboBox<String> topBarAgeGroupPrefixSelect;
 	private JXLSCompetitionBook xlsWriter;
@@ -179,7 +190,7 @@ public class TeamSelectionContent extends BaseContent
 
 		this.topBar.getStyle().set("flex", "100 1");
 		this.topBar.removeAll();
-		// this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
+		// this.topBar.add(this.topBarChampionshipSelect, this.topBarAgeGroupPrefixSelect);
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 	this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 	this.topBar.add(buttons);
@@ -196,7 +207,7 @@ public class TeamSelectionContent extends BaseContent
 	public Collection<TeamTreeItem> findAll() {
 		List<TeamTreeItem> allTeams = new ArrayList<>();
 
-		TeamSelectionTreeData teamTreeData = new TeamSelectionTreeData(getAgeGroupPrefix(), getAgeDivision(),
+		TeamSelectionTreeData teamTreeData = new TeamSelectionTreeData(getAgeGroupPrefix(), getChampionship(),
 		        getGenderFilter().getValue(), Ranking.SNATCH_CJ_TOTAL, false);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamTreeData.getTeamItemsByGender();
 
@@ -212,8 +223,8 @@ public class TeamSelectionContent extends BaseContent
 		return allTeams;
 	}
 
-	public Championship getAgeDivision() {
-		return this.ageDivision;
+	public Championship getChampionship() {
+		return this.championship;
 	}
 
 	public String getAgeGroupPrefix() {
@@ -256,8 +267,8 @@ public class TeamSelectionContent extends BaseContent
 		this.crudGrid.refreshGrid();
 	}
 
-	public void setAgeDivision(Championship ageDivision) {
-		this.ageDivision = ageDivision;
+	public void setChampionship(Championship championship) {
+		this.championship = championship;
 	}
 
 	public void setAgeGroupPrefix(String ageGroupPrefix) {
@@ -368,10 +379,16 @@ public class TeamSelectionContent extends BaseContent
 		        .setTextAlign(ColumnTextAlign.CENTER);
 
 		ComponentRenderer<Component, TeamTreeItem> membershipRenderer = new ComponentRenderer<>(p -> {
+			if (!TeamSelectionDisplayRules.shouldShowMembershipColumn(getChampionship(), getSelectedGender(), p)) {
+				return new NativeLabel();
+			}
 			if (p.getAthlete() == null) {
 				long nb = p.getTeamMembers().stream().filter(pa -> pa.isTeamMember()).count();
+				Championship champ = getChampionship();
+				Championship effectiveChampionship = champ != null ? champ : Championship.of(null);
+				int maxSize = effectiveChampionship.getMaxTeamSize();
 				NativeLabel label = new NativeLabel(
-				        nb > Competition.getCurrent().getMaxTeamSize() ? nb + "\u26a0" : nb + "");
+				        nb > maxSize ? nb + "\u26a0" : nb + "");
 				p.setMembershipLabel(label);
 				return label;
 			} else {
@@ -391,8 +408,41 @@ public class TeamSelectionContent extends BaseContent
 				return activeBox;
 			}
 		});
-		grid.addColumn(membershipRenderer).setHeader(Translator.translate("TeamMembership.TeamMember"))
+		this.membershipColumn = grid.addColumn(membershipRenderer).setHeader(Translator.translate("TeamMembership.TeamMember"))
 		        .setSortable(true).setTextAlign(ColumnTextAlign.CENTER);
+
+		ComponentRenderer<Component, TeamTreeItem> mixedMembershipRenderer = new ComponentRenderer<>(p -> {
+			if (!canInspectMixedMembership()
+			        || !TeamSelectionDisplayRules.shouldShowMixedMembershipColumn(getChampionship(), getSelectedGender(), p)) {
+				return new NativeLabel();
+			}
+			if (p.getAthlete() == null) {
+				NativeLabel label = new NativeLabel(formatMixedTeamMemberCount(p.getTeamMembers()));
+				p.setMixedMembershipLabel(label);
+				return label;
+			}
+
+			Checkbox mixedBox = new Checkbox("Name");
+			mixedBox.setLabel(null);
+			mixedBox.getElement().getThemeList().set("secondary", true);
+			mixedBox.setValue(isEffectiveMixedTeamMember(p));
+			if (isExplicitMixedChampionshipSelected()) {
+				mixedBox.addValueChangeListener(click -> {
+					Boolean value = click.getValue();
+					mixedBox.setValue(value);
+					JPAService.runInTransaction(em -> toggleMixedTeamMember(p, value, em));
+				});
+			} else {
+				mixedBox.setReadOnly(true);
+			}
+			mixedBox.getElement().addEventListener("click", ignore -> {
+			}).addEventData("event.stopPropagation()");
+			return mixedBox;
+		});
+		this.mixedMembershipColumn = grid.addColumn(mixedMembershipRenderer)
+		        .setHeader(Translator.translate("TeamMembership.MixedTeamMember"))
+		        .setSortable(true).setTextAlign(ColumnTextAlign.CENTER);
+		updateMixedTeamUi(getChampionship(), this.genderFilter != null ? this.genderFilter.getValue() : null);
 
 		OwlcmsGridLayout gridLayout = new OwlcmsGridLayout(TeamTreeItem.class);
 		OwlcmsCrudGrid<TeamTreeItem> crudGrid = new OwlcmsCrudGrid<>(TeamTreeItem.class, gridLayout,
@@ -403,7 +453,7 @@ public class TeamSelectionContent extends BaseContent
 				if (TeamSelectionContent.this.topBar == null) {
 					return;
 				}
-				TeamSelectionTreeData teamTreeData = new TeamSelectionTreeData(getAgeGroupPrefix(), getAgeDivision(),
+				TeamSelectionTreeData teamTreeData = new TeamSelectionTreeData(getAgeGroupPrefix(), getChampionship(),
 				        TeamSelectionContent.this.genderFilter.getValue(), Ranking.SNATCH_CJ_TOTAL, false);
 				this.grid.setDataProvider(new TreeDataProvider<>(teamTreeData));
 			}
@@ -465,31 +515,35 @@ public class TeamSelectionContent extends BaseContent
 		this.topBarAgeGroupPrefixSelect.getStyle().set("margin-left", "1em");
 		setAgeGroupPrefixSelectionListener();
 
-		this.topBarAgeDivisionSelect = new ComboBox<>();
-		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
+		this.topBarChampionshipSelect = new ComboBox<>();
+		this.topBarChampionshipSelect.setPlaceholder(Translator.translate("Championship"));
 		this.adItems = Championship.findAllUsed(true);
-		this.topBarAgeDivisionSelect.setItems(this.adItems);
-		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> ad.getName());
-		this.topBarAgeDivisionSelect.setClearButtonVisible(true);
-		this.topBarAgeDivisionSelect.setWidth("15em");
-		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
-		setAgeDivisionSelectionListener();
+		this.topBarChampionshipSelect.setItems(this.adItems);
+		this.topBarChampionshipSelect.setItemLabelGenerator((ad) -> ad.getName());
+		this.topBarChampionshipSelect.setClearButtonVisible(true);
+		this.topBarChampionshipSelect.setWidth("15em");
+		this.topBarChampionshipSelect.getStyle().set("margin-left", "1em");
+		setChampionshipSelectionListener();
 
 		if (this.genderFilter == null) {
 			this.genderFilter = new ComboBox<>();
 			this.genderFilter.setPlaceholder(Translator.translate("Gender"));
-			this.genderFilter.setItems(Gender.M, Gender.F);
+			updateGenderFilterOptions(getChampionship());
 			this.genderFilter.setItemLabelGenerator((i) -> {
 				return i.asGenderName();
 			});
 			this.genderFilter.setClearButtonVisible(true);
 			this.genderFilter.addValueChangeListener(e -> {
+				updateMembershipColumnVisibility(e.getValue());
+				updateMixedTeamUi(getChampionship(), e.getValue());
 				crudGrid2.refreshGrid();
 			});
 			this.genderFilter.setWidth("10em");
 		}
+		updateMembershipColumnVisibility(this.genderFilter.getValue());
+		updateMixedTeamUi(getChampionship(), this.genderFilter.getValue());
 
-		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeDivisionSelect);
+		crudGrid2.getCrudLayout().addFilterComponent(this.topBarChampionshipSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeGroupPrefixSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.genderFilter);
 	}
@@ -506,12 +560,32 @@ public class TeamSelectionContent extends BaseContent
 		this.crudGrid = createCrudGrid(crudFormFactory);
 		fillHW(this.crudGrid, this);
 		Championship value = (this.adItems != null && this.adItems.size() > 0) ? this.adItems.get(0) : null;
-		setAgeDivision(value);
-		this.topBarAgeDivisionSelect.setValue(value);
+		setChampionship(value);
+		this.topBarChampionshipSelect.setValue(value);
 	}
 
 	private int countTeamMembers(List<TeamTreeItem> teamMembers) {
 		return (int) teamMembers.stream().filter(m -> m.isTeamMember()).count();
+	}
+
+	private int countMixedTeamMembers(List<TeamTreeItem> teamMembers) {
+		return (int) teamMembers.stream().filter(this::isEffectiveMixedTeamMember).count();
+	}
+
+	private String formatMixedTeamMemberCount(List<TeamTreeItem> teamMembers) {
+		int count = countMixedTeamMembers(teamMembers);
+		Championship champ = getChampionship();
+		if (champ == null) {
+			return Integer.toString(count);
+		}
+
+		boolean warn = champ.isExplicitMixedTeamMembers() && exceedsCap(count, champ.getExplicitTeamSize());
+
+		return warn ? count + "\u26a0" : Integer.toString(count);
+	}
+
+	private boolean exceedsCap(long count, Integer cap) {
+		return cap != null && cap > 0 && count > cap;
 	}
 
 	private void defineContent(OwlcmsCrudGrid<TeamTreeItem> crudGrid) {
@@ -530,7 +604,7 @@ public class TeamSelectionContent extends BaseContent
 			@Override
 			public DataProvider<TeamTreeItem, ?> getDataProvider() {
 				return new TreeDataProvider<>(
-				        new TeamSelectionTreeData(getAgeGroupPrefix(), getAgeDivision(), getGenderFilter().getValue(),
+				        new TeamSelectionTreeData(getAgeGroupPrefix(), getChampionship(), getGenderFilter().getValue(),
 				                Ranking.SNATCH_CJ_TOTAL, false));
 			}
 
@@ -542,14 +616,17 @@ public class TeamSelectionContent extends BaseContent
 		});
 	}
 
-	private void setAgeDivisionSelectionListener() {
-		this.topBarAgeDivisionSelect.addValueChangeListener(e -> {
+	private void setChampionshipSelectionListener() {
+		this.topBarChampionshipSelect.addValueChangeListener(e -> {
 			// the name of the resulting file is set as an attribute on the <a href tag that
 			// surrounds the download button.
-			Championship ageDivisionValue = e.getValue();
-			setAgeDivision(ageDivisionValue);
-			// logger.debug("ageDivisionSelectionListener {}",ageDivisionValue);
-			if (ageDivisionValue == null) {
+			Championship championshipValue = e.getValue();
+			setChampionship(championshipValue);
+			updateGenderFilterOptions(championshipValue);
+			updateMixedTeamUi(championshipValue, this.genderFilter != null ? this.genderFilter.getValue() : null);
+			updateMembershipColumnVisibility(this.genderFilter != null ? this.genderFilter.getValue() : null);
+			// logger.debug("championshipSelectionListener {}", championshipValue);
+			if (championshipValue == null) {
 				this.topBarAgeGroupPrefixSelect.setValue(null);
 				this.topBarAgeGroupPrefixSelect.setItems(new ArrayList<>());
 				this.topBarAgeGroupPrefixSelect.setEnabled(false);
@@ -558,21 +635,21 @@ public class TeamSelectionContent extends BaseContent
 				return;
 			}
 
-			List<String> ageDivisionAgeGroupPrefixes;
-			ageDivisionAgeGroupPrefixes = AgeGroupRepository.findActiveAndUsedAgeGroupNames(ageDivisionValue);
+			List<String> championshipAgeGroupPrefixes;
+			championshipAgeGroupPrefixes = AgeGroupRepository.findActiveAndUsedAgeGroupNames(championshipValue);
 
-			this.topBarAgeGroupPrefixSelect.setItems(ageDivisionAgeGroupPrefixes);
-			boolean notEmpty = ageDivisionAgeGroupPrefixes.size() > 0;
+			this.topBarAgeGroupPrefixSelect.setItems(championshipAgeGroupPrefixes);
+			boolean notEmpty = championshipAgeGroupPrefixes.size() > 0;
 			this.topBarAgeGroupPrefixSelect.setEnabled(notEmpty);
-			String first = (notEmpty && ageDivisionValue.getType() == ChampionshipType.IWF) ? ageDivisionAgeGroupPrefixes.get(0)
+			String first = (notEmpty && championshipValue.getType().isIWF()) ? championshipAgeGroupPrefixes.get(0)
 			        : null;
-			// logger.debug("ad {} ag {} first {} select {}", ageDivisionValue,
-			// ageDivisionAgeGroupPrefixes, first,
+			// logger.debug("championship {} ag {} first {} select {}", championshipValue,
+			// championshipAgeGroupPrefixes, first,
 			// topBarAgeGroupPrefixSelect);
 
-			this.xlsWriter.setChampionship(ageDivisionValue);
+			this.xlsWriter.setChampionship(championshipValue);
 			this.finalPackage.getElement().setAttribute("download",
-			        "results" + (getAgeDivision() != null ? "_" + getAgeDivision().getName()
+			        "results" + (getChampionship() != null ? "_" + getChampionship().getName()
 			                : (this.ageGroupPrefix != null ? "_" + this.ageGroupPrefix : "_all")) + ".xls");
 
 			String value = notEmpty ? first : null;
@@ -596,10 +673,10 @@ public class TeamSelectionContent extends BaseContent
 			setAgeGroupPrefix(prefix);
 
 			// logger.debug("ageGroupPrefixSelectionListener {}",prefix);
-			// updateFilters(getAgeDivision(), getAgeGroupPrefix());
+			// updateFilters(getChampionship(), getAgeGroupPrefix());
 			this.xlsWriter.setAgeGroupPrefix(this.ageGroupPrefix);
 			this.finalPackage.getElement().setAttribute("download",
-			        "results" + (getAgeDivision() != null ? "_" + getAgeDivision().getName()
+			        "results" + (getChampionship() != null ? "_" + getChampionship().getName()
 			                : (this.ageGroupPrefix != null ? "_" + this.ageGroupPrefix : "_all")) + ".xls");
 
 			if (this.crudGrid != null) {
@@ -619,8 +696,75 @@ public class TeamSelectionContent extends BaseContent
 		em.merge(_getOriginalParticipation);
 		TeamTreeItem parent = tti.getParent();
 		List<TeamTreeItem> teamMembers = tti.getParent().getTeamMembers();
-		parent.getMembershipLabel().setText("" + (teamMembers != null ? countTeamMembers(teamMembers) : 0));
+		if (parent.getMembershipLabel() != null) {
+			parent.getMembershipLabel().setText("" + (teamMembers != null ? countTeamMembers(teamMembers) : 0));
+		}
 		return null;
+	}
+
+	private Object toggleMixedTeamMember(TeamTreeItem tti, Boolean value, EntityManager em) {
+		logger.info("{} {} as mixed team member for category {}", value ? "setting" : "removing",
+		        tti.getAthlete().getShortName(), tti.getAthlete().getCategory().getNameWithAgeGroup());
+		Participation originalParticipation = ((PAthlete) tti.getAthlete())._getOriginalParticipation();
+		boolean member = Boolean.TRUE.equals(value);
+		originalParticipation.setMixedTeamMember(member);
+		tti.setMixedTeamMember(member);
+		em.merge(originalParticipation);
+		TeamTreeItem parent = tti.getParent();
+		List<TeamTreeItem> teamMembers = tti.getParent().getTeamMembers();
+		if (parent.getMixedMembershipLabel() != null) {
+			parent.getMixedMembershipLabel().setText(teamMembers != null ? formatMixedTeamMemberCount(teamMembers) : "0");
+		}
+		return null;
+	}
+
+	private boolean canInspectMixedMembership() {
+		return getChampionship() != null;
+	}
+
+	private boolean isExplicitMixedChampionshipSelected() {
+		Championship championship = getChampionship();
+		return championship != null && championship.isExplicitMixedTeamMembers();
+	}
+
+	private boolean isEffectiveMixedTeamMember(TeamTreeItem item) {
+		if (item == null || item.getAthlete() == null) {
+			return false;
+		}
+		return isExplicitMixedChampionshipSelected()
+		        ? Boolean.TRUE.equals(item.isMixedTeamMember())
+		        : Boolean.TRUE.equals(item.isTeamMember());
+	}
+
+	private Gender getSelectedGender() {
+		return this.genderFilter != null ? this.genderFilter.getValue() : null;
+	}
+
+	private void updateGenderFilterOptions(Championship championship) {
+		if (this.genderFilter == null) {
+			return;
+		}
+		if (championship != null) {
+			this.genderFilter.setItems(Gender.M, Gender.F, Gender.MF);
+		} else {
+			this.genderFilter.setItems(Gender.M, Gender.F);
+			if (this.genderFilter.getValue() == Gender.MF) {
+				this.genderFilter.setValue(null);
+			}
+		}
+	}
+
+	private void updateMixedTeamUi(Championship championship, Gender selectedGender) {
+		if (this.mixedMembershipColumn != null) {
+			this.mixedMembershipColumn.setVisible(
+			        TeamSelectionDisplayRules.shouldShowMixedMembershipColumn(championship, selectedGender));
+		}
+	}
+
+	private void updateMembershipColumnVisibility(Gender selectedGender) {
+		if (this.membershipColumn != null) {
+			this.membershipColumn.setVisible(TeamSelectionDisplayRules.shouldShowMembershipColumn(selectedGender));
+		}
 	}
 
 	private void updateFilters() {

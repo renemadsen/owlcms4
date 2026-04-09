@@ -19,6 +19,7 @@ import javax.persistence.EntityManager;
 
 import org.slf4j.LoggerFactory;
 
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
@@ -301,7 +302,7 @@ public class AthleteSorter implements Serializable {
 		List<Athlete> impactedAthletes;
 		if (g != null) {
 			impactedAthletes = AthleteRepository.findAthletesForGlobalRanking(em, g);
-			logger.debug("=== all athletes in group's categories {}", impactedAthletes);
+			logger.debug("all athletes in group's categories {}", impactedAthletes);
 		} else {
 			impactedAthletes = AthleteRepository.doFindAllByGroupAndWeighIn(em, null, true, null);
 			// logger.debug("all athletes in all groups {}", impactedAthletes);
@@ -344,10 +345,18 @@ public class AthleteSorter implements Serializable {
 				return curLifter.getGamxRank();
 			case GAMX_M:
 				return curLifter.getGamxMRank();
+			case GAMX_MS:
+				return curLifter.getGamxMSRank();
+			case GAMX_MC:
+				return curLifter.getGamxMCRank();
 			case GAMX_U:
 				return curLifter.getGamxURank();
 			case GAMX_A:
 				return curLifter.getGamxARank();
+			case GAMX_S:
+				return curLifter.getGamxSRank();
+			case GAMX_C:
+				return curLifter.getGamxCRank();
 			case QAGE:
 				return curLifter.getQMastersRank();
 			case QPOINTS:
@@ -441,13 +450,37 @@ public class AthleteSorter implements Serializable {
 		if (rank == null || rank <= 0) {
 			return 0;
 		}
-		if (rank == 1) {
-			return 28;
+		Competition competition = Competition.getCurrent();
+		int firstPlacePoints = competition != null && competition.getTeamPoints1st() != null ? competition.getTeamPoints1st() : 28;
+		int secondPlacePoints = competition != null && competition.getTeamPoints2nd() != null ? competition.getTeamPoints2nd() : 25;
+		int thirdPlacePoints = competition != null && competition.getTeamPoints3rd() != null ? competition.getTeamPoints3rd() : 23;
+
+		switch (rank) {
+			case 1:
+				return firstPlacePoints;
+			case 2:
+				return secondPlacePoints;
+			case 3:
+				return thirdPlacePoints;
+			default:
+				return Math.max(0, thirdPlacePoints - (rank - 3));
 		}
-		if (rank == 2) {
-			return 25;
+	}
+
+	public static int pointsFormula(Integer rank, int firstPlacePoints, int secondPlacePoints, int thirdPlacePoints) {
+		if (rank == null || rank <= 0) {
+			return 0;
 		}
-		return 26 - rank;
+		switch (rank) {
+			case 1:
+				return firstPlacePoints;
+			case 2:
+				return secondPlacePoints;
+			case 3:
+				return thirdPlacePoints;
+			default:
+				return Math.max(0, thirdPlacePoints - (rank - 3));
+		}
 	}
 
 	/**
@@ -460,7 +493,7 @@ public class AthleteSorter implements Serializable {
 		boolean imwa = Competition.getCurrent().isImwa();
 		ChampionshipType championshipType = mr.getChampionshipType();
 		Group session = a.getGroup();
-		if (imwa && (championshipType == ChampionshipType.MASTERS || (session != null && session.isMasters()))) {
+		if (imwa && (championshipType.isMasters() || (session != null && session.isMasters()))) {
 			// IMWA lowers points for 1-person and two-person categories
 			Category category = a.getCategory();
 			int athleteCount = AthleteRepository.retrieveMastersAthleteCountForCategory(category);
@@ -492,13 +525,7 @@ public class AthleteSorter implements Serializable {
 		if (rank == null || rank <= 0) {
 			return 0;
 		}
-		if (rank == 1) {
-			return 28;
-		}
-		if (rank == 2) {
-			return 25;
-		}
-		return 26 - rank;
+		return pointsFormula(rank);
 	}
 
 	static public List<Athlete> registrationBWCopy(List<Athlete> toBeSorted) {
@@ -603,8 +630,12 @@ public class AthleteSorter implements Serializable {
 			case QPOINTS:
 			case GAMX:
 			case GAMX_M:
+			case GAMX_MS:
+			case GAMX_MC:
 			case GAMX_U:
 			case GAMX_A:
+			case GAMX_S:
+			case GAMX_C:
 			case AGEFACTORS:
 			case QAGE:
 				// logger.debug("ranking type {}",rankingType);
@@ -646,8 +677,12 @@ public class AthleteSorter implements Serializable {
 			case QPOINTS:
 			case GAMX:
 			case GAMX_M:
+			case GAMX_MS:
+			case GAMX_MC:
 			case GAMX_U:
 			case GAMX_A:
+			case GAMX_S:
+			case GAMX_C:
 			case AGEFACTORS:
 			case QAGE:
 				resultsOrder(sorted, rankingType, true);
@@ -703,6 +738,19 @@ public class AthleteSorter implements Serializable {
 	}
 
 	/**
+	 * Sort athletes by team and points, without splitting men/women inside each team.
+	 *
+	 * @param toBeSorted  the list to sort
+	 * @param rankingType the ranking type
+	 */
+	public static void teamPointsOrderMixed(List<Athlete> toBeSorted, Ranking rankingType) {
+		if (!RankingConfig.shouldCompute(rankingType)) {
+			return;
+		}
+		Collections.sort(toBeSorted, new TeamPointsComparator(rankingType, false));
+	}
+
+	/**
 	 * Sort athletes by team, gender and totalRank so team totals can be computed.
 	 *
 	 * @param athletes    the to be sorted
@@ -718,6 +766,22 @@ public class AthleteSorter implements Serializable {
 		return sorted;
 	}
 
+	/**
+	 * Sort athletes by team and points, without splitting men/women inside each team, creating a copy.
+	 *
+	 * @param athletes    the list to copy and sort
+	 * @param rankingType what type of lift or total is being ranked
+	 * @return the sorted list
+	 */
+	public static List<Athlete> teamPointsOrderCopyMixed(List<? extends Athlete> athletes, Ranking rankingType) {
+		List<Athlete> sorted = new ArrayList<>(athletes);
+		if (!RankingConfig.shouldCompute(rankingType)) {
+			return sorted;
+		}
+		teamPointsOrderMixed(sorted, rankingType);
+		return sorted;
+	}
+
 	public static List<PAthlete> teamPointsOrderedPAthletes(List<Participation> mwAgeGroupParticipations,
 	        Ranking rankingType) {
 		mwAgeGroupParticipations.sort(new TeamPointsPComparator(rankingType));
@@ -726,7 +790,10 @@ public class AthleteSorter implements Serializable {
 	}
 
 	public static TopScore topScore(List<Athlete> sortedAthletes, int nbAthletes) {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		return topScore(sortedAthletes, nbAthletes, Championship.of(null).getScoringSystem());
+	}
+
+	public static TopScore topScore(List<Athlete> sortedAthletes, int nbAthletes, Ranking scoringSystem) {
 		if (!RankingConfig.shouldCompute(scoringSystem)) {
 			return new TopScore(0.0D, List.of());
 		}

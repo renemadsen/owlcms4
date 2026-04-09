@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.LoggerFactory;
@@ -27,8 +28,7 @@ import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.button.Button;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.grid.ColumnTextAlign;
-import com.vaadin.flow.component.html.Anchor;
-import com.vaadin.flow.component.icon.Icon;
+import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.icon.VaadinIcon;
 import com.vaadin.flow.component.orderedlayout.FlexComponent;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
@@ -41,17 +41,18 @@ import com.vaadin.flow.router.Location;
 import com.vaadin.flow.router.OptionalParameter;
 import com.vaadin.flow.router.QueryParameters;
 import com.vaadin.flow.router.Route;
-import com.vaadin.flow.server.streams.DownloadHandler;
 
 import app.owlcms.apputils.queryparameters.BaseContent;
+import app.owlcms.components.JXLSDownloader;
 import app.owlcms.data.agegroup.AgeGroupRepository;
 import app.owlcms.data.agegroup.Championship;
-import app.owlcms.data.agegroup.ChampionshipType;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.data.group.GroupRepository;
+import app.owlcms.data.team.TeamResultsDisplayRules;
 import app.owlcms.data.team.TeamResultsTreeData;
 import app.owlcms.data.team.TeamTreeItem;
 import app.owlcms.i18n.Translator;
@@ -59,11 +60,11 @@ import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.nui.crudui.OwlcmsCrudFormFactory;
 import app.owlcms.nui.crudui.OwlcmsCrudGrid;
 import app.owlcms.nui.crudui.OwlcmsGridLayout;
+import app.owlcms.nui.preparation.EditChampionshipsDialog;
 import app.owlcms.nui.shared.IAthleteEditing;
 import app.owlcms.nui.shared.OwlcmsContent;
 import app.owlcms.nui.shared.OwlcmsLayout;
-import app.owlcms.nui.shared.RequireLogin;
-import app.owlcms.spreadsheet.JXLSCompetitionBook;
+import app.owlcms.spreadsheet.JXLSTeamResultsSheet;
 import app.owlcms.utils.URLUtils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -76,7 +77,7 @@ import ch.qos.logback.classic.Logger;
 @SuppressWarnings("serial")
 @Route(value = "results/teamresults", layout = OwlcmsLayout.class)
 public class TeamResultsContent extends BaseContent
-        implements OwlcmsContent, RequireLogin, IAthleteEditing {
+	implements OwlcmsContent, IAthleteEditing {
 
 	static final String TITLE = "TeamResults.Title";
 	final private static Logger jexlLogger = (Logger) LoggerFactory.getLogger("org.apache.commons.jexl2.JexlEngine");
@@ -90,20 +91,20 @@ public class TeamResultsContent extends BaseContent
 	protected ComboBox<Group> topBarGroupSelect;
 	// private boolean teamFilterRecusion;
 	private List<Championship> adItems;
-	private Championship ageDivision;
+	private Championship championship;
 	private String ageGroupPrefix;
 	private OwlcmsCrudGrid<TeamTreeItem> crudGrid;
 	private Group currentGroup;
-	private Button download;
-	private Anchor finalPackage;
+	private JXLSDownloader downloadDialog;
 	private DecimalFormat floatFormat;
 	// private ComboBox<Category> categoryFilter;
 	private ComboBox<Gender> genderFilter;
 	private OwlcmsLayout routerLayout;
-	private ComboBox<Championship> topBarAgeDivisionSelect;
+	private List<Grid.Column<TeamTreeItem>> scoreColumns = new ArrayList<>();
+	private Grid.Column<TeamTreeItem> statusColumn;
+	private ComboBox<Championship> topBarChampionshipSelect;
 	// private ComboBox<String> teamFilter;
 	private ComboBox<String> topBarAgeGroupPrefixSelect;
-	private JXLSCompetitionBook xlsWriter;
 
 	/**
 	 * Instantiates a new announcer content. Does nothing. Content is created in {@link #setParameter(BeforeEvent, String)} after URL parameters are parsed.
@@ -130,26 +131,18 @@ public class TeamResultsContent extends BaseContent
 	@Override
 	public FlexLayout createMenuArea() {
 		this.topBar = new FlexLayout();
-		this.xlsWriter = new JXLSCompetitionBook(true, UI.getCurrent());
-		DownloadHandler downloadHandler = event -> {
-			event.setFileName(TITLE + "Report" + ".xls");
-			try (var is = this.xlsWriter.createInputStream()) {
-				is.transferTo(event.getOutputStream());
-			} catch (Exception ex) {
-				// Optionally log error
-			}
-		};
-		this.finalPackage = new Anchor(downloadHandler, "");
-		this.finalPackage.getStyle().set("margin-left", "1em");
-		this.download = new Button(Translator.translate(TITLE + ".Report"), new Icon(VaadinIcon.DOWNLOAD_ALT));
 
-		this.finalPackage.add(this.download);
-		HorizontalLayout buttons = new HorizontalLayout(this.finalPackage);
+		Button teamResultsDownloadButton = createTeamResultsDownloadButton();
+		Button editChampionshipsButton = new Button(
+			Translator.translate("EditChampionships.Title"),
+			VaadinIcon.PENCIL.create(),
+			e -> new EditChampionshipsDialog(() -> this.crudGrid.refreshGrid()).open());
+		HorizontalLayout buttons = new HorizontalLayout(teamResultsDownloadButton, editChampionshipsButton);
 		buttons.setAlignItems(FlexComponent.Alignment.BASELINE);
 
 		this.topBar.getStyle().set("flex", "100 1");
 		this.topBar.removeAll();
-		// this.topBar.add(this.topBarAgeDivisionSelect, this.topBarAgeGroupPrefixSelect);
+		this.topBar.add(buttons);
 		this.topBar.setJustifyContentMode(FlexComponent.JustifyContentMode.START);
 		this.topBar.setAlignItems(FlexComponent.Alignment.CENTER);
 		return this.topBar;
@@ -165,8 +158,8 @@ public class TeamResultsContent extends BaseContent
 	public Collection<TeamTreeItem> findAll() {
 		List<TeamTreeItem> allTeams = new ArrayList<>();
 
-		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getAgeDivision(),
-		        getGenderFilter().getValue(), Ranking.SNATCH_CJ_TOTAL, false);
+		TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
+		        getGenderFilter().getValue(), getTeamRanking(), false);
 		Map<Gender, List<TeamTreeItem>> teamsByGender = teamResultsTreeData.getTeamItemsByGender();
 
 		List<TeamTreeItem> mensTeams = teamsByGender.get(Gender.M);
@@ -181,8 +174,8 @@ public class TeamResultsContent extends BaseContent
 		return allTeams;
 	}
 
-	public Championship getAgeDivision() {
-		return this.ageDivision;
+	public Championship getChampionship() {
+		return this.championship;
 	}
 
 	public String getAgeGroupPrefix() {
@@ -221,12 +214,22 @@ public class TeamResultsContent extends BaseContent
 		return false;
 	}
 
+	private Ranking getTeamRanking() {
+		if (getGenderFilter() != null && getGenderFilter().getValue() == Gender.MF && getChampionship() != null) {
+			return getChampionship().getMixedTeamScoringSystem() != null ? getChampionship().getMixedTeamScoringSystem() : Ranking.TOTAL;
+		}
+		if (getChampionship() != null) {
+			return getChampionship().getTeamScoringSystem() != null ? getChampionship().getTeamScoringSystem() : Ranking.TOTAL;
+		}
+		return Ranking.TOTAL;
+	}
+
 	public void refresh() {
 		this.crudGrid.refreshGrid();
 	}
 
-	public void setAgeDivision(Championship ageDivision) {
-		this.ageDivision = ageDivision;
+	public void setChampionship(Championship championship) {
+		this.championship = championship;
 	}
 
 	public void setAgeGroupPrefix(String ageGroupPrefix) {
@@ -260,7 +263,7 @@ public class TeamResultsContent extends BaseContent
 			this.currentGroup = null;
 		}
 		if (this.currentGroup != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(this.currentGroup.getName())));
+			params.put("group", Arrays.asList(this.currentGroup.getName()));
 		} else {
 			params.remove("group");
 		}
@@ -281,7 +284,7 @@ public class TeamResultsContent extends BaseContent
 		HashMap<String, List<String>> params = new HashMap<>(
 		        location.getQueryParameters().getParameters());
 		if (!isIgnoreGroupFromURL() && newGroup != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(newGroup.getName())));
+			params.put("group", Arrays.asList(newGroup.getName()));
 		} else {
 			params.remove("group");
 		}
@@ -313,32 +316,12 @@ public class TeamResultsContent extends BaseContent
 				.setHeader(Translator.translate("Category"))
 				.setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.CENTER);
-		grid.addColumn(TeamTreeItem::getPoints, "points")
+		grid.addColumn(t -> shouldShowTeamSummaryPoints(t) ? t.getPoints() : null, "points")
 				.setHeader(Translator.translate("TeamResults.Points"))
 		        .setComparator((a, b) -> ObjectUtils.compare(a.getPoints(), b.getPoints(), false))
 				.setAutoWidth(true)
 		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getQPointsScore(), 3))
-		        .setHeader(Translator.translate("Ranking.QPOINTS"))
-		        .setComparator((a, b) -> ObjectUtils.compare(a.getSinclairScore(), b.getSinclairScore(), false))
-				.setAutoWidth(true)
-		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getQMastersScore(), 3))
-		        .setHeader(Translator.translate("Ranking.QAGE"))
-		        .setComparator((a, b) -> ObjectUtils.compare(a.getQMastersScore(), b.getQMastersScore(), false))
-				.setAutoWidth(true)
-		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getSinclairScore(), 3))
-		        .setHeader(Translator.translate("Scoreboard.Sinclair"))
-		        .setComparator((a, b) -> ObjectUtils.compare(a.getSinclairScore(), b.getSinclairScore(), false))
-		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(t -> formatDouble(t.getSmfScore(), 3))
-		        .setHeader(Translator.translate("smhf"))
-				.setAutoWidth(true)
-		        .setComparator((a, b) -> ObjectUtils.compare(a.getSmfScore(), b.getSmfScore(), false))
-		        .setTextAlign(ColumnTextAlign.END);
-		grid.addColumn(TeamTreeItem::formatProgress).setHeader(Translator.translate("TeamResults.Status"))
-		        .setTextAlign(ColumnTextAlign.END);
+		updateScoreColumns(grid);
 
 		OwlcmsGridLayout gridLayout = new OwlcmsGridLayout(TeamTreeItem.class);
 		OwlcmsCrudGrid<TeamTreeItem> crudGrid = new OwlcmsCrudGrid<>(TeamTreeItem.class, gridLayout,
@@ -349,12 +332,10 @@ public class TeamResultsContent extends BaseContent
 				if (TeamResultsContent.this.topBar == null) {
 					return;
 				}
-				// logger.debug("refreshing grid {} {} {}",getAgeGroupPrefix(),
-				// getAgeDivision(),
-				// genderFilter.getValue());
-				TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getAgeDivision(),
-				        TeamResultsContent.this.genderFilter.getValue(), Ranking.SNATCH_CJ_TOTAL, false);
+				TeamResultsTreeData teamResultsTreeData = new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(),
+				        TeamResultsContent.this.genderFilter.getValue(), getTeamRanking(), false);
 				this.grid.setDataProvider(new TreeDataProvider<>(teamResultsTreeData));
+				updateScoreColumns((TreeGrid<TeamTreeItem>) this.grid);
 			}
 
 			@Override
@@ -398,6 +379,16 @@ public class TeamResultsContent extends BaseContent
 
 	protected void defineFilters(OwlcmsCrudGrid<TeamTreeItem> crudGrid2) {
 
+		Button recomputeRanksButton = new Button(Translator.translate("RecomputeRanks"),
+		        VaadinIcon.REFRESH.create(),
+		        e -> {
+			        Competition.recomputeAllAthleteRanks();
+			        crudGrid2.refreshGrid();
+		        });
+		recomputeRanksButton.getElement().setAttribute("title", Translator.translate("RecomputeRanks"));
+		recomputeRanksButton.getElement().setAttribute("theme", "secondary contrast small icon");
+		crudGrid2.getCrudLayout().addFilterComponent(recomputeRanksButton);
+
 		this.topBarAgeGroupPrefixSelect = new ComboBox<>();
 		this.topBarAgeGroupPrefixSelect.setPlaceholder(Translator.translate("AgeGroup"));
 		this.topBarAgeGroupPrefixSelect.setEnabled(false);
@@ -408,15 +399,15 @@ public class TeamResultsContent extends BaseContent
 		this.topBarAgeGroupPrefixSelect.getStyle().set("margin-left", "1em");
 		setAgeGroupPrefixSelectionListener();
 
-		this.topBarAgeDivisionSelect = new ComboBox<>();
-		this.topBarAgeDivisionSelect.setPlaceholder(Translator.translate("Championship"));
+		this.topBarChampionshipSelect = new ComboBox<>();
+		this.topBarChampionshipSelect.setPlaceholder(Translator.translate("Championship"));
 		this.adItems = Championship.findAllUsed(true);
-		this.topBarAgeDivisionSelect.setItems(this.adItems);
-		this.topBarAgeDivisionSelect.setItemLabelGenerator((ad) -> ad.getName());
-		this.topBarAgeDivisionSelect.setClearButtonVisible(true);
-		this.topBarAgeDivisionSelect.setWidth("15em");
-		this.topBarAgeDivisionSelect.getStyle().set("margin-left", "1em");
-		setAgeDivisionSelectionListener();
+		this.topBarChampionshipSelect.setItems(this.adItems);
+		this.topBarChampionshipSelect.setItemLabelGenerator((ad) -> ad.getName());
+		this.topBarChampionshipSelect.setClearButtonVisible(true);
+		this.topBarChampionshipSelect.setWidth("15em");
+		this.topBarChampionshipSelect.getStyle().set("margin-left", "1em");
+		setChampionshipSelectionListener();
 
 		if (this.genderFilter == null) {
 			this.genderFilter = new ComboBox<>();
@@ -430,7 +421,7 @@ public class TeamResultsContent extends BaseContent
 			this.genderFilter.setWidth("15em");
 		}
 
-		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeDivisionSelect);
+		crudGrid2.getCrudLayout().addFilterComponent(this.topBarChampionshipSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.topBarAgeGroupPrefixSelect);
 		crudGrid2.getCrudLayout().addFilterComponent(this.genderFilter);
 	}
@@ -446,8 +437,8 @@ public class TeamResultsContent extends BaseContent
 		this.crudGrid = createCrudGrid(crudFormFactory);
 		fillHW(this.crudGrid, this);
 		Championship value = (this.adItems != null && this.adItems.size() > 0) ? this.adItems.get(0) : null;
-		setAgeDivision(value);
-		this.topBarAgeDivisionSelect.setValue(value);
+		setChampionship(value);
+		this.topBarChampionshipSelect.setValue(value);
 	}
 
 	private void defineContent(OwlcmsCrudGrid<TeamTreeItem> crudGrid) {
@@ -466,8 +457,8 @@ public class TeamResultsContent extends BaseContent
 			@Override
 			public DataProvider<TeamTreeItem, ?> getDataProvider() {
 				return new TreeDataProvider<>(
-				        new TeamResultsTreeData(getAgeGroupPrefix(), getAgeDivision(), getGenderFilter().getValue(),
-				                Ranking.SNATCH_CJ_TOTAL, false));
+				        new TeamResultsTreeData(getAgeGroupPrefix(), getChampionship(), getGenderFilter().getValue(),
+				                getTeamRanking(), false));
 			}
 
 			@Override
@@ -478,7 +469,128 @@ public class TeamResultsContent extends BaseContent
 		});
 	}
 
-	private String formatDouble(double d, int decimals) {
+	private Button createTeamResultsDownloadButton() {
+		this.downloadDialog = new JXLSDownloader(
+		        () -> {
+			        JXLSTeamResultsSheet rs = new JXLSTeamResultsSheet(UI.getCurrent());
+			        rs.setChampionship(this.championship);
+			        rs.setAgeGroupPrefix(this.ageGroupPrefix);
+			        rs.setGender(getGenderFilter() != null ? getGenderFilter().getValue() : null);
+			        return rs;
+		        },
+		        "/templates/teamResults",
+		        Competition::getComputedTeamResultsTemplateFileName,
+		        Competition::setTeamResultsTemplateFileName,
+		        Translator.translate(TITLE),
+		        Translator.translate("Download"));
+		this.downloadDialog.setProcessingMessage(Translator.translate("LongProcessing"));
+		return this.downloadDialog.createDownloadButton();
+	}
+
+	private Function<TeamTreeItem, Double> getScoreGetter(Ranking ranking) {
+		if (ranking == null) {
+			return t -> 0D;
+		}
+		switch (ranking) {
+			case BW_SINCLAIR:
+				return TeamTreeItem::getSinclairScore;
+			case QPOINTS:
+				return TeamTreeItem::getQPointsScore;
+			case QAGE:
+				return TeamTreeItem::getQMastersScore;
+			case SMM:
+				return TeamTreeItem::getSmfScore;
+			case GAMX:
+			case GAMX_M:
+			case GAMX_MS:
+			case GAMX_MC:
+			case GAMX_U:
+			case GAMX_A:
+			case GAMX_S:
+			case GAMX_C:
+				return TeamTreeItem::getGamxScore;
+			case ROBI:
+				return TeamTreeItem::getRobiScore;
+			case CAT_SINCLAIR:
+				return TeamTreeItem::getCatSinclairMetric;
+			case CAT_QPOINTS:
+				return TeamTreeItem::getCatQPointsMetric;
+			case CAT_GAMX:
+				return TeamTreeItem::getCatGamxScore;
+			default:
+				return TeamTreeItem::getScore;
+		}
+	}
+
+	private List<Ranking> getRequiredScoreRankings() {
+		Gender genderValue = this.genderFilter != null ? this.genderFilter.getValue() : null;
+		Championship effectiveChampionship = getChampionship() != null ? getChampionship() : Championship.of(null);
+		Ranking competitionScoring = effectiveChampionship.getScoringSystem();
+		return TeamResultsDisplayRules.getRequiredScoreRankings(getChampionship(), genderValue, competitionScoring);
+	}
+
+	private boolean shouldShowTeamSummaryValue(TeamTreeItem item, Ranking ranking) {
+		return TeamResultsDisplayRules.shouldShowTeamSummaryValue(getChampionship(), item, ranking);
+	}
+
+	private boolean shouldShowTeamSummaryPoints(TeamTreeItem item) {
+		return TeamResultsDisplayRules.shouldShowTeamSummaryPoints(getChampionship(), item);
+	}
+
+	private void updateScoreColumns(TreeGrid<TeamTreeItem> grid) {
+		// Remove old score columns
+		for (Grid.Column<TeamTreeItem> col : this.scoreColumns) {
+			grid.removeColumn(col);
+		}
+		this.scoreColumns.clear();
+
+		// Remove status column (will be re-added at the end)
+		if (this.statusColumn != null) {
+			grid.removeColumn(this.statusColumn);
+		}
+
+		// Add dynamic score columns
+		List<Ranking> rankings = getRequiredScoreRankings();
+		for (Ranking ranking : rankings) {
+			Function<TeamTreeItem, Double> getter = getScoreGetter(ranking);
+			Grid.Column<TeamTreeItem> col = grid.addColumn(t -> {
+				if (!shouldShowTeamSummaryValue(t, ranking)) {
+					return "";
+				}
+				Double val = getter.apply(t);
+				return val != null ? formatDouble(val, 3) : "";
+			})
+					.setHeader(Ranking.getScoringTitle(ranking))
+					.setComparator((a, b) -> ObjectUtils.compare(getter.apply(a), getter.apply(b), false))
+					.setAutoWidth(true)
+					.setTextAlign(ColumnTextAlign.END);
+			this.scoreColumns.add(col);
+		}
+
+		// Re-add status column at the end
+		this.statusColumn = grid.addColumn(this::formatStatus)
+				.setHeader(Translator.translate("TeamResults.Status"))
+				.setTextAlign(ColumnTextAlign.END);
+	}
+
+	private String formatStatus(TeamTreeItem item) {
+		if (item == null) {
+			return "";
+		}
+		if (item.getAthlete() != null) {
+			return item.isDone() ? Translator.translate("Done") : "";
+		}
+
+		Championship currentChampionship = getChampionship();
+		if (currentChampionship == null) {
+			return item.formatProgress();
+		}
+
+		int configuredTeamSize = currentChampionship.getConfiguredTeamSize(getAgeGroupPrefix(), item.getGender());
+		return item.getCounted() + "/" + configuredTeamSize;
+	}
+
+	private String formatDouble(Double d, int decimals) {
 		if (this.floatFormat == null) {
 			this.floatFormat = new DecimalFormat();
 			this.floatFormat.setMinimumIntegerDigits(1);
@@ -489,14 +601,14 @@ public class TeamResultsContent extends BaseContent
 		return this.floatFormat.format(d);
 	}
 
-	private void setAgeDivisionSelectionListener() {
-		this.topBarAgeDivisionSelect.addValueChangeListener(e -> {
+	private void setChampionshipSelectionListener() {
+		this.topBarChampionshipSelect.addValueChangeListener(e -> {
 			// the name of the resulting file is set as an attribute on the <a href tag that
 			// surrounds the download button.
-			Championship ageDivisionValue = e.getValue();
-			setAgeDivision(ageDivisionValue);
-			// logger.debug("ageDivisionSelectionListener {}",ageDivisionValue);
-			if (ageDivisionValue == null) {
+			Championship championshipValue = e.getValue();
+			setChampionship(championshipValue);
+			// logger.debug("championshipSelectionListener {}", championshipValue);
+			if (championshipValue == null) {
 				this.topBarAgeGroupPrefixSelect.setValue(null);
 				this.topBarAgeGroupPrefixSelect.setItems(new ArrayList<>());
 				this.topBarAgeGroupPrefixSelect.setEnabled(false);
@@ -505,22 +617,17 @@ public class TeamResultsContent extends BaseContent
 				return;
 			}
 
-			List<String> ageDivisionAgeGroupPrefixes;
-			ageDivisionAgeGroupPrefixes = AgeGroupRepository.findActiveAndUsedAgeGroupNames(ageDivisionValue);
+			List<String> championshipAgeGroupPrefixes;
+			championshipAgeGroupPrefixes = AgeGroupRepository.findActiveAndUsedAgeGroupNames(championshipValue);
 
-			this.topBarAgeGroupPrefixSelect.setItems(ageDivisionAgeGroupPrefixes);
-			boolean notEmpty = ageDivisionAgeGroupPrefixes.size() > 0;
+			this.topBarAgeGroupPrefixSelect.setItems(championshipAgeGroupPrefixes);
+			boolean notEmpty = championshipAgeGroupPrefixes.size() > 0;
 			this.topBarAgeGroupPrefixSelect.setEnabled(notEmpty);
-			String first = (notEmpty && ageDivisionValue.getType() == ChampionshipType.IWF) ? ageDivisionAgeGroupPrefixes.get(0)
+			String first = (notEmpty && championshipValue.getType().isIWF()) ? championshipAgeGroupPrefixes.get(0)
 			        : null;
-			// logger.debug("ad {} ag {} first {} select {}", ageDivisionValue,
-			// ageDivisionAgeGroupPrefixes, first,
+			// logger.debug("championship {} ag {} first {} select {}", championshipValue,
+			// championshipAgeGroupPrefixes, first,
 			// topBarAgeGroupPrefixSelect);
-
-			this.xlsWriter.setChampionship(ageDivisionValue);
-			this.finalPackage.getElement().setAttribute("download",
-			        "results" + (getAgeDivision() != null ? "_" + getAgeDivision().getName()
-			                : (this.ageGroupPrefix != null ? "_" + this.ageGroupPrefix : "_all")) + ".xls");
 
 			String value = notEmpty ? first : null;
 			// logger.debug("setting prefix to {}", value);
@@ -543,11 +650,7 @@ public class TeamResultsContent extends BaseContent
 			setAgeGroupPrefix(prefix);
 
 			// logger.debug("ageGroupPrefixSelectionListener {}",prefix);
-			// updateFilters(getAgeDivision(), getAgeGroupPrefix());
-			this.xlsWriter.setAgeGroupPrefix(this.ageGroupPrefix);
-			this.finalPackage.getElement().setAttribute("download",
-			        "results" + (getAgeDivision() != null ? "_" + getAgeDivision().getName()
-			                : (this.ageGroupPrefix != null ? "_" + this.ageGroupPrefix : "_all")) + ".xls");
+			// updateFilters(getChampionship(), getAgeGroupPrefix());
 
 			if (this.crudGrid != null) {
 				this.crudGrid.refreshGrid();
@@ -558,12 +661,12 @@ public class TeamResultsContent extends BaseContent
 
 	private void updateFilters() {
 		// List<Category> categories = CategoryRepository.findByGenderDivisionAgeBW(genderFilter.getValue(),
-		// getAgeDivision(), null, null);
+		// getChampionship(), null, null);
 		// if (getAgeGroupPrefix() != null && !getAgeGroupPrefix().isBlank()) {
 		// categories = categories.stream().filter((c) -> c.getAgeGroup().getCode().equals(getAgeGroupPrefix()))
 		// .collect(Collectors.toList());
 		// }
-		// logger.trace("updateFilters {}, {}, {}", ageDivision2, ageGroupPrefix2, categories);
+		// logger.trace("updateFilters {}, {}, {}", championship, ageGroupPrefix2, categories);
 		// categoryFilter.setItems(categories);
 	}
 

@@ -31,6 +31,7 @@ import app.owlcms.apputils.SoundUtils;
 import app.owlcms.apputils.queryparameters.DisplayParameters;
 import app.owlcms.apputils.queryparameters.ResultsParameters;
 import app.owlcms.data.agegroup.AgeGroup;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.LiftDefinition.Changes;
 import app.owlcms.data.athlete.LiftInfo;
@@ -108,6 +109,9 @@ public class BaseResults extends LitTemplate
 	private final Logger uiEventLogger = (Logger) LoggerFactory.getLogger("UI" + this.logger.getName());
 	private boolean video;
 	private boolean currentAttempt;
+	private String showMedals = "auto";
+	private int topN = DisplayParameters.DEFAULT_TOP_N;
+	private boolean groupPinnedFromURL;
 
 	public BaseResults() {
 		this.uiEventLogger.setLevel(Level.INFO);
@@ -174,6 +178,14 @@ public class BaseResults extends LitTemplate
 	@Override
 	final public Group getGroup() {
 		return this.group;
+	}
+
+	public boolean isGroupPinnedFromURL() {
+		return this.groupPinnedFromURL;
+	}
+
+	public void setGroupPinnedFromURL(boolean groupPinnedFromURL) {
+		this.groupPinnedFromURL = groupPinnedFromURL;
 	}
 
 	final public Location getLocation() {
@@ -309,7 +321,7 @@ public class BaseResults extends LitTemplate
 
 	@Override
 	public final void setEmFontSize(Double emFontSize) {
-		logger.debug("%%%%% setEmFontSize {}", emFontSize);
+		logger.debug("setEmFontSize {}", emFontSize);
 		this.emFontSize = emFontSize;
 		pushEmSize(this.getElement());
 	}
@@ -437,6 +449,27 @@ public class BaseResults extends LitTemplate
 	public void setCurrentAttempt(boolean b) {
 		this.currentAttempt = b;
 		getElement().setProperty("currentAttempt", this.currentAttempt);
+	}
+
+	@Override
+	public String isShowMedals() {
+		return this.showMedals;
+	}
+
+	@Override
+	public void setShowMedals(String value) {
+		this.showMedals = value != null ? value : "auto";
+		getElement().setProperty("showMedals", this.showMedals);
+	}
+
+	@Override
+	public int getTopN() {
+		return this.topN;
+	}
+
+	@Override
+	public void setTopN(int topN) {
+		this.topN = topN > 0 ? topN : DisplayParameters.DEFAULT_TOP_N;
 	}
 
 	@Subscribe
@@ -583,15 +616,13 @@ public class BaseResults extends LitTemplate
 	protected String computedScore(Athlete a) {
 		AgeGroup ageGroup = a.getAgeGroup();
 		Ranking ageGroupScoringSystem = ageGroup != null ? ageGroup.getComputedScoringSystem() : null;
+		Championship athleteChampionship = ageGroup != null ? ageGroup.getChampionship() : Championship.of(null);
 
-		Competition current = Competition.getCurrent();
-		boolean sinclair = current.isSinclair();
-		Competition current2 = Competition.getCurrent();
-		boolean displayGlobal = current2.isDisplayScores();
-		Competition current3 = Competition.getCurrent();
-		Ranking scoringSystem = current3.getScoringSystem();
+		boolean scoreMedalChampionship = athleteChampionship.isScoreMedalChampionship();
+		boolean displayGlobal = Competition.getCurrent().isDisplayScores();
+		Ranking scoringSystem = athleteChampionship.getScoringSystem();
 
-		if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+		if (ageGroupScoringSystem != null && !scoreMedalChampionship && !displayGlobal) {
 			Participation p = null;
 			String athleteCatCode = a.getCategory() != null ? a.getCategory().getCode() : null;
 			if (a.getParticipations() != null && a.getParticipations().size() > 0 && athleteCatCode != null) {
@@ -624,18 +655,17 @@ public class BaseResults extends LitTemplate
 	}
 
 	protected String computedScoreRank(Athlete a) {
-		Ranking ageGroupScoringSystem = a.getAgeGroup().getComputedScoringSystem();
+		AgeGroup ageGroup = a.getAgeGroup();
+		Ranking ageGroupScoringSystem = ageGroup != null ? ageGroup.getComputedScoringSystem() : null;
+		Championship athleteChampionship = ageGroup != null ? ageGroup.getChampionship() : Championship.of(null);
 
-		Competition current = Competition.getCurrent();
-		boolean sinclair = current.isSinclair();
-		Competition current2 = Competition.getCurrent();
-		boolean displayGlobal = current2.isDisplayScoreRanks();
-		Competition current3 = Competition.getCurrent();
-		Ranking bestLifterScoringSystem = current3.getScoringSystem();
+		boolean scoreMedalChampionship = athleteChampionship.isScoreMedalChampionship();
+		boolean displayGlobal = Competition.getCurrent().isDisplayScoreRanks();
+		Ranking bestLifterScoringSystem = athleteChampionship.getScoringSystem();
 
 		String result;
 		if (a.isEligibleForIndividualRanking()) {
-			if (ageGroupScoringSystem != null && !sinclair && !displayGlobal) {
+			if (ageGroupScoringSystem != null && !scoreMedalChampionship && !displayGlobal) {
 				Participation p = null;
 				String athleteCatCode = a.getCategory() != null ? a.getCategory().getCode() : null;
 				if (a.getParticipations() != null && a.getParticipations().size() > 0 && athleteCatCode != null) {
@@ -672,12 +702,15 @@ public class BaseResults extends LitTemplate
 		}
 		if (curAthlete.getGender() != null) {
 			this.getElement().setProperty("categoryName", curAthlete.getCategory().getDisplayName());
+			boolean scoreMedalChampionship = Championship.anyScoreMedalChampionship(fop.getActiveChampionships());
 
-			if (Competition.getCurrent().isSinclair()) {
-				Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+			if (scoreMedalChampionship) {
+				Ranking scoringSystem = curAthlete.getAgeGroup() != null
+				        ? curAthlete.getAgeGroup().getChampionship().getScoringSystem()
+				        : Championship.of(null).getScoringSystem();
 				List<Athlete> sortedAthletes = new ArrayList<>(
 				        Competition.getCurrent().getGlobalScoreRanking(curAthlete.getGender()));
-				this.displayOrder = AthleteSorter.topScore(sortedAthletes, 3).topAthletes;
+				this.displayOrder = AthleteSorter.topScore(sortedAthletes, 3, scoringSystem).topAthletes;
 				this.getElement().setProperty("categoryName", Ranking.getScoringTitle(scoringSystem));
 			} else {
 				List<Athlete> leaders = fop.getLeaders();
@@ -691,7 +724,7 @@ public class BaseResults extends LitTemplate
 					this.displayOrder = leaders;
 				}
 			}
-			if ((!done || Competition.getCurrent().isSinclair()) && this.displayOrder != null
+			if ((!done || scoreMedalChampionship) && this.displayOrder != null
 			        && this.displayOrder.size() > 0) {
 				// null as second argument because we do not highlight current athletes in the
 				// leaderboard
@@ -840,7 +873,12 @@ public class BaseResults extends LitTemplate
 			if (a != null) {
 				Group group = fop != null ? fop.getGroup() : null;
 				if (group != null && !group.isDone()) {
-					this.getElement().setProperty("fullName", a.getFullName() != null ? a.getFullName() : "");
+					if (isAbbreviatedName() || (a.getFullName().length() >= 45)) {
+						this.getElement().setProperty("fullName",
+						        a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "");
+					} else {
+						this.getElement().setProperty("fullName", a.getFullName() != null ? a.getFullName() : "");
+					}
 					this.getElement().setProperty("teamName", a.getTeam());
 					this.getElement().setProperty("startNumber", a.getStartNumber());
 					String formattedAttempt = formatAttempt(a.getAttemptsDone());
@@ -863,8 +901,7 @@ public class BaseResults extends LitTemplate
 		if (value == null || value == 0) {
 			return "-";
 		} else if (value < 0) {
-			// DVF: removed parentheses from failed lifts
-		return String.valueOf(Math.abs(value));
+			return "(" + Math.abs(value) + ")";
 		} else {
 			return value.toString();
 		}
@@ -872,7 +909,7 @@ public class BaseResults extends LitTemplate
 
 	protected String formatRank(Integer total) {
 		if (total == null || total == 0) {
-			return "-";
+			return "&nbsp;";
 		} else if (total == -1) {
 			// invited lifter, not eligible.
 			return Translator.translate("Results.Extra/Invited");
@@ -892,7 +929,12 @@ public class BaseResults extends LitTemplate
 
 		String category;
 		category = curCat != null ? curCat.getDisplayName() : "";
-		String fullName = a.getFullName() != null ? a.getFullName() : "";
+		String fullName;
+		if (isAbbreviatedName()) {
+			fullName = a.getAbbreviatedName() != null ? a.getAbbreviatedName() : "";
+		} else {
+			fullName = a.getFullName() != null ? a.getFullName() : "";
+		}
 		if (!a.isEligibleForIndividualRanking() && !fullName.isBlank()) {
 			fullName = Translator.translate("Scoreboard.Extra/Invited", fullName);
 		}
@@ -1155,14 +1197,16 @@ public class BaseResults extends LitTemplate
 
 		this.getElement().setProperty("platformName", CSSUtils.sanitizeCSSClassName(fop.getName()));
 		this.getElement().setProperty("logoSrc", getLogoSrc());
+		boolean anyMultiMedal = Championship.anyMultiMedal(fop.getActiveChampionships());
+		boolean scoreMedalChampionship = Championship.anyScoreMedalChampionship(fop.getActiveChampionships());
 
 		getElement().setProperty("showTotal", true);
 		getElement().setProperty("showBest", true); // overridden by media queries, not a variable
-		getElement().setProperty("showLiftRanks",
-		        Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
-		getElement().setProperty("showTotalRank", !Competition.getCurrent().isSinclair());
+		getElement().setProperty("showLiftRanks", anyMultiMedal && !scoreMedalChampionship);
+		getElement().setProperty("showTotalRank", !scoreMedalChampionship);
 		getElement().setProperty("video", this.video);
 		getElement().setProperty("currentAttempt", this.currentAttempt);
+		getElement().setProperty("showMedals", this.showMedals);
 
 		if (!isSilenced() || !isDownSilenced()) {
 			SoundUtils.enableAudioContextNotification(this.getElement());
@@ -1190,18 +1234,17 @@ public class BaseResults extends LitTemplate
 		}
 		setTranslationMap();
 
-		boolean showScore = scoring[0] || Competition.getCurrent().isDisplayScores() || Competition.getCurrent().isSinclair();
-		// DVF: always hide Sinclair columns on scoreboard
-		this.getElement().setProperty("showSinclair", false);
+		boolean scoreMedalChampionship = fop != null && Championship.anyScoreMedalChampionship(fop.getActiveChampionships());
+		boolean showScore = scoring[0] || Competition.getCurrent().isDisplayScores() || scoreMedalChampionship;
+		this.getElement().setProperty("showSinclair", showScore);
 
-		// DVF: always hide Sinclair rank on scoreboard
-		// boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || Competition.getCurrent().isSinclair();
-		// if (Config.getCurrent().featureSwitch("noSinclairRank")) {
-		// 	showScoreRank = false;
-		// } else if (Config.getCurrent().featureSwitch("displayBestScoreRank")) {
-		// 	showScoreRank = true;
-		// }
-		this.getElement().setProperty("showSinclairRank", false);
+		boolean showScoreRank = scoring[0] || Competition.getCurrent().isDisplayScoreRanks() || scoreMedalChampionship;
+		if (Config.getCurrent().featureSwitch("noSinclairRank")) {
+			showScoreRank = false;
+		} else if (Config.getCurrent().featureSwitch("displayBestScoreRank")) {
+			showScoreRank = true;
+		}
+		this.getElement().setProperty("showSinclairRank", showScoreRank);
 
 		this.displayOrder = ImmutableList.of();
 	}
@@ -1215,12 +1258,6 @@ public class BaseResults extends LitTemplate
 				translations.put(curKey.replace("Scoreboard.", ""), Translator.translate(curKey));
 			}
 		}
-		translations.put("Snatch_1", "1");
-		translations.put("Snatch_2", "2");
-		translations.put("Snatch_3", "3");
-		translations.put("CJ_1", "1");
-		translations.put("CJ_2", "2");
-		translations.put("CJ_3", "3");
 		translations.put("ScoringTitle", Translator.translate("Score"));
 		if (!Config.getCurrent().featureSwitch("medalistsAsLeaders")) {
 			translations.put("Leaders", Translator.translate("Leaders.PreviousGroups"));
@@ -1256,7 +1293,10 @@ public class BaseResults extends LitTemplate
 		updateGroupInfo(liftType);
 		// getAgeGroupNamesJson must be called before getAthletesJson
 		if (Config.getCurrent().featureSwitch("displayBestScore")) {
-			this.getElement().setProperty("scoringName", Translator.translate("Scoreboard." + Competition.getCurrent().getScoringSystem().name()));
+			Championship scoringChampionship = fop.getCurAthlete() != null && fop.getCurAthlete().getAgeGroup() != null
+			        ? fop.getCurAthlete().getAgeGroup().getChampionship()
+			        : fop.getActiveChampionships().stream().findFirst().orElse(Championship.of(null));
+			this.getElement().setProperty("scoringName", Translator.translate("Scoreboard." + scoringChampionship.getScoringSystem().name()));
 		} else {
 			this.getElement().setProperty("scoringName", Translator.translate("Score"));
 		}
@@ -1316,10 +1356,9 @@ public class BaseResults extends LitTemplate
 		return translate;
 	}
 
-	// DVF: removed parentheses from failed lifts — red background is sufficient
 	private String formatKg(String total) {
 		return (total == null || total.trim().isEmpty()) ? "-"
-		        : (total.startsWith("-") ? total.substring(1) : total);
+		        : (total.startsWith("-") ? "(" + total.substring(1) + ")" : total);
 	}
 
 	private boolean isAllBWCategory(Athlete cur) {

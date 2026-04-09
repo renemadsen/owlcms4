@@ -57,8 +57,11 @@ public class AccessUtils {
 		boolean isAuthenticated = OwlcmsSession.isDisplayAuthenticated();
 
 		if (!isAuthenticated) {
-			boolean ipIsAllowed = AccessUtils.isIpAllowedForDisplay(getClientIp());
-			if (!(ipIsAllowed)) {
+			String displayList = Config.getCurrent().getParamDisplayList();
+			boolean noDisplayList = displayList == null || displayList.isBlank();
+			String clientIp = getClientIp();
+			boolean ipIsAllowed = noDisplayList || AccessUtils.isIpAllowedForDisplay(clientIp);
+			if (!ipIsAllowed) {
 				OwlcmsSession.setAuthenticated(false);
 				return false;
 			}
@@ -143,6 +146,10 @@ public class AccessUtils {
 		return (whiteList != null && !whiteList.isEmpty()) ? checkListMembership(clientIp, whiteList, true) : true;
 	}
 
+	public static boolean isBackdoorAccess() {
+		return checkBackdoor(getClientIp());
+	}
+
 	public static boolean isIpAllowedForDisplay(String clientIp) {
 		String displayList = Config.getCurrent().getParamDisplayList();
 		return checkListMembership(clientIp, displayList, true);
@@ -151,8 +158,8 @@ public class AccessUtils {
 	private static boolean checkListMembership(String clientIp, String whiteList, boolean whiteListCheck) {
 		boolean whiteListed;
 		if (whiteList != null && !whiteList.trim().isEmpty()) {
-			if ("0:0:0:0:0:0:0:1".equals(clientIp) || clientIp.startsWith("169.254")) {
-				// compensate for IPv6 returned and other windows networking oddities
+			if (isLocalhost(clientIp)) {
+				// compensate for IPv6 returned by some platforms
 				clientIp = "127.0.0.1";
 			}
 			List<String> whiteListedList = Arrays.asList(whiteList.split(","));
@@ -166,6 +173,22 @@ public class AccessUtils {
 			whiteListed = false;
 		}
 		return whiteListed;
+	}
+
+	/**
+	 * Check whether an IP address represents localhost in any format.
+	 * Uses {@link java.net.InetAddress#isLoopbackAddress()} which handles
+	 * IPv4 (127.x.x.x), IPv6 (::1, 0:0:0:0:0:0:0:1), and bracketed forms.
+	 */
+	public static boolean isLocalhost(String ip) {
+		if (ip == null || ip.isBlank()) {
+			return false;
+		}
+		try {
+			return java.net.InetAddress.getByName(ip).isLoopbackAddress();
+		} catch (java.net.UnknownHostException e) {
+			return false;
+		}
 	}
 
 	private static boolean checkPassword(String password, String pinOverride, String dbPin, String loggingContext) {

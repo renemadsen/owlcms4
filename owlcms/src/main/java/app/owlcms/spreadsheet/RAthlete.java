@@ -6,6 +6,7 @@
  *******************************************************************************/
 package app.owlcms.spreadsheet;
 
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -39,10 +40,29 @@ import ch.qos.logback.classic.Logger;
  */
 public class RAthlete {
 
-	public static final String NoTeamMarker = "/NoTeam";
+	private static final String YesTeamMarker = "+T";
+	private static final String NoTeamMarker = "-T";
+	private static final String YesMixedMarker = "+MT";
+	private static final String NoMixedMarker = "-MT";
+	private static final String YesTeamValue = "YesTeam";
+	private static final String NoTeamValue = "NoTeam";
+	private static final String YesMixedValue = "YesMixed";
+	private static final String NoMixedValue = "NoMixed";
 	private Pattern legacyPattern;
 	Athlete a;
 	final Logger logger = (Logger) LoggerFactory.getLogger(RAthlete.class);
+
+	private static class ParticipationSpec {
+		private final String categoryName;
+		private final boolean teamMember;
+		private final boolean mixedTeamMember;
+
+		private ParticipationSpec(String categoryName, boolean teamMember, boolean mixedTeamMember) {
+			this.categoryName = categoryName;
+			this.teamMember = teamMember;
+			this.mixedTeamMember = mixedTeamMember;
+		}
+	}
 
 	{
 		this.logger.setLevel(Level.INFO);
@@ -55,6 +75,20 @@ public class RAthlete {
 
 	public Athlete getAthlete() {
 		return this.a;
+	}
+
+	public static String appendMembershipMarkers(String categoryName, boolean teamMember, boolean mixedTeamMember) {
+		List<String> markers = new ArrayList<>();
+		if (!teamMember) {
+			markers.add(NoTeamMarker);
+		}
+		if (mixedTeamMember) {
+			markers.add(YesMixedMarker);
+		}
+		if (markers.isEmpty()) {
+			return categoryName;
+		}
+		return categoryName + "/" + String.join(",", markers);
 	}
 
 	/**
@@ -350,30 +384,24 @@ public class RAthlete {
 
 	private void doLegacyParts(String s, String[] parts) throws Exception {
 		if (parts.length >= 1) {
-			boolean teamMember = false;
-			String catName = parts[0].trim();
-			if (!Config.getCurrent().featureSwitch("explicitTeams")) {
-				// teams are implicitly selected, check for team exclusion marker.
-				teamMember = true;
-				if (catName.endsWith(NoTeamMarker)) {
-					catName = catName.substring(0, s.length() - NoTeamMarker.length());
-					teamMember = false;
-				} else if (catName.endsWith("/")) {
-					catName = catName.substring(0, s.length() - "/".length());
-					teamMember = false;
-				}
-			}
+			ParticipationSpec mainParticipation = parseParticipationSpec(parts[0].trim());
+			String catName = mainParticipation.categoryName;
 
 			Category c = findActiveCategoryByName(catName);
 			if (c != null) {
 				// exact match for a category. This is the athlete's registration category.
-				processEligibilityAndTeams(parts, c, teamMember);
+				processEligibilityAndTeams(parts, c, mainParticipation.teamMember, mainParticipation.mixedTeamMember);
 			} else {
 				if (parts.length == 1 && !parts[0].contains(" ")) {
 					// we have a short form category. infer from age and category limit
 					setCategoryHeuristics(catName);
-					final var tm = teamMember;
-					this.a.getParticipations().stream().forEach(p -> p.setTeamMember(tm));
+					final var tm = mainParticipation.teamMember;
+					final var mtm = mainParticipation.mixedTeamMember;
+					this.a.getParticipations().stream().forEach(p -> {
+						p.setTeamMember(tm);
+						p.setMixedTeamMember(mtm && p.getCategory() != null && p.getCategory().getAgeGroup() != null
+						        && p.getCategory().getAgeGroup().isMixedTeams());
+					});
 				} else {
 					throw new Exception(
 					        Translator.translate("Upload.CategoryNotFoundByName", catName.trim()));
@@ -439,11 +467,11 @@ public class RAthlete {
 			s = s.replaceAll("(\\d+)\\s?kg", "$1");
 		}
 
-		String[] allParts = usaw ? s.split(",|;|\\/") : s.split(",|;");
-		List<String> partsList = Arrays.asList(allParts).stream()
+		String[] allParts = useLegacyUsawSplit(s, usaw) ? s.split(",|;|\\/") : s.split(",|;");
+		List<String> partsList = mergeMarkerTokens(Arrays.asList(allParts).stream()
 		        .filter(s1 -> (s1 != null && !s1.isBlank()))
 		        .map(s1 -> s1.trim())
-		        .toList();
+		        .toList());
 		// logger.debug("partsList {}",partsList);
 
 		String[] parts;
@@ -467,15 +495,22 @@ public class RAthlete {
 		}
 	}
 
-	private void processEligibilityAndTeams(String[] parts, Category c, boolean mainCategoryTeamMember)
+	private void processEligibilityAndTeams(String[] parts, Category c, boolean mainCategoryTeamMember,
+	        boolean mainCategoryMixedTeamMember)
 	        throws Exception {
 		LinkedHashSet<Category> eligibleCategories = new LinkedHashSet<>();
 		LinkedHashSet<Category> teams = new LinkedHashSet<>();
+		LinkedHashSet<Category> mixedTeams = new LinkedHashSet<>();
 		Integer athleteQTotal = this.getAthlete().getQualifyingTotal();
 		Integer athleteAge = null;
 		try {
 			athleteAge = this.getAthlete().getAge();
 		} catch (Exception e) {
+		}
+
+		if (mainCategoryMixedTeamMember && !c.getAgeGroup().isMixedTeams()) {
+			throw new Exception(Translator.translate("Upload.CategoryNotFoundByName",
+			        c.getDisplayName() + "/" + YesMixedMarker));
 		}
 
 		boolean addedToMainCat = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge,
@@ -486,6 +521,9 @@ public class RAthlete {
 				athleteQTotal != null ? athleteQTotal.toString() : "0"));
 		} else {
 			this.a.setCategory(c);
+			if (mainCategoryMixedTeamMember) {
+				mixedTeams.add(c);
+			}
 		}
 
 		// process the other participations. They are ; separated.
@@ -493,23 +531,27 @@ public class RAthlete {
 			//logger.debug("additional categories {}",parts[1]);
 			String[] eligibleNames = parts[1].split(";");
 			for (String eligibleName : eligibleNames) {
-				boolean teamMember = true;
-				if (eligibleName.endsWith(NoTeamMarker)) {
-					eligibleName = eligibleName.substring(0, eligibleName.length() - NoTeamMarker.length());
-					teamMember = false;
-				}
-					Category c2 = findActiveCategoryByName(eligibleName.trim());
+				ParticipationSpec participationSpec = parseParticipationSpec(eligibleName);
+				Category c2 = findActiveCategoryByName(participationSpec.categoryName.trim());
 					if (c2 != null) {
-					boolean addedToEligible = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge, teamMember, c2);
+					if (participationSpec.mixedTeamMember && !c2.getAgeGroup().isMixedTeams()) {
+						throw new Exception(Translator.translate("Upload.CategoryNotFoundByName",
+							        participationSpec.categoryName + "/" + YesMixedMarker));
+					}
+					boolean addedToEligible = addIfEligible(eligibleCategories, teams, athleteQTotal, athleteAge,
+					        participationSpec.teamMember, c2);
 					if (!addedToEligible) {
-						throw new Exception(Translator.translate("Upload.AthleteNotEligibleForCategory", eligibleName,
+						throw new Exception(Translator.translate("Upload.AthleteNotEligibleForCategory", participationSpec.categoryName,
 							athleteAge != null ? athleteAge.toString() : "?",
 							athleteQTotal != null ? athleteQTotal.toString() : "0"));
+					}
+					if (participationSpec.mixedTeamMember) {
+						mixedTeams.add(c2);
 					}
 				} else {
 					// logger.debug("{} {}\n{}",Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim(), LoggerUtils.stackTrace()));
 					throw new Exception(
-					        Translator.translate("Upload.CategoryNotFoundByName", eligibleName.trim()));
+					        Translator.translate("Upload.CategoryNotFoundByName", participationSpec.categoryName.trim()));
 				}
 			}
 		} else {
@@ -519,6 +561,113 @@ public class RAthlete {
 		//logger.debug("*** {} this.a.getCategory {} {}",this.a.getId(), this.a.getCategory(), eligibleCategories);
 		RCompetition.putEligibles(this.a.getId(), eligibleCategories);
 		RCompetition.putTeams(this.a.getId(), teams);
+		RCompetition.putMixedTeams(this.a.getId(), mixedTeams);
+	}
+
+	private List<String> mergeMarkerTokens(List<String> rawParts) {
+		List<String> merged = new ArrayList<>();
+		for (String part : rawParts) {
+			if (!merged.isEmpty() && isStandaloneMarkerToken(part)) {
+				int last = merged.size() - 1;
+				merged.set(last, merged.get(last) + "," + part);
+			} else {
+				merged.add(part);
+			}
+		}
+		return merged;
+	}
+
+	private ParticipationSpec parseParticipationSpec(String entry) throws Exception {
+		String trimmed = entry != null ? entry.trim() : "";
+		boolean teamMember = true;
+		boolean mixedTeamMember = false;
+
+		if (trimmed.endsWith("/")) {
+			return new ParticipationSpec(trimmed.substring(0, trimmed.length() - 1).trim(), false, false);
+		}
+
+		int slashIndex = trimmed.indexOf('/');
+		if (slashIndex < 0) {
+			return new ParticipationSpec(trimmed, true, false);
+		}
+
+		String categoryName = trimmed.substring(0, slashIndex).trim();
+		String markerSection = trimmed.substring(slashIndex + 1).trim();
+		if (markerSection.isEmpty()) {
+			return new ParticipationSpec(categoryName, false, false);
+		}
+
+		for (String marker : markerSection.split(",")) {
+			String normalized = normalizeMembershipMarker(marker);
+			if (normalized.isEmpty()) {
+				continue;
+			}
+			switch (normalized) {
+				case YesTeamMarker:
+					teamMember = true;
+					break;
+				case NoTeamMarker:
+					teamMember = false;
+					break;
+				case YesMixedMarker:
+					mixedTeamMember = true;
+					break;
+				case NoMixedMarker:
+					mixedTeamMember = false;
+					break;
+				default:
+					throw new Exception(Translator.translate("Upload.CategoryNotFoundByName", entry.trim()));
+			}
+		}
+		return new ParticipationSpec(categoryName, teamMember, mixedTeamMember);
+	}
+
+	private String normalizeMembershipMarker(String marker) {
+		String trimmed = marker != null ? marker.trim() : "";
+		if (matchesMarker(trimmed, YesTeamMarker, YesTeamValue)) {
+			return YesTeamMarker;
+		}
+		if (matchesMarker(trimmed, NoTeamMarker, NoTeamValue)) {
+			return NoTeamMarker;
+		}
+		if (matchesMarker(trimmed, YesMixedMarker, YesMixedValue)) {
+			return YesMixedMarker;
+		}
+		if (matchesMarker(trimmed, NoMixedMarker, NoMixedValue)) {
+			return NoMixedMarker;
+		}
+		return trimmed;
+	}
+
+	private boolean matchesMarker(String value, String... acceptedValues) {
+		for (String acceptedValue : acceptedValues) {
+			if (acceptedValue.equalsIgnoreCase(value)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean isStandaloneMarkerToken(String token) {
+		String normalized = normalizeMembershipMarker(token);
+		return normalized.equals(YesTeamMarker) || normalized.equals(NoTeamMarker)
+		        || normalized.equals(YesMixedMarker) || normalized.equals(NoMixedMarker);
+	}
+
+	private boolean useLegacyUsawSplit(String value, boolean usaw) {
+		if (!usaw) {
+			return false;
+		}
+		String markerPattern = String.join("|",
+		        Pattern.quote(YesTeamMarker),
+		        Pattern.quote(NoTeamMarker),
+		        Pattern.quote(YesMixedMarker),
+		        Pattern.quote(NoMixedMarker),
+		        Pattern.quote(YesTeamValue),
+		        Pattern.quote(NoTeamValue),
+		        Pattern.quote(YesMixedValue),
+		        Pattern.quote(NoMixedValue));
+		return !value.matches("(?i).*\\/(" + markerPattern + ")(,.*)?$");
 	}
 
 	private void setCategoryHeuristics(String categoryName) throws Exception {

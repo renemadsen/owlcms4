@@ -21,6 +21,7 @@ import ch.qos.logback.classic.Logger;
 public class TeamPointsComparator extends AbstractLifterComparator implements Comparator<Athlete> {
 	final private static Logger logger = (Logger) LoggerFactory.getLogger(TeamPointsComparator.class);
 	private Ranking rankingType;
+	private boolean splitByGender;
 
 	/**
 	 * Instantiates a new team ranking comparator.
@@ -28,7 +29,12 @@ public class TeamPointsComparator extends AbstractLifterComparator implements Co
 	 * @param rankingType the ranking type
 	 */
 	TeamPointsComparator(Ranking rankingType) {
+		this(rankingType, true);
+	}
+
+	TeamPointsComparator(Ranking rankingType, boolean splitByGender) {
 		this.rankingType = rankingType;
+		this.splitByGender = splitByGender;
 	}
 
 	/*
@@ -45,9 +51,11 @@ public class TeamPointsComparator extends AbstractLifterComparator implements Co
 			return compare;
 		}
 
-		compare = compareGender(lifter1, lifter2);
-		if (compare != 0) {
-			return compare;
+		if (this.splitByGender) {
+			compare = compareGender(lifter1, lifter2);
+			if (compare != 0) {
+				return compare;
+			}
 		}
 
 		compare = comparePointsOrder(lifter1, lifter2);
@@ -128,6 +136,8 @@ public class TeamPointsComparator extends AbstractLifterComparator implements Co
 			logger.trace(
 			        lifter1 + " " + gamxM1 + " [" + compareGamxM + "]" + lifter2 + " " + gamxM2);
 			return compareGamxM;
+		case GAMX_MS:
+		case GAMX_MC:
 		case GAMX_U:
 			final Double gamxU1 = lifter1.getGamxU();
 			final Double gamxU2 = lifter2.getGamxU();
@@ -142,6 +152,9 @@ public class TeamPointsComparator extends AbstractLifterComparator implements Co
 			logger.trace(
 			        lifter1 + " " + gamxA1 + " [" + compareGamxA + "]" + lifter2 + " " + gamxA2);
 			return compareGamxA;
+		case GAMX_S:
+		case GAMX_C:
+			return 0;
 		default:
 				break;
 		}

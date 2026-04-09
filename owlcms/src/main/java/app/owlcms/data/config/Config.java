@@ -39,6 +39,7 @@ import com.fasterxml.jackson.annotation.JsonProperty.Access;
 
 import app.owlcms.Main;
 import app.owlcms.apputils.AccessUtils;
+import app.owlcms.data.competition.Competition;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.jpa.LocaleAttributeConverter;
 import app.owlcms.data.records.RecordConfig;
@@ -101,6 +102,8 @@ public class Config {
 			}
 			return null;
 		});
+
+		Competition.loadTimingConfig();
 	}
 
 	public static Config setCurrent(Config config) {
@@ -206,6 +209,12 @@ public class Config {
 		String[] switches = paramFeatureSwitches.toLowerCase().split("[,; ]");
 		boolean present = Arrays.asList(switches).contains(string.toLowerCase());
 		return trueIfPresent ? present : !present;
+	}
+
+	@Transient
+	@JsonIgnore
+	public boolean isRecordRepository() {
+		return featureSwitch("recordRepository") || featureSwitch("recordsOnly");
 	}
 
 	/**

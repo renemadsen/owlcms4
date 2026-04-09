@@ -10,11 +10,13 @@ import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.stream.IntStream;
 
 import javax.persistence.Cacheable;
+import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Index;
@@ -36,6 +38,7 @@ import app.owlcms.data.category.Category;
 import app.owlcms.data.competition.Competition;
 import app.owlcms.data.group.Group;
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsSession;
 import app.owlcms.utils.IdUtils;
 import ch.qos.logback.classic.Logger;
 
@@ -96,6 +99,43 @@ public class RecordEvent implements Comparable<RecordEvent> {
 		return newRecord;
 	}
 
+	public static String computeBodyWeightCategoryCode(Integer bwCatLower, Integer bwCatUpper) {
+		if (bwCatLower == null || bwCatUpper == null) {
+			return null;
+		}
+		if (bwCatUpper >= 199) {
+			return ">" + bwCatLower;
+		}
+		return Integer.toString(bwCatUpper);
+	}
+
+	public static Integer normalizeImportedBodyWeightCategoryUpper(String bwCatString) {
+		if (bwCatString == null || bwCatString.isBlank()) {
+			return null;
+		}
+
+		String trimmed = bwCatString.trim();
+		if (trimmed.startsWith(">") || trimmed.startsWith("+") || trimmed.endsWith("+")) {
+			return 999;
+		}
+
+		try {
+			int parsed = Integer.parseInt(trimmed);
+			return parsed >= 199 ? 999 : parsed;
+		} catch (NumberFormatException e) {
+			return null;
+		}
+	}
+
+	public static Integer computeBodyWeightCategorySortValue(Integer bwCatUpper, String bwCatString) {
+		if (bwCatUpper != null) {
+			return bwCatUpper >= 199 ? 999 : bwCatUpper;
+		}
+		return normalizeImportedBodyWeightCategoryUpper(bwCatString);
+	}
+
+	@Column(columnDefinition = "boolean default true")
+	private Boolean active = true;
 	private Double athleteBW;
 	private Integer athleteAge;
 	@Id
@@ -164,6 +204,10 @@ public class RecordEvent implements Comparable<RecordEvent> {
 		}
 	}
 
+	public Boolean getActive() {
+		return this.active != null ? this.active : true;
+	}
+
 	public String getAgeGrp() {
 		return this.ageGrp;
 	}
@@ -214,15 +258,20 @@ public class RecordEvent implements Comparable<RecordEvent> {
 	}
 
 	public String getBwCatString() {
+		String computed = computeBodyWeightCategoryCode(this.bwCatLower, this.bwCatUpper);
+		String displayValue = computed != null ? computed : this.bwCatString;
+		if (displayValue == null) {
+			return null;
+		}
 		// if bwCatString is an integer over 900, it is a super-heavyweight
 		// then we use the catLower translated to get the + or > according to locale.
 		// also when the string has ">" or "+" we use the catLower (legacy)
-		if (this.bwCatString != null && (this.bwCatString.contains(">") || this.bwCatString.contains("+"))) {
+		if (displayValue.contains(">") || displayValue.contains("+")) {
 			return Translator.translate("catAboveFormat", this.bwCatLower);
 		}
-		if (this.bwCatString != null) {
+		if (displayValue != null) {
 			try {
-				int bw = Integer.parseInt(this.bwCatString);
+				int bw = Integer.parseInt(displayValue);
 				if (bw >= 199) {
 					return Translator.translate("catAboveFormat", this.bwCatLower);
 				}
@@ -230,11 +279,15 @@ public class RecordEvent implements Comparable<RecordEvent> {
 				// not an integer, ignore
 			}
 		}
-		return this.bwCatString;
+		return displayValue;
 	}
 
 	public Integer getBwCatUpper() {
 		return this.bwCatUpper;
+	}
+
+	public Integer getBwCatUpperForSort() {
+		return computeBodyWeightCategorySortValue(this.bwCatUpper, this.bwCatString);
 	}
 
 	/**
@@ -276,8 +329,7 @@ public class RecordEvent implements Comparable<RecordEvent> {
 	@Transient
 	@JsonIgnore
 	public String getKey() {
-		return // getRecordFederation() + "_" +
-		getRecordName() + "_" + getGender() + "_" + getRecordLift() + "_" + getBwCatLower() + "_" + getBwCatUpper() + "_"
+		return getRecordFederation() + "_" + getRecordName() + "_" + getGender() + "_" + getRecordLift() + "_" + getBwCatLower() + "_" + getBwCatUpper() + "_"
 		        + getAgeGrpLower() + "_" + getAgeGrpUpper();
 	}
 
@@ -386,7 +438,6 @@ public class RecordEvent implements Comparable<RecordEvent> {
 		        && Objects.equals(this.bwCatUpper, other.bwCatUpper)
 		        && Objects.equals(this.categoryString, other.categoryString)
 		        && Objects.equals(this.event, other.event) && Objects.equals(this.eventLocation, other.eventLocation)
-		        && Objects.equals(this.fileName, other.fileName) && this.gender == other.gender
 		        && Objects.equals(this.groupNameString, other.groupNameString)
 		        && Objects.equals(this.nation, other.nation)
 		        && Objects.equals(this.recordDate, other.recordDate)
@@ -436,6 +487,10 @@ public class RecordEvent implements Comparable<RecordEvent> {
 	// this.fileName, this.recordYear);
 	// }
 
+	public void setActive(Boolean active) {
+		this.active = active;
+	}
+
 	public void setAgeGrp(String ageGrp) {
 		this.ageGrp = ageGrp;
 	}
@@ -470,6 +525,7 @@ public class RecordEvent implements Comparable<RecordEvent> {
 
 	public void setBwCatLower(int intExact) {
 		this.bwCatLower = intExact;
+		syncBodyWeightCategoryString();
 	}
 
 	public void setBwCatString(String cellValue) {
@@ -478,6 +534,14 @@ public class RecordEvent implements Comparable<RecordEvent> {
 
 	public void setBwCatUpper(Integer bwCatUpper) {
 		this.bwCatUpper = bwCatUpper;
+		syncBodyWeightCategoryString();
+	}
+
+	public void syncBodyWeightCategoryString() {
+		String computed = computeBodyWeightCategoryCode(this.bwCatLower, this.bwCatUpper);
+		if (computed != null) {
+			this.bwCatString = computed;
+		}
 	}
 
 	/**
@@ -528,14 +592,38 @@ public class RecordEvent implements Comparable<RecordEvent> {
 	}
 
 	public void setRecordLift(String liftAbbreviation) {
-		if (liftAbbreviation.toLowerCase().startsWith("s")) {
+		setRecordLift(liftAbbreviation, OwlcmsSession.getLocale());
+	}
+
+	public void setRecordLift(String liftAbbreviation, Locale locale) {
+		if (locale == null) {
+			locale = OwlcmsSession.getLocale();
+		}
+
+		// Try translated values using the explicit locale (with bundle hierarchy fr_CA → fr → en)
+		String trSnatch = Translator.translateNoOverrideOrElseNull("Record.SNATCH", locale);
+		String trCleanJerk = Translator.translateNoOverrideOrElseNull("Record.CLEANJERK", locale);
+		String trTotal = Translator.translateNoOverrideOrElseNull("Record.TOTAL", locale);
+		if (trSnatch != null && trSnatch.equalsIgnoreCase(liftAbbreviation)) {
 			this.recordLift = Ranking.SNATCH;
-		} else if (liftAbbreviation.toLowerCase().startsWith("c")) {
+		} else if (trCleanJerk != null && trCleanJerk.equalsIgnoreCase(liftAbbreviation)) {
 			this.recordLift = Ranking.CLEANJERK;
-		} else if (liftAbbreviation.toLowerCase().startsWith("t")) {
+		} else if (trTotal != null && trTotal.equalsIgnoreCase(liftAbbreviation)) {
 			this.recordLift = Ranking.TOTAL;
 		} else {
-			throw new IllegalArgumentException("recordLift");
+			// Fall back to English first-letter check (s=snatch, c=clean&jerk, t=total)
+			String lower = liftAbbreviation.toLowerCase();
+			if (lower.startsWith("s")) {
+				this.recordLift = Ranking.SNATCH;
+			} else if (lower.startsWith("c")) {
+				this.recordLift = Ranking.CLEANJERK;
+			} else if (lower.startsWith("t")) {
+				this.recordLift = Ranking.TOTAL;
+			} else {
+				throw new IllegalArgumentException(
+					"recordLift: unrecognized value '" + liftAbbreviation
+						+ "' (compared using locale " + locale.getDisplayLanguage(Locale.ENGLISH) + ")");
+			}
 		}
 	}
 

@@ -60,13 +60,18 @@ owlcms/package-lock.json
 playwright/.flattened-pom.xml
 package-lock.json
 package.json
+!docs/scripts/md-clean/package.json
 docs/EquipmentSetup/FullVideo/*.mp4
 docs/EquipmentSetup/FullVideo/*.pid
+shared/src/main/resources/i18n/translation4.csv.bak
 
 # Ignore Eclipse/IDE project files
 .project
 .factorypath
+# Python cache directories
+__pycache__/
 # Machine-dependent settings (absolute paths, local JRE, debug configs)
 **/.settings/org.eclipse.jdt.launching.prefs
 **/.settings/org.eclipse.debug.core.prefs
 **/.settings/org.eclipse.core.resources.prefs
+scripts/check-translation-diff.sh

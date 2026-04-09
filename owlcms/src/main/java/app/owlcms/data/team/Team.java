@@ -11,9 +11,9 @@ import java.util.Comparator;
 
 import org.apache.commons.lang3.ObjectUtils;
 
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athlete.Gender;
 import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.utils.URLUtils;
 
 /**
@@ -66,9 +66,13 @@ public class Team {
 	private double qMasters = 0.0D;
 
 	public Team(String curTeamName, Gender gender) {
+		this(curTeamName, gender, Championship.of(null).getScoringSystem());
+	}
+
+	public Team(String curTeamName, Gender gender, Ranking scoringSystem) {
 		this.name = curTeamName;
 		this.gender = gender;
-		this.scoringSystem = Competition.getCurrent().getScoringSystem();
+		this.scoringSystem = scoringSystem;
 	}
 
 	public double getCatSinclairScore() {
@@ -130,6 +134,13 @@ public class Team {
 			case SMM:
 				return getSmfScore();
 			case GAMX:
+			case GAMX_M:
+			case GAMX_MS:
+			case GAMX_MC:
+			case GAMX_U:
+			case GAMX_A:
+			case GAMX_S:
+			case GAMX_C:
 				return getGamx();
 			default:
 				return 0D;
@@ -193,6 +204,10 @@ public class Team {
 	
 	public void setQMasters(double q) {
 		this.qMasters = q;
+	}
+
+	public void setScoringSystem(Ranking scoringSystem) {
+		this.scoringSystem = scoringSystem;
 	}
 
 

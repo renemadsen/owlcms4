@@ -5,13 +5,13 @@ import java.time.Year;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Locale;
 
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.slf4j.LoggerFactory;
 
 import app.owlcms.data.athlete.Gender;
-import app.owlcms.i18n.Translator;
 import ch.qos.logback.classic.Logger;
 
 public class RecordEventSetters {
@@ -65,37 +65,24 @@ public class RecordEventSetters {
     public static void setBwUpper(RecordEvent rec, Cell cell) {
         if (cell.getCellType() == CellType.STRING) {
             String cellValue = cell.getStringCellValue();
-            rec.setBwCatString(cellValue);
-            
-            if (cellValue.startsWith(">") || cellValue.startsWith("+") || cellValue.endsWith("+")) {
-                rec.setBwCatUpper(999);
-                rec.setBwCatString(Translator.translate("catAboveFormat",rec.getBwCatLower()));
-            } else {
-                try {
-                    // scar tissue for legacy error.
-                    // compensate for excessive validation in Excel preventing entering 999
-                    var val = Integer.parseInt(cellValue);
-                    if (val >= 199) {
-                        rec.setBwCatUpper(999);
-                        rec.setBwCatString(Translator.translate("catAboveFormat",rec.getBwCatLower()));
-                    } else {
-                        rec.setBwCatUpper(val);
-                    }
-                } catch (NumberFormatException e) {
-                    if (cellValue != null && !cellValue.isBlank()) {
-                        logger.error("[" + cell.getSheet().getSheetName() + "," + cell.getAddress() + "]");
-                    }
-                }
+            String trimmedValue = cellValue != null ? cellValue.trim() : cellValue;
+            rec.setBwCatString(trimmedValue);
+
+            Integer normalizedUpper = RecordEvent.normalizeImportedBodyWeightCategoryUpper(trimmedValue);
+            if (normalizedUpper != null) {
+                rec.setBwCatUpper(normalizedUpper);
+            } else if (trimmedValue != null && !trimmedValue.isBlank()) {
+                logger.error("[" + cell.getSheet().getSheetName() + "," + cell.getAddress() + "]");
             }
-            
-            if (rec.getBwCatUpper() < rec.getBwCatLower()) {
+
+            if (rec.getBwCatUpper() != null && rec.getBwCatUpper() < rec.getBwCatLower()) {
                 throw new IllegalArgumentException(cellValue + " upper limit on bodyweight category should be >= to " + rec.getBwCatLower());
             }
         } else if (cell.getCellType() == CellType.NUMERIC) {
             long cellValue = Math.round(cell.getNumericCellValue());
-            rec.setBwCatString(Long.toString(cellValue));
-            rec.setBwCatUpper(Math.toIntExact(cellValue));
-            
+            int normalizedUpper = cellValue >= 199 ? 999 : Math.toIntExact(cellValue);
+            rec.setBwCatUpper(normalizedUpper);
+
             if (rec.getBwCatUpper() <= rec.getBwCatLower()) {
                 throw new IllegalArgumentException(cellValue + " upper limit on bodyweight category should be > to " + rec.getBwCatLower());
             }
@@ -105,10 +92,10 @@ public class RecordEventSetters {
         }
     }
 
-    public static void setRecordLift(RecordEvent rec, Cell cell) {
+    public static void setRecordLift(RecordEvent rec, Cell cell, Locale locale) {
         String value = cell.getStringCellValue();
         value = value != null ? value.trim() : value;
-        rec.setRecordLift(value);
+        rec.setRecordLift(value, locale);
     }
 
     public static void setRecordValue(RecordEvent rec, Cell cell) {

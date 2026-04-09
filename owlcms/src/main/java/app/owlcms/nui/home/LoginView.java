@@ -24,12 +24,14 @@ import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 
 import app.owlcms.apputils.AccessUtils;
+import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
+import app.owlcms.nui.preparation.RecordsNavigationContent;
 import app.owlcms.nui.shared.ContentWrapping;
 import app.owlcms.nui.shared.OwlcmsLayout;
 import app.owlcms.nui.shared.OwlcmsLayoutAware;
-import app.owlcms.nui.shared.RequireLogin;
+import app.owlcms.nui.shared.AuthorizationDispatch;
 import ch.qos.logback.classic.Logger;
 
 /**
@@ -42,7 +44,7 @@ import ch.qos.logback.classic.Logger;
  * <li>if a PIN environment variable is present, the PIN will be required (even if no IP whitelist)
  * <li>if PIN enviroment variable is not present, all accesses from the whitelisted routers will be allowed. This can be sufficient if the router password is
  * well-protected (which is not likely). Users can type any NIP, including an empty value.
- * <li>if neither IP nor PIN is present, no check is done ({@link RequireLogin} does not display this view).
+ * <li>if neither IP nor PIN is present, no check is done ({@link AuthorizationDispatch} does not display this view).
  * </ul>
  */
 @SuppressWarnings("serial")
@@ -58,6 +60,7 @@ public class LoginView extends Composite<VerticalLayout>
 	public LoginView() {
 		this.pinField.setClearButtonVisible(true);
 		this.pinField.setRevealButtonVisible(true);
+		this.pinField.setAutofocus(true);
 		this.pinField.setLabel(Translator.translate("EnterPin"));
 		this.pinField.setWidthFull();
 		this.pinField.addValueChangeListener(event -> {
@@ -145,6 +148,8 @@ public class LoginView extends Composite<VerticalLayout>
 		String requestedUrl = OwlcmsSession.getRequestedUrl();
 		if (requestedUrl != null) {
 			UI.getCurrent().navigate(requestedUrl, OwlcmsSession.getRequestedQueryParameters());
+		} else if (Config.getCurrent().isRecordRepository()) {
+			UI.getCurrent().navigate(RecordsNavigationContent.class);
 		} else {
 			UI.getCurrent().navigate(HomeNavigationContent.class);
 		}

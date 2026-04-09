@@ -23,9 +23,9 @@ import com.vaadin.flow.router.BeforeEnterEvent;
 import com.vaadin.flow.router.HasDynamicTitle;
 import com.vaadin.flow.router.Route;
 
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.apputils.DebugUtils;
 import app.owlcms.data.athleteSort.Ranking;
-import app.owlcms.data.competition.Competition;
 import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.i18n.Translator;
 import app.owlcms.nui.displays.attemptboards.AthleteFacingAttemptBoardPage;
@@ -39,6 +39,8 @@ import app.owlcms.nui.displays.scoreboards.PublicMultiRanksPage;
 import app.owlcms.nui.displays.scoreboards.PublicNoLeadersPage;
 import app.owlcms.nui.displays.scoreboards.PublicRankingOrderPage;
 import app.owlcms.nui.displays.scoreboards.PublicScoreboardPage;
+import app.owlcms.nui.displays.scoreboards.RankingsPage;
+import app.owlcms.data.config.Config;
 import app.owlcms.nui.displays.scoreboards.PublicStartListPage;
 import app.owlcms.nui.displays.scoreboards.WarmupLiftingOrderPage;
 import app.owlcms.nui.displays.scoreboards.WarmupMultiRanksPage;
@@ -109,7 +111,8 @@ public class DisplayNavigationContent extends BaseNavigationContent
 			        Translator.translate("Scoreboard.LiftingOrder"));
 			VerticalLayout intro1 = new VerticalLayout();
 			addP(intro1, Translator.translate("WarmupScoreboards.explanation"));
-			Button juryScoreboard = openInNewTabWithFopCurrentAttempt(JuryScoreboardPage.class, Translator.translate("Jury"));
+			Button juryScoreboard = openInNewTabWithFopCurrentAttempt(JuryScoreboardPage.class,
+			        Translator.translate("JuryScoreboard.Title"));
 			scoreboardWLeaders.getElement().setAttribute("title", Translator.translate("ScoreboardWLeadersMouseOver"));
 			FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(
 			        scoreboard,
@@ -125,8 +128,12 @@ public class DisplayNavigationContent extends BaseNavigationContent
 			scoreboardWLeaders1.getElement().setAttribute("title", Translator.translate("ScoreboardWLeadersMouseOver"));
 			Button scoreboardMultiRanks1 = openInNewTabWithFopNoCurrentAttempt(PublicMultiRanksPage.class,
 			        Translator.translate("ScoreboardMultiRanksButton"));
-			Button scoreboardRankings1 = openInNewTabWithFopNoCurrentAttempt(PublicRankingOrderPage.class,
-			        Translator.translate("Scoreboard.RankingOrderButton"));
+			// Default: RankingsPage (no current athlete). Toggle: PublicRankingOrderPage (with current athlete)
+			Button scoreboardRankings1 = Config.getCurrent().featureSwitch("rankingsWithCurrentAttempt")
+			        ? openInNewTabWithFopNoCurrentAttempt(PublicRankingOrderPage.class,
+			                Translator.translate("Scoreboard.RankingOrderButton"))
+			        : openInNewTabWithFop(RankingsPage.class,
+			                Translator.translate("Scoreboard.RankingOrderButton"));
 			Button startList1 = openInNewTabWithFopNoCurrentAttempt(PublicStartListPage.class, Translator.translate("Scoreboard.StartList"));
 			Button juryDecisions1 = openInNewTabWithFopNoCurrentAttempt(JuryDecisionsPage.class,
 			        Translator.translate("JuryDecisions.Title"));
@@ -141,7 +148,7 @@ public class DisplayNavigationContent extends BaseNavigationContent
 			        juryDecisions1);
 			doGroup(Translator.translate("PublicScoreboards"), intro11, grid11, this);
 
-			Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+			Ranking scoringSystem = Championship.of(null).getScoringSystem();
 			String scoringTitle = Ranking.getScoringTitle(scoringSystem);
 
 			Button medals = openInNewTabWithFop(MedalsPage.class, Translator.translate("CeremonyType.MEDALS"));

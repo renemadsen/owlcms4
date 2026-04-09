@@ -8,54 +8,60 @@
 
 <br>
 
-**New in Release 64**
+**New in Release 66**
 
-64.0.3: Updated the documentation to reflect Control Panel version 3 and use of SBDE format.
+66.0.0-rc03: Championships now have a "use the default competitions settings" checkbox, on by default.
 
-64.0.3: Fix: Application did not start if there was a configuration override zip in the database.
+66.0.0: Mixed Team Championships
+  - Allow explicit nomination of a mixed team, or implicit men and women combined
+  - A gender-equitable scoring system (e.g. GAMX) can be applied, independently of the gendered teams scoring
+  
+66.0.0: Enhanced definition of Championships
+  - Championships now define all the awards
+    - best athlete scoring systems
+    - medaling rules (total or per event), medaling on score or lifted weight
+    - points awarded
+    - scoring systems for gendered teams and for mixed teams
 
-64.0.3: Usability: Adding/Removing a configuration override zip in the database no longer requires the Update button.
+66.0.0: Mobile device versions for jury member devices and jury president keypad
+  - Can act as jury member using a phone or tablet, and act as jury president using a tablet
 
-64.0.2: Sessions from a registration file were not correctly reset to match the Sessions tab
+66.0.0: Cleaner look for jury decisions on attempt board
+  - Also clarified instructions for the announcer when the jury gives the decision by pressing the buttons
 
-64.0.1: Fixed upload of registration files when the current session is not in English.
+66.0.0: Record Management
+  - the record editing page will now correctly warn that editing an existing record and changing the age or bodyweight categories does NOT create a new record
+  - the sorting order in the grid is now done correctly when existing records are adjusted for new categories
+  - the exports using the dataExchange templates now use a 999 as the marker for the super heavy category.
 
-64.0.0: Improved error messages when loading a registration/SBDE sheet and athlete is not eligible to stated category (age or qualif. total)
+66.0.0: Configurable timing
+  - For large school-age competitions, creating a `local/timing/timing.properties` as in [this example](https://github.com/jflamy/owlcms4/issues/1386#issuecomment-4170813795) allows changing the durations of the one minute and two minute intervals to have the lifts proceed faster.
+  - The values of the warnings times are also propagated to owlcms-tracker so they can be used (e.g. to change timer colours)
 
-64.0.0: 250g deduction done manually by TO is now again the default (automatic must be selected); clarified option description
+66.0.0: Clean-up of the solo referee/announcer/3-referee behavior wrt reversal delay and initial decision
+  - Solo referee decisions have a reversal delay, same as 3 referees.  Only the visual rendering changes (single referee light instead of 3)
+    - in solo referee mode, the first decision received from any referee is automatically the majority
+    - an indicator is propagated to modulate display
+  - Announcer input of a decision has no reversal delay because it usually follows flags or some incident
+    - no INITIAL_DECISION event is therefore sent
+    - unless the announcerTriggersInitialDecision feature toggle is sent (for example, to always have good/bad lift videos on a listener)
 
-64.0.0: Decisions entered when the clock was not started will now be accepted.  A red notification is given to the announcer, timekeeper and jury.
+66.0.0: showDecisionsImmediately feature toggle (off by default, TCRR still indicates a 3-second delay)
+  - Show the decision as soon as the 3 referees have given it. Note: this always sends INITIAL_DECISION
 
-64.0.0: User-oriented startup log that can be tailed by control panel
+66.0.0: Fix: For Competition Results templates, when a category is selected, the records for the category are extracted in the "records" variable.
+  - The standard "protocol" look templates (Total, SnCjTot) show the records 
 
-64.0.0: Validation that there cannot be two age groups with the same code and gender. On import and from interactive editing
+66.0.0: Fix: The Jury scoreboard again has the current attempt info.
 
-64.0.0: The cogwheel settings for the technical official screens (for example, single referee),
-are now stored with the platform, remain selected when switching sessions, and are restored when restarting the server.
+66.0.0: Fix: when producing competition results by registration category, the lot number was being used as identifier for the athlete, leading to problems if no lot numbers had been assigned (all were 0, collapsing to a single athlete)
 
-64.0.0: 64.0.0: New websocket protocol for updated tracker
-- Uses the v2 export format (see below)
-- Additional information for tracker applications (e.g. time remaining on breaks, precalculated display information)
-- Sends all the data needed by owlcms-tracker, with full resynchronization if either end restarts
+66.0.0: Fix: reported scores on result sheets are now correctly zero when the athlete is done and has no total
 
-64.0.0: Support for IWF-style referee assignments by teams, including import/export of a timetable.
+66.0.0: Fix: the noInterimScoresInResults toggle was not systematically applied on the competition results page
+  - the individual session pages still show the current session in-progress scores as they may be required to plan for awards
 
-64.0.0: End of Competitition Behavior filtering for Best Athlete Scoring has beeen fixed
-- If no championship is selected, all athletes are shown, with the global scoring scheme.  The Final package also uses the global scoring scheme.
-- When a championship is selected, the best athlete scoring scheme for that championship is used.  The final package uses the championship scheme.
-- Eligibility category results with no championship selected show the age-group best athlete score (global if no age-group specific score)
-- Registration category results with no championship selected show the global best athlete score
+66.0.0: Fix: updating the websocket event forwarding URL did not correctly reset the forwarder
 
-64.0.0: Support for GAMX 2.0 scores: GAMX + age-adjusted variants GAMX-M (Masters), GAMX-U (Kids+Youth), GAMX-A (13-40).  Also added CAT_GAMX, GAMX computed at IWF JR/SR category weight.
-- For performance, only the scoring systems required by the best athlete and medals are computed by default; additional ones can be selected if needed by local templates
-
-64.0.0: Fix: Athletes not weighed-in are not propagated to the introduction sheet
-
-64.0.0: New v2 JSON export format
-- A new cleaner export format is available when the feature toggle `v2export` is active.  Historical unfortunate naming fixes,
-symbolic references/natural keys for readability.
-- An extra button is visible when
-the toggle is active.  The new format uses natural keys for better readability.
-- Import distinguighes the two formats automatically.
 
 For other recent changes, see [the release repository](https://github.com/owlcms/owlcms4/releases)

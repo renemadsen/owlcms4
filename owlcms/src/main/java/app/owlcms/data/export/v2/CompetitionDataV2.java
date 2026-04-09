@@ -27,6 +27,8 @@ import java.time.Instant;
 
 import app.owlcms.data.agegroup.AgeGroup;
 import app.owlcms.data.agegroup.AgeGroupRepository;
+import app.owlcms.data.agegroup.Championship;
+import app.owlcms.data.agegroup.ChampionshipRepository;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athleteSort.RankingConfig;
@@ -66,6 +68,7 @@ import ch.qos.logback.classic.Logger;
 	"exportDate",
 	"competition",
 	"config",
+	"championships",
 	"ageGroups",
 	"teams",
 	"sessions",
@@ -84,6 +87,7 @@ public class CompetitionDataV2 {
 	private String exportDate;
 	private Competition competition;
 	private Config config;
+	private List<ChampionshipDTO> championships;
 	private List<AgeGroupDTO> ageGroups;
 	private List<TeamDTO> teams;
 	private List<SessionDTO> sessions;
@@ -107,7 +111,7 @@ public class CompetitionDataV2 {
 			PipedInputStream in = new PipedInputStream(out);
 			new Thread(() -> {
 				try {
-					writerWithDefaultPrettyPrinter.writeValue(out, this.fromDatabase());
+					writerWithDefaultPrettyPrinter.writeValue(out, this);
 					out.flush();
 					out.close();
 				} catch (Throwable e) {
@@ -152,6 +156,10 @@ public class CompetitionDataV2 {
 	public CompetitionDataV2 fromDatabase() {
 		// Set export timestamp in ISO 8601 format
 		setExportDate(Instant.now().toString());
+
+		setChampionships(Championship.findAll().stream()
+			.map(ChampionshipDTO::fromChampionship)
+			.collect(Collectors.toList()));
 		
 		// Convert AgeGroups to DTOs with category codes
 		setAgeGroups(AgeGroupRepository.findAll().stream()
@@ -208,7 +216,9 @@ public class CompetitionDataV2 {
 		CompetitionDataV2 newData;
 		try {
 			newData = mapper.readValue(serialized, CompetitionDataV2.class);
+			newData.setPlatforms(PlatformRepository.canonicalizeImportedPlatforms(newData.getPlatforms(), null));
 			logger.info("V2 import: {} ageGroups, {} teams, {} sessions, {} athletes, {} platforms", 
+				newData.getChampionships() != null ? newData.getChampionships().size() : 0,
 				newData.getAgeGroups() != null ? newData.getAgeGroups().size() : 0,
 				newData.getTeams() != null ? newData.getTeams().size() : 0,
 				newData.getSessions() != null ? newData.getSessions().size() : 0,
@@ -248,6 +258,38 @@ public class CompetitionDataV2 {
 				Competition competition = updated.getCompetition();
 				Competition.setCurrent(competition);			// Recompute mustCompute rankings based on imported Competition and age groups
 			RankingConfig.updateMustCompute();
+			if (updated.getChampionships() != null) {
+				for (ChampionshipDTO championshipDto : updated.getChampionships()) {
+					Championship championship = championshipDto.toChampionship();
+					Championship existing = ChampionshipRepository.findByName(championship.getName());
+					if (existing == null) {
+						em.persist(championship);
+					} else {
+						existing.setType(championship.getType());
+						existing.setScoringSystem(championship.getScoringSystem());
+						existing.setBestAthleteScoringSystem(championship.getBestAthleteScoringSystem());
+						existing.setBestSnatchScoringSystem(championship.getBestSnatchScoringSystem());
+						existing.setBestCJScoringSystem(championship.getBestCJScoringSystem());
+						existing.setSnatchCJTotalMedals(championship.isSnatchCJTotalMedals());
+						existing.setTeamPoints1st(championship.getTeamPoints1st());
+						existing.setTeamPoints2nd(championship.getTeamPoints2nd());
+						existing.setTeamPoints3rd(championship.getTeamPoints3rd());
+						existing.setMensBestN(championship.getMensBestN());
+						existing.setWomensBestN(championship.getWomensBestN());
+						existing.setMixedMensBestN(championship.getMixedMensBestN());
+						existing.setMixedWomensBestN(championship.getMixedWomensBestN());
+						existing.setMixedBestN(championship.getMixedBestN());
+						existing.setExplicitTeamSize(championship.getExplicitTeamSize());
+						existing.setMaxTeamSize(championship.getMaxTeamSize());
+						existing.setMaxPerCategory(championship.getMaxPerCategory());
+						existing.setExplicitMixedTeamMembers(championship.isExplicitMixedTeamMembers());
+						existing.setTeamScoringSystem(championship.getTeamScoringSystem());
+						existing.setMixedTeamScoringSystem(championship.getMixedTeamScoringSystem());
+						em.merge(existing);
+					}
+				}
+				em.flush();
+			}
 			for (AgeGroupDTO agDto : updated.getAgeGroups()) {
 				// Convert DTO to entity
 				AgeGroup ag = agDto.toAgeGroup();
@@ -255,6 +297,13 @@ public class CompetitionDataV2 {
 		}
 		// Flush to ensure categories from AgeGroups are available for lookup
 		em.flush();
+
+			if (updated.getPlatforms() != null) {
+				for (Platform p : updated.getPlatforms()) {
+					em.merge(p);
+				}
+				em.flush();
+			}
 
 		// Build team ID to name map for athlete import
 		Map<Integer, String> teamIdToNameMap = new HashMap<>();
@@ -277,12 +326,6 @@ public class CompetitionDataV2 {
 		for (AthleteDTO aDto : updated.getAthletes()) {
 			Athlete a = aDto.toAthlete(em, teamIdToNameMap);
 			em.persist(a);
-		}
-		
-		if (updated.getPlatforms() != null) {
-			for (Platform p : updated.getPlatforms()) {
-				em.merge(p);
-			}
 		}
 
 		if (updated.getRecordConfig() != null) {
@@ -352,6 +395,14 @@ public class CompetitionDataV2 {
 
 	public void setExportDate(String exportDate) {
 		this.exportDate = exportDate;
+	}
+
+	public List<ChampionshipDTO> getChampionships() {
+		return championships;
+	}
+
+	public void setChampionships(List<ChampionshipDTO> championships) {
+		this.championships = championships;
 	}
 
 	public List<AgeGroupDTO> getAgeGroups() {

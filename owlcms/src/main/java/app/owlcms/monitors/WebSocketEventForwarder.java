@@ -63,6 +63,7 @@ import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.fieldofplay.IBreakTimer;
 import app.owlcms.fieldofplay.IProxyTimer;
 import app.owlcms.i18n.Translator;
+import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.init.OwlcmsSession;
 import app.owlcms.nui.shared.HasBoardMode;
 import app.owlcms.uievents.BreakDisplay;
@@ -76,6 +77,7 @@ import app.owlcms.uievents.UIEvent.BreakPaused;
 import app.owlcms.uievents.UIEvent.BreakSetTime;
 import app.owlcms.uievents.UIEvent.BreakStarted;
 import app.owlcms.uievents.UIEvent.CeremonyDone;
+import app.owlcms.uievents.UIEvent.InitialDecision;
 import app.owlcms.uievents.UIEvent.JuryNotification;
 import app.owlcms.uievents.UIEvent.LiftingOrderUpdated;
 import app.owlcms.uievents.UIEvent.SetTime;
@@ -144,6 +146,49 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 
 	synchronized public static WebSocketEventForwarder getEventForwarderByName(String name) {
 		return eventForwarderByName.get(name);
+	}
+
+	/**
+	 * Reinitialize WebSocket event forwarders for all FOPs.
+	 * Call this when WebSocket URL configuration changes to create forwarders
+	 * that weren't created at startup (because no URL was configured then),
+	 * or to close connections when URLs are removed.
+	 */
+	synchronized public static void reinitializeForAllFOPs() {
+		logger.info("reinitializing WebSocket event forwarders for all FOPs after config change");
+		
+		// Get current URL configuration
+		Config current = Config.getCurrent();
+		String publicResultsUrl = current.getParamPublicResultsURL();
+		String videoDataUrl = current.getParamVideoDataURL();
+		
+		boolean hasPublicResultsWs = publicResultsUrl != null && !publicResultsUrl.trim().isEmpty()
+			&& (publicResultsUrl.startsWith("ws://") || publicResultsUrl.startsWith("wss://"));
+		boolean hasVideoDataWs = videoDataUrl != null && !videoDataUrl.trim().isEmpty()
+			&& (videoDataUrl.startsWith("ws://") || videoDataUrl.startsWith("wss://"));
+		
+		for (FieldOfPlay fop : OwlcmsFactory.getFOPs()) {
+			WebSocketEventForwarder existing = fop.getWebSocketEventForwarder();
+			if (existing == null) {
+				// No forwarder exists - try to create one if URLs are now configured
+				WebSocketEventForwarder newForwarder = initEventForwarderByName(fop.getName(), fop);
+				if (newForwarder != null) {
+					fop.setWebSocketEventForwarder(newForwarder);
+					logger.info("{}created WebSocket event forwarder after config change", FieldOfPlay.getLoggingName(fop));
+					// Trigger an initial update to establish connection
+					newForwarder.pushUpdate(null);
+				}
+			} else {
+				// Forwarder exists - check for URL removal and close stale connections
+				existing.closeStaleConnections(hasPublicResultsWs, hasVideoDataWs);
+				
+				// Trigger an update which will detect URL changes and open new connections
+				if (hasPublicResultsWs || hasVideoDataWs) {
+					logger.info("{}triggering update on existing WebSocket event forwarder", FieldOfPlay.getLoggingName(fop));
+					existing.pushUpdate(null);
+				}
+			}
+		}
 	}
 
 	private static ObjectMapper createObjectMapper() {
@@ -230,6 +275,31 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 			&& (videoUrl.startsWith("ws://") || videoUrl.startsWith("wss://"));
 		
 		return hasPublicUrl || hasVideoUrl;
+	}
+
+	/**
+	 * Close WebSocket connections for URLs that have been removed from config.
+	 * Called when config is saved to clean up stale connections.
+	 * 
+	 * @param hasPublicResultsWs true if a valid publicResults WebSocket URL is configured
+	 * @param hasVideoDataWs true if a valid videoData WebSocket URL is configured
+	 */
+	public void closeStaleConnections(boolean hasPublicResultsWs, boolean hasVideoDataWs) {
+		// Close publicResults connection if URL was removed
+		if (!hasPublicResultsWs && this.currentPublicResultsUrl != null) {
+			logger.info("{}PublicResults WebSocket URL removed, closing connection to {}",
+			        FieldOfPlay.getLoggingName(getFop()), this.currentPublicResultsUrl);
+			WebSocketEventSender.closeSender(this.currentPublicResultsUrl);
+			this.currentPublicResultsUrl = null;
+		}
+		
+		// Close videoData connection if URL was removed
+		if (!hasVideoDataWs && this.currentVideoDataUrl != null) {
+			logger.info("{}VideoData WebSocket URL removed, closing connection to {}",
+			        FieldOfPlay.getLoggingName(getFop()), this.currentVideoDataUrl);
+			WebSocketEventSender.closeSender(this.currentVideoDataUrl);
+			this.currentVideoDataUrl = null;
+		}
 	}
 
 	private static final ObjectMapper JSON_MAPPER = createObjectMapper();
@@ -637,6 +707,18 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 	}
 
 	@Subscribe
+	public void slaveInitialDecision(InitialDecision e) {
+		if (!isActive()) return;
+		uiLog(e);
+		setDecisionLight1(e.ref1);
+		setDecisionLight2(e.ref2);
+		setDecisionLight3(e.ref3);
+		setDecisionLightsVisible(false);
+		setDown(false);
+		pushDecision(DecisionEventType.INITIAL_DECISION, e);
+	}
+
+	@Subscribe
 	public void slaveDecisionReset(UIEvent.DecisionReset e) {
 		if (!isActive()) return;
 		uiLog(e);
@@ -871,16 +953,19 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 
 		}
 
-		// String sinclair = Competition.getCurrent().isSinclair() ? "sinclair" : "nosinclair";
+		// String sinclair = Competition.getCurrent().isScoreMedalChampionship() ? "sinclair" : "nosinclair";
 		// String ranks = Competition.getCurrent().isSnatchCJTotalMedals() ? "ranks" : "noranks";
 		// setNoLiftRanks(sinclair + " " + ranks);
 
 		// getElement().setProperty("showTotal", true);
 		// getElement().setProperty("showBest", true);
-		setShowLiftRanks(Competition.getCurrent().isSnatchCJTotalMedals() && !Competition.getCurrent().isSinclair());
-		setShowTotalRank(!Competition.getCurrent().isSinclair());
-		setShowSinclair(Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScores());
-		setShowSinclairRank(Competition.getCurrent().isSinclair() || Competition.getCurrent().isDisplayScoreRanks());
+		var activeChampionships = this.fop != null ? this.fop.getActiveChampionships() : Collections.singleton(Championship.of(null));
+		boolean anyMultiMedal = Championship.anyMultiMedal(activeChampionships);
+		boolean scoreMedalChampionship = Championship.anyScoreMedalChampionship(activeChampionships);
+		setShowLiftRanks(anyMultiMedal && !scoreMedalChampionship);
+		setShowTotalRank(!scoreMedalChampionship);
+		setShowSinclair(scoreMedalChampionship || Competition.getCurrent().isDisplayScores());
+		setShowSinclairRank(scoreMedalChampionship || Competition.getCurrent().isDisplayScoreRanks());
 
 		computeLeaders();
 		JsonValue recordsJson = this.fop.getRecordsJson();
@@ -889,14 +974,19 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 	}
 
 	private String computedScore(Athlete a) {
-		Ranking scoringSystem = Competition.getCurrent().getScoringSystem();
+		Ranking scoringSystem = a.getAgeGroup() != null
+		        ? a.getAgeGroup().getChampionship().getScoringSystem()
+		        : Championship.of(null).getScoringSystem();
 		double value = Ranking.getRankingValue(a, scoringSystem);
 		String score = value > 0.001 ? String.format("%.3f", value) : "-";
 		return score;
 	}
 
 	private String computedScoreRank(Athlete a) {
-		Integer value = Ranking.getRanking(a, Competition.getCurrent().getScoringSystem());
+		Ranking scoringSystem = a.getAgeGroup() != null
+		        ? a.getAgeGroup().getChampionship().getScoringSystem()
+		        : Championship.of(null).getScoringSystem();
+		Integer value = Ranking.getRanking(a, scoringSystem);
 		return value != null && value > 0 ? "" + value : "-";
 	}
 
@@ -958,7 +1048,7 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 	private synchronized Map<String, String> createDecision(UIEvent event, DecisionEventType det) {
 		updateState();
 		Map<String, String> sb = new LinkedHashMap<>();
-		mapPut(sb, "decisionEventType", det.toString());
+		mapPut(sb, "decisionEventType", det == DecisionEventType.INITIAL_DECISION ? "initialDecision" : det.toString());
 		mapPut(sb, "updateKey", Config.getCurrent().getParamUpdateKey());
 		mapPut(sb, "mode", getBoardMode());
 
@@ -973,14 +1063,31 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		mapPut(sb, "d1", getDecisionLight1() != null ? getDecisionLight1().toString() : null);
 		mapPut(sb, "d2", getDecisionLight2() != null ? getDecisionLight2().toString() : null);
 		mapPut(sb, "d3", getDecisionLight3() != null ? getDecisionLight3().toString() : null);
+		if (event instanceof UIEvent.InitialDecision) {
+			UIEvent.InitialDecision de = (UIEvent.InitialDecision) event;
+			mapPut(sb, "decision", de.decision != null ? de.decision.toString() : null);
+			mapPut(sb, "singleReferee", Boolean.toString(de.isSingleLight())); // backward compat
+			mapPut(sb, "singleLight", Boolean.toString(de.isSingleLight()));
+			if (de.getTimingPolicy() != null) {
+				mapPut(sb, "timingPolicy", de.getTimingPolicy().name());
+			}
+			if (de.getInputKind() != null) {
+				mapPut(sb, "inputKind", de.getInputKind().name());
+			}
+		} else if (event instanceof UIEvent.Decision) {
+			UIEvent.Decision decisionEvent = (UIEvent.Decision) event;
+			mapPut(sb, "decision", decisionEvent.decision != null ? decisionEvent.decision.toString() : null);
+			mapPut(sb, "singleReferee", Boolean.toString(decisionEvent.isSingleLight())); // backward compat
+			mapPut(sb, "singleLight", Boolean.toString(decisionEvent.isSingleLight()));
+			if (decisionEvent.getTimingPolicy() != null) {
+				mapPut(sb, "timingPolicy", decisionEvent.getTimingPolicy().name());
+			}
+			if (decisionEvent.getInputKind() != null) {
+				mapPut(sb, "inputKind", decisionEvent.getInputKind().name());
+			}
+		}
 		mapPut(sb, "decisionsVisible", Boolean.toString(isDecisionLightsVisible()));
 		mapPut(sb, "down", Boolean.toString(isDown()));
-		
-		// Add singleReferee flag if this is a Decision event
-		if (event instanceof UIEvent.Decision) {
-			UIEvent.Decision decisionEvent = (UIEvent.Decision) event;
-			mapPut(sb, "singleReferee", Boolean.toString(decisionEvent.isSingleReferee()));
-		}
 
 		populateRecordInfoStrings(sb);
 		// dumpMap("createDecision", event.getTrace(), sb);
@@ -1083,6 +1190,9 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 
 		Integer breakMillisRemaining = null;
 		Integer athleteMillisRemaining = null;
+		Integer athleteTimeAllowed = null;
+		Integer athleteInitialWarningMillis = null;
+		Integer athleteFinalWarningMillis = null;
 		Long breakStartTimeMillis = null;
 		Long athleteStartTimeMillis = null;
 		Boolean indefiniteBreak = null;
@@ -1096,16 +1206,19 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 			athleteTimerEventType = timerEventType;
 			athleteStartTimeMillis = null;
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(athleteMillisRemaining);
 		} else if (e instanceof StartTime) {
 			athleteTimerEventType = timerEventType;
 			StartTime st = (StartTime) e;
 			athleteStartTimeMillis = System.currentTimeMillis();
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(athleteMillisRemaining);
 		} else if (e instanceof StopTime) {
 			athleteTimerEventType = timerEventType;
 			StopTime st = (StopTime) e;
 			athleteStartTimeMillis = System.currentTimeMillis();
 			athleteMillisRemaining = st.getTimeRemaining();
+			athleteTimeAllowed = resolveAthleteTimeAllowed(athleteMillisRemaining);
 		} else if (e instanceof BreakSetTime) {
 			breakTimerEventType = timerEventType;
 			BreakSetTime bst = (BreakSetTime) e;
@@ -1131,12 +1244,19 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		}
 
 		if (e instanceof StartTime || e instanceof SetTime || e instanceof StopTime) {
+			athleteInitialWarningMillis = resolveAthleteInitialWarningMillis(athleteTimeAllowed);
+			athleteFinalWarningMillis = resolveAthleteFinalWarningMillis(athleteTimeAllowed);
 			mapPut(sb, "athleteTimerEventType", athleteTimerEventType);
 			athleteMillisRemaining = athleteMillisRemaining != null ? athleteMillisRemaining : 0;
+			mapPut(sb, "timeAllowed", athleteTimeAllowed != null ? athleteTimeAllowed.toString() : null);
 			mapPut(sb, "athleteStartTimeMillis",
 			        athleteStartTimeMillis != null ? Long.toString(athleteStartTimeMillis) : null);
 			mapPut(sb, "athleteMillisRemaining",
 			        athleteMillisRemaining != null ? athleteMillisRemaining.toString() : null);
+			mapPut(sb, "athleteInitialWarningMillis",
+			        athleteInitialWarningMillis != null ? athleteInitialWarningMillis.toString() : null);
+			mapPut(sb, "athleteFinalWarningMillis",
+			        athleteFinalWarningMillis != null ? athleteFinalWarningMillis.toString() : null);
 		} else {
 			mapPut(sb, "breakTimerEventType", breakTimerEventType);
 			mapPut(sb, "break", String.valueOf(isBreak()));
@@ -1164,6 +1284,30 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		return sb;
 	}
 
+	private Integer resolveAthleteTimeAllowed(Integer athleteMillisRemaining) {
+		if (this.timeAllowed != null && this.timeAllowed > 0) {
+			return this.timeAllowed;
+		}
+		return athleteMillisRemaining;
+	}
+
+	private Integer resolveAthleteInitialWarningMillis(Integer athleteTimeAllowed) {
+		if (athleteTimeAllowed == null || athleteTimeAllowed < 1) {
+			return null;
+		}
+		if (athleteTimeAllowed == Competition.athleteTimerOneMinute) {
+			return -1;
+		}
+		return Competition.athleteTimerInitialWarning <= athleteTimeAllowed ? Competition.athleteTimerInitialWarning : -1;
+	}
+
+	private Integer resolveAthleteFinalWarningMillis(Integer athleteTimeAllowed) {
+		if (athleteTimeAllowed == null || athleteTimeAllowed < 1) {
+			return null;
+		}
+		return Competition.athleteTimerFinalWarning <= athleteTimeAllowed ? Competition.athleteTimerFinalWarning : -1;
+	}
+
 	private synchronized Map<String, Object> createUpdate(UIEvent event) {
 		updateState();
 		Map<String, Object> sb = new LinkedHashMap<>();
@@ -1177,7 +1321,7 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		}
 		recomputeRemainingTimes(sb);
 
-		mapPut(sb, "uiEvent", event.getClass().getSimpleName());
+		mapPut(sb, "uiEvent", event != null ? event.getClass().getSimpleName() : "InitialSync");
 		mapPut(sb, "updateKey", Config.getCurrent().getParamUpdateKey());
 		String paramStylesDir = Config.getCurrent().getParamStylesDir();
 		mapPut(sb, "stylesDir", paramStylesDir);
@@ -1328,7 +1472,8 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		
 		mapPut(sb, "hidden", String.valueOf(this.hidden));
 		mapPut(sb, "wideTeamNames", String.valueOf(this.wideTeamNames));
-		mapPut(sb, "sinclairMeet", Boolean.toString(Competition.getCurrent().isSinclair()));
+		var activeChampionships = this.fop != null ? this.fop.getActiveChampionships() : Collections.singleton(Championship.of(null));
+		mapPut(sb, "sinclairMeet", Boolean.toString(Championship.anyScoreMedalChampionship(activeChampionships)));
 
 		setBoardMode(computeBoardModeName(this.fop.getState(), this.fop.getBreakType(), this.fop.getCeremonyType()));
 		mapPut(sb, "mode", getBoardMode());
@@ -1542,7 +1687,7 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 		Level level = logger.getLevel();
 		try {
 			logger.setLevel(Level.TRACE);
-			logger.trace("=== {}\n{}", string, string2);
+			logger.trace("{}\n{}", string, string2);
 			for (Entry<String, String> m : map.entrySet()) {
 				if (m.getKey() == "updateKey") {
 					logger.trace(" {} = {}", m.getKey(), m.getValue() != null ? "masked " + m.getValue().length() : "masked null value");
@@ -2143,7 +2288,7 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 
 		CompetitionDataExport export = ForwarderPayloadBuilder.exportCompetitionData(getFop());
 		if (export == null) {
-			logger.warn("{}unable to build competition data for database", FieldOfPlay.getLoggingName(getFop()));
+			logger.error("{}unable to build competition data for database", FieldOfPlay.getLoggingName(getFop()));
 			return;
 		}
 
@@ -2165,9 +2310,9 @@ public class WebSocketEventForwarder implements BreakDisplay, HasBoardMode, IUnr
 						String jsonDatabase = export.json();
 						double ratio = 100.0 * (1.0 - (double) databaseZipBytes.length / jsonDatabase.getBytes().length);
 						logger.info(
-							"{}sent database ZIP via WebSocket to {} ({} bytes, from {}, {:.1f}% reduction)",
+							"{}sent database ZIP via WebSocket to {} ({} bytes, from {}, {}% reduction)",
 							FieldOfPlay.getLoggingName(getFop()), url, databaseZipBytes.length,
-							jsonDatabase.getBytes().length, ratio
+							jsonDatabase.getBytes().length, String.format("%.1f", ratio)
 						);
 					} else {
 						logger.debug(

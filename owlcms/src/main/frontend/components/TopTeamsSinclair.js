@@ -100,6 +100,7 @@ class TopTeamsSinclair extends LitElement {
       stylesDir: {},
       autoVersion: {},
       video: {},
+      darkMode: {},
       t: {type: Object},
     };
   }

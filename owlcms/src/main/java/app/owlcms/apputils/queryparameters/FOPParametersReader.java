@@ -69,7 +69,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 		URLUtils.replaceState(ui.getPage().getHistory(), null, location2, location);
 		setLocation(location2);
 		if (logger.isDebugEnabled()) {
-			logger.debug("**** updatingLocation {} {}", location2.getPathWithQueryParameters(),
+			logger.debug("updatingLocation {} {}", location2.getPathWithQueryParameters(),
 			        LoggerUtils.whereFrom());
 		}
 		storeReturnURL(location2);
@@ -81,6 +81,17 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 
 	public default boolean isIgnoreGroupFromURL() {
 		return true;
+	}
+
+	/**
+	 * Whether a group provided in the URL is allowed to mutate the underlying FOP
+	 * state (i.e., call loadGroup on the shared FOP).
+	 *
+	 * Display pages should return false so URL changes remain local to that display
+	 * and never override the announcer-selected group.
+	 */
+	public default boolean isGroupURLAllowedToMutateFop() {
+		return false;
 	}
 
 	/**
@@ -121,7 +132,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 				tFop = OwlcmsFactory.getDefaultFOP();
 				this.setFop(tFop);
 			}
-			newParameterMap.put(FOP, Arrays.asList(URLUtils.urlEncode(tFop.getName())));
+			newParameterMap.put(FOP, Arrays.asList(tFop.getName()));
 			OwlcmsSession.setFop(tFop);
 		} else {
 			newParameterMap.remove(FOP);
@@ -131,21 +142,25 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 		Group group = null;
 		if (!isIgnoreGroupFromURL()) {
 			List<String> groupNames = parametersMap.get(GROUP);
+			boolean groupProvidedInUrl = groupNames != null && groupNames.get(0) != null;
 			if (groupNames != null && groupNames.get(0) != null) {
 				String decoded = URLDecoder.decode(groupNames.get(0), StandardCharsets.UTF_8);
-				// logger.trace("URL group = {} decoded = {}",groupNames.get(0), decoded);
 				group = GroupRepository.findByName(decoded);
 				Group fopGroup = tFop != null ? tFop.getGroup() : null;
 				boolean sameGroup = fopGroup != null && fopGroup.getName().equals(decoded);
-				if (!sameGroup && tFop != null) {
+				if (!sameGroup && tFop != null && isGroupURLAllowedToMutateFop()) {
 					tFop.loadGroup(group, this, true);
 				}
 			} else {
 				group = (tFop != null ? tFop.getGroup() : null);
 			}
-			if (group != null) {
-				newParameterMap.put(GROUP, Arrays.asList(URLUtils.urlEncode(group.getName())));
+			if (groupProvidedInUrl && group != null) {
+				newParameterMap.put(GROUP, Arrays.asList(group.getName()));
+			} else {
+				newParameterMap.remove(GROUP);
 			}
+			// Set the group on the page so it can be used by display components
+			this.setGroup(group);
 		} else {
 			newParameterMap.remove(GROUP);
 		}
@@ -219,7 +234,7 @@ public interface FOPParametersReader extends ParameterReader, FOPParameters {
 	@Override
 	public default void updateURLLocation(UI ui, Location location, String parameter, String value) {
 		//if (logger.isDebugEnabled()) {
-			logger.debug("**** updating {} to {} from {}", parameter, value, LoggerUtils.whereFrom());
+			logger.debug("updating {} to {} from {}", parameter, value, LoggerUtils.whereFrom());
 		//}
 		Map<String, List<String>> parametersMap = new TreeMap<>(location.getQueryParameters().getParameters());
 

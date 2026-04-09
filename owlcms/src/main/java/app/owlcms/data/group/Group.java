@@ -591,7 +591,7 @@ public class Group implements Comparable<Group> {
 	@JsonIgnore
 	public List<RecordEvent> getRecords() {
 		// return RecordRepository.findFiltered(null, null, null, this.name, true);
-		return RecordRepository.findWithFilters(null, null, null, null,
+		return RecordRepository.findWithFilters(null, null, null, null, null,
 		        "PROVISIONAL", "HISTORY", this.getName());
 	}
 
@@ -1684,22 +1684,22 @@ public class Group implements Comparable<Group> {
 	}
 
 	public void setFirstSnatchTime(LocalDateTime now, FieldOfPlay fop) {
-		logger.info("{}%%%%%%%%% {} setFirstSnatchTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		logger.debug("{}%%%%%%%%% {} setFirstSnatchTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
 		this.firstSnatchTime = now;
 	}
 
 	public void setFirstCJTime(LocalDateTime now, FieldOfPlay fop) {
-		logger.info("{}%%%%%%%%% {} setFirstCJTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		logger.debug("{}%%%%%%%%% {} setFirstCJTime {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
 		this.firstCJTime = now;
 	}
 
 	public void setLastSnatchDecisionTime(LocalDateTime now, Group session, FieldOfPlay fop) {
-		logger.info("{}%%%%%%%%% {} setLastSnatchDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		logger.debug("{}%%%%%%%%% {} setLastSnatchDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
 		this.lastSnatchDecisionTime = now;
 	}
 
 	public void setLastCJDecisionTime(LocalDateTime now, Group session, FieldOfPlay fop) {
-		logger.info("{}%%%%%%%%% {} setLastCJDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
+		logger.debug("{}%%%%%%%%% {} setLastCJDecision {} {}", FieldOfPlay.getLoggingName(fop), this, now, LoggerUtils.whereFrom());
 		this.lastCJDecisionTime = now;
 	}
 

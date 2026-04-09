@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -48,6 +49,7 @@ import com.vaadin.flow.data.binder.ValidationException;
 
 import app.owlcms.components.ConfirmationDialog;
 import app.owlcms.components.fields.GridField;
+import app.owlcms.data.config.Config;
 import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.records.RecordConfig;
 import app.owlcms.data.records.RecordDefinitionReader;
@@ -79,7 +81,69 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 			this.grid.addColumn(RecordEvent::getAgeGrp).setTextAlign(ColumnTextAlign.CENTER);
 			this.grid.addColumn(RecordEvent::getRecordFederation).setTextAlign(ColumnTextAlign.CENTER);
 			this.grid.addColumn(RecordEvent::getFileName).setAutoWidth(true);
+
+			// Header checkbox toggles all rows
+			Checkbox headerCheckbox = new Checkbox();
+			headerCheckbox.setAriaLabel(Translator.translate("Active"));
+			headerCheckbox.addValueChangeListener(e -> {
+				if (e.isFromClient()) {
+					boolean newVal = e.getValue();
+					RecordRepository.setActiveForAll(newVal);
+					for (RecordEvent re : LoadedRecordsField.this.getValue()) {
+						re.setActive(newVal);
+					}
+					this.grid.getDataProvider().refreshAll();
+					this.callback.run();
+				}
+			});
+			updateHeaderCheckboxState(headerCheckbox);
+
+			NativeLabel activeLabel = new NativeLabel(Translator.translate("Active"));
+			activeLabel.getStyle().set("font-size", "var(--lumo-font-size-s)");
+			Div headerWrapper = new Div(activeLabel, headerCheckbox);
+			headerWrapper.getStyle().set("display", "flex");
+			headerWrapper.getStyle().set("flex-direction", "column");
+			headerWrapper.getStyle().set("align-items", "center");
+
+			this.grid.addComponentColumn(re -> createActiveCheckbox(re, headerCheckbox))
+			        .setHeader(headerWrapper)
+			        .setTextAlign(ColumnTextAlign.CENTER);
 			this.grid.addComponentColumn(re -> createClearButton(re)).setTextAlign(ColumnTextAlign.CENTER);
+		}
+
+		private void updateHeaderCheckboxState(Checkbox headerCheckbox) {
+			List<RecordEvent> items = LoadedRecordsField.this.getValue();
+			if (items == null || items.isEmpty()) {
+				headerCheckbox.setValue(false);
+				headerCheckbox.setIndeterminate(false);
+				return;
+			}
+			boolean allActive = items.stream().allMatch(RecordEvent::getActive);
+			boolean noneActive = items.stream().noneMatch(RecordEvent::getActive);
+			if (allActive) {
+				headerCheckbox.setValue(true);
+				headerCheckbox.setIndeterminate(false);
+			} else if (noneActive) {
+				headerCheckbox.setValue(false);
+				headerCheckbox.setIndeterminate(false);
+			} else {
+				headerCheckbox.setIndeterminate(true);
+			}
+		}
+
+		private Checkbox createActiveCheckbox(RecordEvent re, Checkbox headerCheckbox) {
+			Checkbox checkbox = new Checkbox();
+			checkbox.setValue(re.getActive());
+			checkbox.addValueChangeListener(e -> {
+				if (e.isFromClient()) {
+					RecordRepository.setActiveForRecordSet(
+					        re.getRecordFederation(), re.getRecordName(), re.getAgeGrp(), e.getValue());
+					re.setActive(e.getValue());
+					updateHeaderCheckboxState(headerCheckbox);
+					this.callback.run();
+				}
+			});
+			return checkbox;
 		}
 
 		private Button createClearButton(RecordEvent re) {
@@ -117,13 +181,19 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		this.recordConfig = comp;
 		setBinder(buildBinder(operation, comp));
 
-		FormLayout recordsOrderLayout = recordOrderForm();
 		FormLayout officialLayout = officialForm();
 
-		VerticalLayout mainLayout = new VerticalLayout(
-		        recordsOrderLayout,
-		        separator(),
-		        officialLayout);
+		VerticalLayout mainLayout;
+		if (Config.getCurrent().isRecordRepository()) {
+			officialLayout.getStyle().set("margin-top", "1em");
+			mainLayout = new VerticalLayout(officialLayout);
+		} else {
+			FormLayout recordsOrderLayout = recordOrderForm();
+			mainLayout = new VerticalLayout(
+			        recordsOrderLayout,
+			        separator(),
+			        officialLayout);
+		}
 		mainLayout.setMargin(false);
 		mainLayout.setPadding(false);
 
@@ -193,8 +263,9 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		Button uploadButton = new Button(Translator.translate("Records.UploadButton"));
 		uploadButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		
+		Locale capturedLocale = OwlcmsSession.getLocale();
 		UploadHandler uploadHandler = UploadHandler.inMemory((metadata, bytes) -> {
-			List<String> errors = new RecordDefinitionReader().readInputStream(new ByteArrayInputStream(bytes),
+			List<String> errors = new RecordDefinitionReader(capturedLocale).readInputStream(new ByteArrayInputStream(bytes),
 			        metadata.fileName());
 			if (errors.isEmpty()) {
 				UI.getCurrent().getPage().reload();
@@ -241,19 +312,25 @@ public class RecordConfigEditingFormFactory extends OwlcmsCrudFormFactory<Record
 		editExportRecords.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
 		Div div = new Div();
 		H4 nativeLabel = new H4(Translator.translate("RecordConfig.LoadedRecords"));
+		nativeLabel.getStyle().set("margin", "0");
+		nativeLabel.getStyle().set("line-height", "1.2");
 		clearNewRecords.getElement().setAttribute("title",
 			Translator.translate("RecordConfig.ClearAllRecordsExplanation"));
 		buttonTitle.add(nativeLabel,
-		        div, clearNewRecords,editExportRecords);
+		        div, clearNewRecords);
 		buttonTitle.setSpacing(true);
 		buttonTitle.setFlexGrow(1, div);
-		buttonTitle.setAlignSelf(Alignment.CENTER, nativeLabel);
+		buttonTitle.setAlignItems(Alignment.START);
+		buttonTitle.setAlignSelf(Alignment.START, nativeLabel);
 		// visual kludge
+		buttonTitle.getElement().getStyle().set("margin-top", "2em");
 		buttonTitle.getElement().getStyle().set("margin-right", "1em");
+		buttonTitle.setWidthFull();
 
-		FormItem lfi = recordsAvailableLayout.addFormItem(this.loadedField,
-		        buttonTitle);
-		recordsAvailableLayout.setColspan(lfi, 2);
+		recordsAvailableLayout.add(buttonTitle);
+		recordsAvailableLayout.setColspan(buttonTitle, 2);
+		recordsAvailableLayout.add(this.loadedField);
+		recordsAvailableLayout.setColspan(this.loadedField, 2);
 		return recordsAvailableLayout;
 	}
 

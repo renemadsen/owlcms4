@@ -13,6 +13,8 @@ import java.util.List;
 
 import app.owlcms.data.records.RecordEvent;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.slf4j.Logger;
@@ -27,7 +29,6 @@ import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.category.UnfinishedCategories;
 import app.owlcms.data.competition.Competition;
-import app.owlcms.data.config.Config;
 import app.owlcms.i18n.Translator;
 import app.owlcms.init.OwlcmsSession;
 import net.sf.jxls.transformer.XLSTransformer;
@@ -118,13 +119,50 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 	@Override
 	protected void postProcess(Workbook workbook) {
 		super.postProcess(workbook);
+		overwritePointsSheet(workbook);
 		translateSheets(workbook);
 		workbook.setForceFormulaRecalculation(true);
+	}
+
+	private void overwritePointsSheet(Workbook workbook) {
+		Sheet pointsSheet = workbook.getSheet("Points");
+		if (pointsSheet == null) {
+			return;
+		}
+
+		for (int rowIndex = 1; rowIndex <= pointsSheet.getLastRowNum(); rowIndex++) {
+			int rank = rowIndex - 1;
+			Row row = pointsSheet.getRow(rowIndex);
+			if (row == null) {
+				row = pointsSheet.createRow(rowIndex);
+			}
+
+			Cell rankCell = row.getCell(0);
+			if (rankCell == null) {
+				rankCell = row.createCell(0);
+			}
+			rankCell.setCellValue(rank);
+
+			Cell pointsCell = row.getCell(1);
+			if (pointsCell == null) {
+				pointsCell = row.createCell(1);
+			}
+			pointsCell.setCellValue(AthleteSorter.pointsFormula(rank));
+		}
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	@Override
 	protected void setReportingInfo() {
+		// Propagate the instance field to the thread-local so that super.setReportingInfo(),
+		// the override logic below, and Athlete.getBestLifterScore()/getBestLifterRank()
+		// all see the dropdown-selected scoring system on the main thread.
+		// (JXLSResultSheet does this in computeSortedAthletes(); JXLSCompetitionBook
+		// returns null from computeSortedAthletes(), so we must set it here.)
+		if (getBestLifterScoringSystem() != null) {
+			JXLSWorkbookStreamSource.setBestLifterRankingThreadLocal(getBestLifterScoringSystem());
+		}
+
 		Competition competition = Competition.getCurrent();
 		competition.computeReportingInfo(getAgeGroupPrefix(), getChampionship());
 
@@ -152,16 +190,15 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 		keepProvisionalRecords(records, reportingBeans);
 
 		Ranking overallScoringSystem = JXLSWorkbookStreamSource.getBestLifterRankingThreadLocal();
-		JXLSWorkbookStreamSource.setNoInterimScoresInResults(Config.getCurrent().featureSwitch("noInterimScoresInResults"));
 		if (overallScoringSystem == null) {
-			overallScoringSystem = Competition.getCurrent().getScoringSystem();
-		} else {
-			// recompute mBest and wBest according to overallScoringSystem
-			List<Athlete> sortedMen = (List<Athlete>) reportingBeans.get("mBest");
-			List<Athlete> sortedWomen = (List<Athlete>) reportingBeans.get("wBest");
-			reportingBeans.put("mBest", AthleteSorter.resultsOrderCopy(sortedMen, overallScoringSystem));
-			reportingBeans.put("wBest", AthleteSorter.resultsOrderCopy(sortedWomen, overallScoringSystem));
+			overallScoringSystem = getChampionship() != null
+			        ? getChampionship().getBestAthleteScoringSystem()
+			        : Championship.of(null).getBestAthleteScoringSystem();
 		}
+
+		reportingBeans.put("championship", getChampionship());
+		reportingBeans.put("ageGroupPrefix", getAgeGroupPrefix());
+		reportingBeans.put("gender", getGender());
 
 		String brt = overallScoringSystem != null ? Ranking.getScoringTitle(overallScoringSystem) : Translator.translate("BestAthlete");
 		reportingBeans.put("bestRankingTitle", brt);
@@ -184,6 +221,21 @@ public class JXLSCompetitionBook extends JXLSWorkbookStreamSource {
 				reportingBeans.put("mBest", reportingBeans.get(overallScoringSystem.getMReportingName()));
 				reportingBeans.put("wBest", reportingBeans.get(overallScoringSystem.getWReportingName()));
 			}
+
+			@SuppressWarnings("unchecked")
+			Collection<Athlete> mBest = (Collection<Athlete>) reportingBeans.get("mBest");
+			@SuppressWarnings("unchecked")
+			Collection<Athlete> wBest = (Collection<Athlete>) reportingBeans.get("wBest");
+
+			List<Athlete> mTeamBest = mBest != null ? new java.util.ArrayList<>(mBest) : List.of();
+			List<Athlete> wTeamBest = wBest != null ? new java.util.ArrayList<>(wBest) : List.of();
+			List<Athlete> mwTeamBest = new java.util.ArrayList<>(mTeamBest.size() + wTeamBest.size());
+			mwTeamBest.addAll(mTeamBest);
+			mwTeamBest.addAll(wTeamBest);
+
+			reportingBeans.put("mTeamBest", AthleteSorter.teamPointsOrderCopy(mTeamBest, overallScoringSystem));
+			reportingBeans.put("wTeamBest", AthleteSorter.teamPointsOrderCopy(wTeamBest, overallScoringSystem));
+			reportingBeans.put("mwTeamBest", AthleteSorter.teamPointsOrderCopyMixed(mwTeamBest, overallScoringSystem));
 		}
 		setReportingBeans(reportingBeans);
 	}

@@ -37,7 +37,7 @@ public class DatabaseZipHelper {
 	 */
 	public static byte[] createDatabaseZipBytes(Object databasePayload) {
 		if (databasePayload == null) {
-			logger.warn("[DatabaseZipHelper] Payload is null, returning empty ZIP");
+			logger./**/warn("[DatabaseZipHelper] Payload is null, returning empty ZIP");
 			return new byte[0];
 		}
 
@@ -58,8 +58,8 @@ public class DatabaseZipHelper {
 
 			byte[] result = baos.toByteArray();
 			double ratio = 100.0 * (1.0 - (double) result.length / jsonBytes.length);
-			logger.info("[DatabaseZipHelper] Created database ZIP: {} bytes (from {} bytes, {:.1f}% reduction)",
-					result.length, jsonBytes.length, ratio);
+			logger.info("[DatabaseZipHelper] Created database ZIP: {} bytes (from {} bytes, {}% reduction)",
+					result.length, jsonBytes.length, String.format("%.1f", ratio));
 			return result;
 
 		} catch (IOException e) {
@@ -77,7 +77,7 @@ public class DatabaseZipHelper {
 	 */
 	public static byte[] createMetadataZipBytes(Object metadata) {
 		if (metadata == null) {
-			logger.warn("[DatabaseZipHelper] Metadata is null, returning empty ZIP");
+			logger./**/warn("[DatabaseZipHelper] Metadata is null, returning empty ZIP");
 			return new byte[0];
 		}
 

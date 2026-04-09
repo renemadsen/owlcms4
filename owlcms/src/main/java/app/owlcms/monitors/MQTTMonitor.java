@@ -51,6 +51,7 @@ import app.owlcms.fieldofplay.FieldOfPlay;
 import app.owlcms.init.OwlcmsFactory;
 import app.owlcms.uievents.BreakType;
 import app.owlcms.uievents.CeremonyType;
+import app.owlcms.uievents.JuryDeliberationEventType;
 import app.owlcms.uievents.UIEvent;
 import app.owlcms.nui.shared.SafeEventBusRegistration;
 import app.owlcms.uievents.UIEvent.BreakStarted;
@@ -444,9 +445,9 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 					fop2.fopEventPost(new FOPEvent.TimeStarted(this));
 				}
 			} else if (messageStr.equalsIgnoreCase("60")) {
-				fop2.fopEventPost(new FOPEvent.ForceTime(60000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(Competition.athleteTimerOneMinute, this));
 			} else if (messageStr.equalsIgnoreCase("120")) {
-				fop2.fopEventPost(new FOPEvent.ForceTime(120000, this));
+				fop2.fopEventPost(new FOPEvent.ForceTime(Competition.athleteTimerTwoMinutes, this));
 			} else {
 				logger.error("{}Malformed MQTT clock message topic='{}' message='{}'",
 				        FieldOfPlay.getLoggingName(fop2), topic, messageStr);
@@ -1049,11 +1050,11 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 
 	public void testDownSignal() throws MqttPersistenceException, MqttException {
 		try {
-			this.publishMqttTimeRemaining(90);
+			this.publishMqttTimeRemainingSeconds(Competition.athleteTimerInitialWarning / 1000);
 			Thread.sleep(1000);
-			this.publishMqttTimeRemaining(30);
+			this.publishMqttTimeRemainingSeconds(Competition.athleteTimerFinalWarning / 1000);
 			Thread.sleep(1000);
-			this.publishMqttTimeRemaining(0);
+			this.publishMqttTimeRemainingSeconds(0);
 			Thread.sleep(1000);
 			this.publishMqttDownSignal();
 		} catch (InterruptedException | MqttException e) {
@@ -1071,19 +1072,25 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 	@Subscribe
 	public void slaveBreakStart(UIEvent.BreakStarted e) {
 		// logger.debug("mqtt slaveBreakStart {} {}",e, e.getBreakType());
-		if (e.getBreakType() == BreakType.JURY) {
+		if (e.getBreakType() != BreakType.JURY && e.getBreakType() != BreakType.CHALLENGE) {
+			try {
+				publishMqttBreak(e);
+			} catch (MqttException e1) {
+			}
+		}
+	}
+
+	@Subscribe
+	public void slaveJuryNotification(UIEvent.JuryNotification e) {
+		JuryDeliberationEventType type = e.getDeliberationEventType();
+		if (type == JuryDeliberationEventType.START_DELIBERATION) {
 			try {
 				publishMqttJuryDeliberation();
 			} catch (MqttException e1) {
 			}
-		} else if (e.getBreakType() == BreakType.CHALLENGE) {
+		} else if (type == JuryDeliberationEventType.CHALLENGE) {
 			try {
 				publishMqttChallenge();
-			} catch (MqttException e1) {
-			}
-		} else {
-			try {
-				publishMqttBreak(e);
 			} catch (MqttException e1) {
 			}
 		}
@@ -1202,9 +1209,9 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 	}
 
 	@Subscribe
-	public void slaveTimeRemaining(UIEvent.TimeRemaining e) {
-		int tr = e.getTimeRemaining();
-		publishMqttTimeRemaining(tr);
+	public void slaveTimeRemainingSeconds(UIEvent.TimeRemainingSeconds e) {
+		int secondsRemaining = e.getSecondsRemaining();
+		publishMqttTimeRemainingSeconds(secondsRemaining);
 	}
 
 	@Subscribe
@@ -1521,7 +1528,7 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 	}
 
 	private void publishMqttResetAllDecisions() {
-		logger.debug("{}MQTT resetDecisions", FieldOfPlay.getLoggingName(this.getFop()));
+		//logger.debug("{}MQTT resetDecisions", FieldOfPlay.getLoggingName(this.getFop()));
 		try {
 			this.client.publish("owlcms/fop/resetDecisions/" + this.getFop().getName(),
 			        new MqttMessage("reset".getBytes(StandardCharsets.UTF_8)));
@@ -1551,11 +1558,11 @@ public class MQTTMonitor extends Thread implements IUnregister, SafeEventBusRegi
 		}
 	}
 
-	private void publishMqttTimeRemaining(int tr) {
-		logger.debug("{}MQTT timeRemaining {}", FieldOfPlay.getLoggingName(this.getFop()), tr);
+	private void publishMqttTimeRemainingSeconds(int secondsRemaining) {
+		logger.debug("{}MQTT timeRemaining {}", FieldOfPlay.getLoggingName(this.getFop()), secondsRemaining);
 		try {
 			this.client.publish("owlcms/fop/timeRemaining/" + this.getFop().getName(),
-			        new MqttMessage(Integer.toString(tr).getBytes(StandardCharsets.UTF_8)));
+			        new MqttMessage(Integer.toString(secondsRemaining).getBytes(StandardCharsets.UTF_8)));
 		} catch (MqttException e1) {
 			logger.error("could not publish timeRemaining {}", e1.getCause());
 		}

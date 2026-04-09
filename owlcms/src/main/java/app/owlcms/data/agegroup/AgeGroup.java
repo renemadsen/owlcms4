@@ -225,8 +225,10 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	@JsonIgnore
 	@Transient
 	public String computeChampionshipName() {
-		return (this.getChampionshipName() != null && !this.getChampionshipName().isBlank()) ? this.getChampionshipName()
-		        : this.ageDivision;
+		if (this.getChampionshipName() == null || this.getChampionshipName().isBlank()) {
+			throw new IllegalStateException("AgeGroup " + this.getCode() + " is missing championshipName");
+		}
+		return this.getChampionshipName();
 	}
 
 	@Override
@@ -241,10 +243,8 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		if (other.getId() == this.getId()) {
 			return true;
 		}
-		var cs1 = this.ageDivision;
-		var cs2 = other.ageDivision;
 		return this.active == other.active
-				&& ((cs1 == null) ? (cs2 == null) : cs1.contentEquals(cs2))
+				&& Objects.equals(this.ageDivision, other.ageDivision)
 		        && Objects.equals(this.getChampionshipName(), other.getChampionshipName())
 		        && Objects.equals(this.categories, other.categories)
 		        && Objects.equals(this.code, other.code)
@@ -304,6 +304,13 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 			return this.championshipType;
 		}
 	}
+
+	@Transient
+	@JsonIgnore
+	public boolean isMixedTeams() {
+		Championship championship = getChampionship();
+		return championship != null && championship.isExplicitMixedTeamMembers();
+	}
 	
 	public void setChampionshipType(ChampionshipType c) {
 		this.championshipType = c;
@@ -331,7 +338,8 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 		String value = null;
 		String translatedCode = getTranslatedCode(code2);
-		if (this.isAlreadyGendered() || this.getChampionship().getType() == ChampionshipType.MASTERS) {
+		ChampionshipType resolvedChampionshipType = this.getChampionshipType();
+		if (this.isAlreadyGendered() || (resolvedChampionshipType != null && resolvedChampionshipType.isMasters())) {
 			value = translatedCode;
 		} else {
 			value = translatedCode + " " + getTranslatedGender();
@@ -388,7 +396,7 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 
 		String value = null;
 		String translatedCode = getTranslatedCode(code2);
-		if (this.getChampionshipType() == ChampionshipType.MASTERS || this.isAlreadyGendered()) {
+		if (this.getChampionshipType().isMasters() || this.isAlreadyGendered()) {
 			value = translatedCode;
 		} else if (this.getChampionshipType() == ChampionshipType.DEFAULT) {
 			value = getTranslatedGender();
@@ -497,8 +505,8 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 	}
 
 	public void setChampionship(Championship championship) {
-		logger.debug("setting {} championship to {}", this, championship.getName());
-		this.setChampionshipName(championship.getName());
+		logger.debug("setting {} championship to {}", this, championship != null ? championship.getName() : null);
+		this.setChampionshipName(championship != null ? championship.getName() : null);
 	}
 
 	public void setChampionshipName(String championshipName) {
@@ -575,7 +583,7 @@ public class AgeGroup implements Comparable<AgeGroup>, Serializable {
 		} else if (bestAthleteScoringSystem != null) {
 			return Translator.translate("Ranking."+bestAthleteScoringSystem);
 		} else {
-			return Translator.translate("Ranking."+Competition.getCurrent().getScoringSystem());
+			return Translator.translate("Ranking." + Championship.of(null).getScoringSystem());
 		}
 	}
 

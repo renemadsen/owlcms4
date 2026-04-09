@@ -68,6 +68,10 @@ public class DecisionElement extends LitTemplate
 
 	public void setFop(FieldOfPlay fop) {
 		this.fop = fop;
+		logger.warn("DecisionElement.setFop: fop={} isSingleRef={} isJuryMode={} {}",
+		        (fop != null ? fop.getName() : "null"), this.isSingleRef(), this.isJuryMode(),
+		        LoggerUtils.whereFrom());
+		getElement().setProperty("singleRef", this.isSingleRef());
 	}
 
 	/**
@@ -93,6 +97,16 @@ public class DecisionElement extends LitTemplate
 	        Integer ref3Time) {
 		Object origin = this.getOrigin();
 		if (this.fop != null && fopName.contentEquals(this.fop.getName())) {
+			if (this.isSingleRef()) {
+				Integer refIndex = ref1 != null ? 0 : (ref2 != null ? 1 : (ref3 != null ? 2 : null));
+				Boolean decision = ref1 != null ? ref1 : (ref2 != null ? ref2 : ref3);
+				if (refIndex != null && decision != null) {
+					logger.warn("DecisionElement solo referee update refIndex={} decision={} {}",
+					        refIndex, decision, LoggerUtils.whereFrom());
+					this.fop.fopEventPost(new FOPEvent.DecisionUpdate(origin, refIndex, decision));
+					return;
+				}
+			}
 			//logger.debug("masterRefereeUpdate {} {} {}",ref1, ref2, ref3);
 			this.fop.fopEventPost(
 			        new FOPEvent.DecisionFullUpdate(origin, this.fop.getCurAthlete(), ref1, ref2, ref3,
@@ -202,15 +216,15 @@ public class DecisionElement extends LitTemplate
 
 	@Subscribe
 	public void slaveShowDecision(UIEvent.Decision e) {
-		//logger.debug("decision {} {} {} --- {}", e.ref1, e.ref2, e.ref3, e.isSingleReferee());
+		//logger.debug("decision {} {} {} --- {}", e.ref1, e.ref2, e.ref3, e.isSingleLight());
 		// Backend now controls hiding down and showing decisions on all decision elements
 		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
-			if (e.isSingleReferee()) {
-				getElement().setProperty("singleRef", e.isSingleReferee());
+			if (e.isSingleLight()) {
+				getElement().setProperty("singleRef", e.isSingleLight());
 				this.getElement().callJsFunction("showSingleDecision", e.decision);
 				this.getElement().callJsFunction("setEnabled", false);
 			} else {
-				getElement().setProperty("singleRef", e.isSingleReferee());
+				getElement().setProperty("singleRef", e.isSingleLight());
 				this.getElement().callJsFunction("showDecisions", false, e.ref1, e.ref2, e.ref3);
 				this.getElement().callJsFunction("setEnabled", false);
 			}

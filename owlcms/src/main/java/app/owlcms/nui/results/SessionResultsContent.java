@@ -52,6 +52,7 @@ import app.owlcms.components.JXLSDownloader;
 import app.owlcms.data.athlete.Athlete;
 import app.owlcms.data.athlete.AthleteRepository;
 import app.owlcms.data.athlete.Gender;
+import app.owlcms.data.agegroup.Championship;
 import app.owlcms.data.athleteSort.AthleteSorter;
 import app.owlcms.data.athleteSort.Ranking;
 import app.owlcms.data.athleteSort.WinningOrderComparator;
@@ -138,7 +139,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 	}
 
 	public static String computeScore(Ranking scoringSystem, Athlete a) {
-		var compSS = Competition.getCurrent().getScoringSystem();
+		var compSS = Championship.of(null).getBestAthleteScoringSystem();
 		var ageGroup = a.getAgeGroup();
 
 		Ranking ss;
@@ -146,10 +147,12 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		    // use the dropdown selection if it is present.
 		    ss = scoringSystem;
 		} else if (ageGroup != null) {
-			ss = ageGroup.getBestAthleteScoringSystem() != null ?  ageGroup.getBestAthleteScoringSystem() : compSS;
+			Championship athleteChampionship = ageGroup.getChampionship();
+			ss = ageGroup.getBestAthleteScoringSystem() != null ? ageGroup.getBestAthleteScoringSystem()
+			        : athleteChampionship.getBestAthleteScoringSystem();
 		} else {
 			// defensive
-			ss = Competition.getCurrent().getScoringSystem();
+			ss = compSS;
 		}
 		return Ranking.getScoringTitle(ss) + " " + String.format(OwlcmsSession.getLocale(), "%7.2f", Ranking.getRankingValue(a, ss));
 	}
@@ -278,7 +281,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		Gender currentGender = this.getGenderFilter().getValue();
 
 		List<Athlete> rankedAthletes = AthleteSorter.assignCategoryRanks(getCurrentGroup());
-		logger.debug("=== ResultsContent ranked athletes {}", rankedAthletes.size());
+		logger.debug("ResultsContent ranked athletes {}", rankedAthletes.size());
 
 		// unfinished categories need to be computed using all relevant athletes, including not weighed-in yet
 		UnfinishedCategories unfinishedCategories = AthleteRepository.allUnfinishedCategories();
@@ -405,10 +408,10 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 			this.setCurrentGroup((groups.size() > 0 ? groups.get(0) : null));
 		}
 		if (this.getCurrentGroup() != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(this.getCurrentGroup().getName())));
+			params.put("group", Arrays.asList(this.getCurrentGroup().getName()));
 		} else {
 			// params.remove("group");
-			params.put("group", Arrays.asList(URLUtils.urlEncode("*")));
+			params.put("group", Arrays.asList("*"));
 		}
 		doSwitchGroup(this.getCurrentGroup());
 		params.remove("fop");
@@ -429,7 +432,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		HashMap<String, List<String>> params = new HashMap<>(
 		        location.getQueryParameters().getParameters());
 		if (!isIgnoreGroupFromURL() && newGroup != null) {
-			params.put("group", Arrays.asList(URLUtils.urlEncode(newGroup.getName())));
+			params.put("group", Arrays.asList(newGroup.getName()));
 		} else {
 			params.remove("group");
 		}
@@ -587,7 +590,7 @@ public class SessionResultsContent extends AthleteGridContent implements HasDyna
 		if (getRankingSelector() != null && getRankingSelector().getValue() != null) {
 			ranking = getRankingSelector().getValue();
 		} else {
-			ranking = getScoringSystem() != null ? getScoringSystem() : Competition.getCurrent().getScoringSystem();
+			ranking = getScoringSystem() != null ? getScoringSystem() : Championship.of(null).getScoringSystem();
 		}
 		logger.debug("computeScoringSystem {}", ranking);
 		return ranking;
