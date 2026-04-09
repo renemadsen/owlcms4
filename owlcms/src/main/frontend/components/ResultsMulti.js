@@ -14,323 +14,152 @@ class ResultsFull extends LitElement {
   render() {
     return html`
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/colors" + (this.autoversion ?? "") + ".css"}" />
-      <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/resultsMulti" + (this.autoversion ?? "") + ".css"}" />
-      <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/resultsMultiCustomization" + (this.autoversion ?? "") + ".css"}" />
+      <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/results" + (this.autoversion ?? "") + ".css"}" />
+      <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/resultsCustomization" + (this.autoversion ?? "") + ".css"}" />
 
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
-          <div class="waiting" style="${this.waitingStyles()}">
-            <div>
-              <div class="competitionName">${this.competitionName}</div>
-              <br />
-              <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
+          <div class="header-bar" style="${this.videoHeaderStyles()}">
+            <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
+            <div class="event-title">${this.competitionName}</div>
+            <div class="group-info">${this.groupDescription}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
             </div>
-          </div>
-          <div class="attemptBar" style="${this.attemptBarStyles()}">
-            <div class="athleteInfo" style="${this.athleteInfoStyles()}">
-              <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span></div>
-              <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
-              <div class="clubName ellipsis" style="${this.teamNameStyles()}">${this.teamName}</div>
-              <div class="attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
-              <div class="weight" style="${this.weightStyles()}">${this.weight}<span style="font-size: 75%">&hairsp;${this.t?.KgSymbol}</span></div>
-              <div class="timer athleteTimer" style="${this.athleteTimerStyles()}">
-                <timer-element id="timer"></timer-element>
-              </div>
-              <div class="timer breakTime" style="${this.breakTimerStyles()}">
-                <timer-element id="breakTimer"></timer-element>
-              </div>
-              <div class="decisionBox" style="${this.decisionStyles()}">
-                <decision-element style="width: 100%" id="decisions"></decision-element>
-              </div>
-            </div>
-          </div>
-          <div class="group" style="${this.attemptBarStyles()}">
-            <div id="groupDiv">
-              <span class="groupInfo">${this.displayType}${this.groupInfo}</span>${this.liftsDone}
-            </div>
-          </div>
-          <div class="video" style="${this.videoHeaderStyles()}">
-            <div class="eventlogo"></div>
-            <div class="videoheader">
-              <div class="groupInfo">${this.competitionName}</div>
-              <div>${this.groupDescription}</div>
-            </div>
-            <div class="federationlogo"></div>
           </div>
 
-          <table class="${this.athleteClasses()}" style="${this.athleteStyles()}">
+          <!-- hidden elements required because we subclass the results page -->
+          <div style="display:none">
+            <timer-element id="timer"></timer-element>
+            <timer-element id="breakTimer"></timer-element>
+            <decision-element id="decisions"></decision-element>
+          </div>
+
+          <table class="results-table" style="${this.athleteTableStyles()}">
             ${this.athletes
-        ? html`
-                  <tr class="head">
-                    <th class="groupCol" style="grid-row: span 2;">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Start}" ></div>
-                    </th>
-                    <th class="name" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Name}" ></div>
-                    </th>
-                    <th class="category" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Category}" ></div>
-                    </th>
-                    <th class="yob" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Birth}" ></div>
-                    </th>
-                    <th class="custom1" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Custom1}" ></div>
-                    </th>
-                    <th class="custom2" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Custom2}" ></div>
-                    </th>
-                    <th class="club" style="grid-row: span 2">
-                      <div style="display: grid; align-self: center" .innerHTML="${this.t?.Team}" ></div>
-                    </th>
-                    <th class="vspacer"></th>
-                    <th style="grid-column: span calc(3 + ${this.nbRanks} + 1);" .innerHTML="${this.t?.Snatch}" ></th>
-                    <th class="vspacer"></th>
-                    <th style="grid-column: span calc(3 + ${this.nbRanks} + 1);" .innerHTML="${this.t?.Clean_and_Jerk}" ></th>
-                    <th class="vspacer"></th>
-                    <th style="grid-column: span calc(1 + ${this.nbRanks});" .innerHTML="${this.t?.Total}" ></th>
-                    <th class="vspacer sinclairVspacer"></th>
-                    <th class="sinclair" style="grid-column: span 2;" .innerHTML="${this.t?.ScoringTitle}" ></th>
-                  </tr>
-                  <tr class="head">
-                    <th class="vspacer"></th>
-                    <th class="narrow">1</th>
-                    <th class="narrow">2</th>
-                    <th class="narrow">3</th>
-                    <th class="best" .innerHTML="${this.t?.Best}"></th>
-                    ${(this.ageGroups ?? []).map(
-          (item) =>
-            html`
-                          <th>${item}</th>
-                        `)}
-                    <th class="vspacer"></th>
-                    <th class="narrow">1</th>
-                    <th class="narrow">2</th>
-                    <th class="narrow">3</th>
-                    <th class="best" .innerHTML="${this.t?.Best}"></th>
-                    ${(this.ageGroups ?? []).map(
-              (item) => html`
-                        <th class="rank">${item}</th>
-                      `)}
-                    <th class="vspacer"></th>
-                    <th>✓</th>
-                    ${(this.ageGroups ?? []).map(
-                (item) =>
-                  html`
-                          <th class="rank">${item}</th>
-                        `)}
-                    <th class="vspacer sinclairVspacer"></th>
-                    <th class="sinclair">✓</th>
-                    <th class="sinclairRank rank" .innerHTML="${this.t?.Rank}"></th>
-                  </tr>
-
+              ? html`
+                <thead><tr>
+                  <th style="width:3ch">${this.t?.Start}</th>
+                  <th class="name-col">${this.t?.Name}</th>
+                  <th>${this.t?.Category}</th>
+                  <th>${this.t?.Birth}</th>
+                  <th>${this.t?.Custom1}</th>
+                  <th>${this.t?.Custom2}</th>
+                  <th>${this.t?.Team}</th>
+                  <th class="spacer-col"></th>
+                  <th>1</th><th>2</th><th>3</th>
+                  <th>${this.t?.Best}</th>
+                  ${(this.ageGroups ?? []).map((item) => html`<th class="rank">${item}</th>`)}
+                  <th class="spacer-col"></th>
+                  <th>1</th><th>2</th><th>3</th>
+                  <th>${this.t?.Best}</th>
+                  ${(this.ageGroups ?? []).map((item) => html`<th class="rank">${item}</th>`)}
+                  <th class="spacer-col"></th>
+                  <th>${this.t?.Total}</th>
+                  ${(this.ageGroups ?? []).map((item) => html`<th class="rank">${item}</th>`)}
+                  ${this.showSinclair ? html`
+                    <th>${this.t?.ScoringTitle}</th>
+                    <th class="rank">${this.t?.Rank}</th>
+                  ` : html``}
+                </tr></thead>
+                <tbody>
                 ${(this.athletes ?? []).map(
-                    (item) =>
-                      html`
-                        ${item?.isSpacer
-                          ? html`
-                            <tr>
-                              <td class="spacer" style="grid-column: 1 / -1; justify-content: left;">&nbsp;</td>
-                            </tr>
-                          `
-                          : html`
-                            <tr class="${"athlete" + (item?.classname ?? "")}">
-                              <td class="${"start " + (item?.classname ?? "")}">
-                                <div class="${item?.classname}"> ${item?.startNumber}</div>
-                              </td>
-                              <td class="${"name " + (item.classname ?? "")}">
-                                <div class="${"name ellipsis " + (item?.classname ?? "")}">${item?.fullName}</div>
-                              </td>
-                              <td class="category">
-                                <div>${item?.category}</div>
-                              </td>
-                              <td class="yob">
-                                <div>${item?.yearOfBirth}</div>
-                              </td>
-                              <td class="custom1">
-                                <div>${item?.custom1}</div>
-                              </td>
-                              <td class="custom2">
-                                <div>${item?.custom2}</div>
-                              </td>
-                              <td class="${"club " + (item?.flagClass ?? "")}">
-                                <div class="${item?.flagClass}" .innerHTML="${item?.flagURL} "></div>
-                                <div class="clubName">
-                                  <div class="ellipsis" style="${"width: " + (item?.teamLength ?? "")}">${item?.teamName}</div>
-                                </div>
-                              </td>
-                              <td class="vspacer"></td>
-                              ${(item?.sattempts ?? []).map(
-                            (attempt, index) =>
-                              html`
-                                    <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">   
-                                      <div class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</div>
-                                    </td>
-                                  `)}
-                              <td class="best">
-                                <div .innerHTML="${item?.bestSnatch} "></div>
-                              </td>
-                              ${(item?.snatchRanks ?? []).map(
-                                (rk, index) => html`
-                                  <td class="rank">
-                                    <div .innerHTML="${rk}"></div>
-                                  </td>
-                                `)}
-                              <td class="vspacer"></td>
-                              ${(item?.cattempts ?? []).map(
-                                  (attempt, index) =>
-                                    html`
-                                    <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">
-                                      <div class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</div> 
-                                    </td>
-                                  `)}
-                              <td class="best">
-                                <div .innerHTML="${item?.bestCleanJerk}"></div>
-                              </td>
-                              ${(item?.cleanJerkRanks ?? []).map(
-                                      (rk, index) => html`
-                                  <td class="rank">
-                                    <div .innerHTML="${rk}"></div>
-                                  </td>
-                                `)}
-                              <td class="vspacer"></td>
-                              <td class="total">
-                                <div>${item?.total}</div>
-                              </td>
-                              ${(item?.totalRanks ?? []).map(
-                                        (rk, index) => html`
-                                  <td class="totalRank">
-                                    <div .innerHTML="${rk}"></div>
-                                  </td>
-                                `)}
-                              <td class="vspacer sinclairVspacer"></td>
-                              <td class="sinclair">
-                                <div>${item?.sinclair}</div>
-                              </td>
-                              <td class="sinclairRank">
-                                <div>${item?.sinclairRank}</div>
-                              </td>
-                            </tr>
-                          `}
-                  `)}
-              `
-        : html``}
-            ${this.leaders
-        ? html`
-                <tbody class="leaders" style="${this.leadersStyles()}">
-                  <tr>
-                    <td class="filler" style="grid-column: 1 / -1; ${this.fillerStyles()}"> &nbsp; </td>
-                  </tr>
-                  <tr class="head">
-                    <td class="leaderTitle" .innerHTML="${(this.t?.Leaders ?? "") + " " + (this.categoryName ?? "")}"></td>
-                  </tr>
-                  <tr>
-                    <td class="headerSpacer" style="${"grid-column: 1 / -1; justify-content: left; " + this.leadingAthleteStyles()}">&nbsp;</td>
-                  </tr>
-                  ${(this.leaders ?? []).map(
-          (item, index) =>
-            html`
-                        ${!item?.isSpacer
-                ? html`
-                              <tr class="athlete">
-                                <td class="groupCol" style="${this.leadingAthleteStyles()} "> <div>${item?.subCategory}</div></td>
-                                <td class="${"name " + (item?.classname ?? "")}" style="${this.leadingAthleteStyles()} "> <div class="ellipsis">   ${item?.fullName} </div></td>
-                                <td class="category" style="${this.leadingAthleteStyles()} "> <div>${item?.category}</div></td>
-                                <td class="yob" style="${this.leadingAthleteStyles()} "> <div>${item?.yearOfBirth}</div></td>
-                                <td class="custom1" style="${this.leadingAthleteStyles()} "> <div>${item?.custom1}</div></td>
-                                <td class="custom2" style="${this.leadingAthleteStyles()} "> <div>${item?.custom2}</div></td>
-                                <td class="${"club " + (item?.flagClass ?? "")} ">
-                                  <div class="${item?.flagClass}" .innerHTML="${item?.flagURL}"></div>
-                                  <div class="clubName">
-                                    <div class="ellipsis" style="${"width: " + (item?.teamLength ?? "")}">${item?.teamName}</div>
-                                  </div>
-                                </td>
-                                <td class="vspacer"></td>
-                                ${(item?.sattempts ?? []).map(
-                  (attempt, index) =>
-                    html`
-                                      <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}"><div>${attempt?.stringValue}</div></td>
-                                    `)}
-                                <td class="best" style="${this.leadingAthleteStyles()} "> <div .innerHTML="${item?.bestSnatch}"></div></td>
-                                ${(item?.snatchRanks ?? []).map(
-                      (rk, index) => html`
-                                    <td class="rank">
-                                      <div .innerHTML="${rk}"></div>
-                                    </td>
-                                  `)}
-                                <td class="vspacer" style="${this.leadingAthleteStyles()} "></td>
-                                ${(item?.cattempts ?? []).map(
-                        (attempt, index) =>
-                          html`
-                                      <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}"><div>${attempt?.stringValue}</div></td>
-                                    `)}
-                                <td class="best" style="${this.leadingAthleteStyles()} "><div .innerHTML="${item?.bestCleanJerk}"></div></td>
-                                ${(item?.cleanJerkRanks ?? []).map(
-                            (rk, index) => html`
-                                    <td class="rank">
-                                      <div .innerHTML="${rk}"></div>
-                                    </td>
-                                  `)}                                
-                                <td class="vspacer"></td>
-                                <td class="total" style="${this.leadingAthleteStyles()} "> <div>${item?.total}</div></td>
-                                ${(item.totalRanks ?? []).map(
-                              (rk, index) => html`
-                                    <td class="totalRank">
-                                      <div .innerHTML="${rk}"></div>
-                                    </td>
-                                  `)}
-                                <td class="vspacer sinclairVspacer"></td>
-                                <td class="sinclair" style="${this.leadingAthleteStyles()} "> <div>${item?.sinclair}</div></td>
-                                <td class="sinclairRank" style="${this.leadingAthleteStyles()} "> <div>${item?.sinclairRank}</div></td>
-                              </tr>
-                          `
-                : html``}
-                      `)}
+                    (item) => html`
+                      ${item?.isSpacer
+                        ? html`<tr class="spacer-row"><td colspan="99"></td></tr>`
+                        : html`
+                          <tr class="${(item?.classname ?? "").includes("current") ? "current-athlete" : (item?.classname ?? "").includes("next") ? "next-athlete" : ""}">
+                            <td>${item?.startNumber}</td>
+                            <td class="name-cell">${item?.fullName}</td>
+                            <td>${item?.category}</td>
+                            <td>${item?.yearOfBirth}</td>
+                            <td>${item?.custom1}</td>
+                            <td>${item?.custom2}</td>
+                            <td>${item?.teamName}</td>
+                            <td class="spacer-col"></td>
+                            ${(item?.sattempts ?? []).map(
+                              (attempt) => html`<td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>`
+                            )}
+                            <td class="best" .innerHTML="${item?.bestSnatch}"></td>
+                            ${(item?.snatchRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            <td class="spacer-col"></td>
+                            ${(item?.cattempts ?? []).map(
+                              (attempt) => html`<td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>`
+                            )}
+                            <td class="best" .innerHTML="${item?.bestCleanJerk}"></td>
+                            ${(item?.cleanJerkRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            <td class="spacer-col"></td>
+                            <td class="total">${item?.total}</td>
+                            ${(item?.totalRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            ${this.showSinclair ? html`
+                              <td>${item?.sinclair}</td>
+                              <td class="rank">${item?.sinclairRank}</td>
+                            ` : html``}
+                          </tr>
+                        `}
+                    `)}
                 </tbody>
               `
-        : html``}
+              : html``}
+            ${this.leaders
+              ? html`
+                <tbody class="leaders" style="${this.leadersStyles()}">
+                  <tr class="spacer-row"><td colspan="99"></td></tr>
+                  <tr class="leader-title-row">
+                    <td colspan="99" class="leader-title" .innerHTML="${(this.t?.Leaders ?? "") + " " + (this.categoryName ?? "")}"></td>
+                  </tr>
+                  ${(this.leaders ?? []).map(
+                    (item) => html`
+                      ${!item?.isSpacer
+                        ? html`
+                          <tr>
+                            <td>${item?.subCategory}</td>
+                            <td class="name-cell">${item?.fullName}</td>
+                            <td>${item?.category}</td>
+                            <td>${item?.yearOfBirth}</td>
+                            <td>${item?.custom1}</td>
+                            <td>${item?.custom2}</td>
+                            <td>${item?.teamName}</td>
+                            <td class="spacer-col"></td>
+                            ${(item?.sattempts ?? []).map(
+                              (attempt) => html`<td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>`
+                            )}
+                            <td class="best" .innerHTML="${item?.bestSnatch}"></td>
+                            ${(item?.snatchRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            <td class="spacer-col"></td>
+                            ${(item?.cattempts ?? []).map(
+                              (attempt) => html`<td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>`
+                            )}
+                            <td class="best" .innerHTML="${item?.bestCleanJerk}"></td>
+                            ${(item?.cleanJerkRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            <td class="spacer-col"></td>
+                            <td class="total">${item?.total}</td>
+                            ${(item?.totalRanks ?? []).map(
+                              (rk) => html`<td class="rank" .innerHTML="${rk}"></td>`
+                            )}
+                            ${this.showSinclair ? html`
+                              <td>${item?.sinclair}</td>
+                              <td class="rank">${item?.sinclairRank}</td>
+                            ` : html``}
+                          </tr>
+                        `
+                        : html``}
+                    `)}
+                </tbody>
+              `
+              : html``}
           </table>
-          ${this.records && this.showRecords
-        ? html`
-              <div style="${this.recordsStyles()}">
-                <div class="recordsFiller">&nbsp;</div>
-                <div class="recordRow" style="${(this.hiddenGridStyle ?? "") + "; --nbRecords: " + (this.records?.nbRecords ?? "")}">
-                  <div class="recordTitleBlock">
-                    <div class="recordName recordTitle">${this.t?.records}</div>
-                    <div class="recordLiftTypeSpacer"><span class="recordLiftTypeSpacer">&nbsp;</span></div>
-                    ${(this.records?.recordNames ?? []).map(
-          (n, index) =>
-            html`
-                          <div class="recordName">${n}</div>
-                        `)}
-                  </div>
-
-                  ${(this.records?.recordTable ?? []).map(
-              (c, index) =>
-                html`
-                        <div class="${c?.recordClass}">
-                          <div class="recordCat" .innerHTML="${c?.cat}"></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordS}</span></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordCJ}</span></div>
-                          <div class="recordLiftType"><span class="recordLiftType">${this.t?.recordT}</span></div>
-                          ${(c?.records ?? []).map(
-                  (r, index) =>
-                    html`
-                                <div class="${"recordCell " + (r?.snatchHighlight ?? "")} ">${r?.SNATCH}</div>
-                                <div class="${"recordCell " + (r?.cjHighlight ?? "")} ">${r?.CLEANJERK}</div>
-                                <div class="${"recordCell " + (r?.totalHighlight ?? "")} ">${r?.TOTAL}</div>
-                            `)}
-                        </div>
-                      `)}
-                  <div class="${"recordNotification " + (this.recordKind ?? "")}"> ${this.recordMessage} </div>
-                  <!-- DVF: owlcms branding removed -->
-                </div>
-              </div>
-            `
-        : html`<div style="${this.bottomSpacerStyles()}">&nbsp;
-              <!-- DVF: owlcms branding removed -->
-            </div>
-            `}
         </div>
       </div>
     `;
@@ -352,6 +181,7 @@ class ResultsFull extends LitElement {
       ageGroups: {},
       platformName: {},
       scoreboardType: {},
+      categoryName: {},
 
       // during lifting
       athletes: { type: Object },
@@ -399,8 +229,9 @@ class ResultsFull extends LitElement {
     this.renderRoot.querySelector("#timer").start();
   }
 
-  _isEqualTo(title, string) {
-    return title == string;
+  constructor() {
+    super();
+    this.mode = "WAIT";
   }
 
   wrapperClasses() {
@@ -408,117 +239,23 @@ class ResultsFull extends LitElement {
     classes = classes + (this.platformName ? " " + this.platformName : "");
     classes = classes + (this.darkMode ? " " + this.darkMode : "");
     classes = classes + (this.teamWidthClass ? " " + this.teamWidthClass : "");
-    classes = classes + (this.mode === "WAIT" ? " bigTitle" : "");
-    classes = classes + (this.scoreboardType ? " " + this.scoreboardType : "");
     return classes;
   }
 
-  waitingStyles() { /* originally flex */
-    return "display: " + (this.mode === "WAIT" ? "grid" : "none");
-  }
-
-  attemptBarStyles() {
-    return "display: " + (this.mode === "WAIT" || this.video ? "none" : "block");
-  }
-
-  athleteInfoStyles() {
-    return "display: " + (this.mode === "WAIT" ? "none" : "flex");
-  }
-
-  fullNameStyles() {
-    return "display: " + (this.mode === "WAIT" ? "none" : "flex");
-  }
-
-  teamNameStyles() {
-    return "display: " + ((this.isBreak()) ? "none" : "flex");
-  }
-
-  attemptStyles() {
-    return "display: " + ((this.isBreak()) ? "none" : "flex");
-  }
-
-  startNumberStyles() {
-    return "display: " + (this.isBreak() ? "none" : "flex");
-  }
-
-  weightStyles() {
-    // weights are visible during lift countdowns
-    return "display: " + ((this.mode === "LIFT_COUNTDOWN" || (this.mode === "CURRENT_ATHLETE")) ? "flex" : "none");
-  }
-
-  athleteTimerStyles() {
-    //return "display:" + ((this.mode === "CURRENT_ATHLETE" && !this.decisionVisible) ? "flex" : "none");
-    return "display: " + (this.isBreak() ? "none" : "flex");
-  }
-
-  breakTimerStyles() {
-    return "display:" + ((this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY") ? "flex" : "none");
-  }
-
-  decisionStyles() {
-    return "display: " + ((this.mode === "CURRENT_ATHLETE" && this.decisionVisible) ? "flex" : "none");
-  }
-
   videoHeaderStyles() {
-    return "display: " + ((this.mode !== "WAIT" && this.video) ? "flex" : "none");
+    return this.mode !== "WAIT" ? "display: flex" : "display: none";
   }
 
-  athleteClasses() {
-    //return "results " +  (this.noLiftRanks ?? "") + " " + (this.noBest ?? "")
-
-    // on veut show sinclair sans les rangs totaux pour compés sinclair seulement
-    // donc ajouter noTotalRank
-    // actuellement sinclair implique noTotalRank, doit être indépendant
-    return "results "
-      + (this.showTotal ? " total" : " nototal")
-      + (this.showLiftRanks ? " ranks" : " noranks")
-      + (this.showBest ? " best" : " nobest")
-      + (this.showTotalRank ? " totalRank" : " nototalRank")
-      + (this.showSinclair ? " sinclair" : " nosinclair")
-      + (this.showSinclairRank ? " sinclairRank" : " nosinclairRank")
-      ;
-  }
-
-  athleteStyles() {
-    return (this.mode === "WAIT" ? "display: none" : "display:grid ")
-      + (this.resultLines ? ("; --top: calc(" + this.resultLines + " + 1)") : "")
-      + (this.nbRanks ? "; --nbRanks: " + this.nbRanks : "")
-      + (this.leaderLines ? "; --bottom: " + this.leaderLines : "")
-      + (this.leadersLineHeight ? "; " + this.leadersLineHeight : "")
-      + (this.leaderFillerHeight ? "; " + this.leaderFillerHeight : "")
-      + (this.twOverride ? "; " + this.twOverride : "")
-      ;
+  athleteTableStyles() {
+    return this.mode === "WAIT" ? "display: none" : "";
   }
 
   leadersStyles() {
-    return this.showLeaders ? " display:content" : " display:none";
-  }
-
-  leadingAthleteStyles() {
-    return this.showLeaders ? "" : " display:none";
-  }
-
-  fillerStyles() { // was display:flex
-    return this.showLeaders && this.mode !== "WAIT" ? " display:grid" : " display:none";
-  }
-
-  recordsStyles() {
-    return (!this.showRecords || this.mode !== "CURRENT_ATHLETE")
-      ? "display:none"
-      : "font-size: var(--recordsFontRatio); display: block";
-  }
-
-  bottomSpacerStyles() {
-    return "line-height: var(--bottomSpacerHeight)";
+    return this.showLeaders ? "" : "display:none";
   }
 
   isBreak() {
-    return this.mode === "INTERRUPTION" || this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY" || this.mode === "SESSION_DONE" || this.mode === "CEREMONY"
-  }
-
-  constructor() {
-    super();
-    this.mode = "WAIT";
+    return this.mode === "INTERRUPTION" || this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN_CEREMONY" || this.mode === "SESSION_DONE" || this.mode === "CEREMONY";
   }
 }
 

@@ -1,9 +1,9 @@
 /* default for page */
 
 .wrapper {
-    /* results table font size */
-    --baseRemSize: 2.9rem;
-    --tableFontSize: 1.00em;
+    /* results table font size — DVF compact */
+    --baseRemSize: 1.6rem;
+    --tableFontSize: 0.85em;
     --recordValueCellHeight: calc(var(--tableFontSize)*1.5);
     --recordsFontRatio: 0.9em;
     --defaultLeaderFillerHeight: 1fr;
@@ -31,6 +31,7 @@
 }
 
 .blockPositioningWrapper {
+    background: #00004B;
     display: flex;
     flex-direction: column;
     flex-grow: 1;
@@ -40,10 +41,19 @@
 }
 
 .waiting {
+    font-size: 1rem;
+    font-weight: 600;
+    background: #00004B;
+    color: white;
+    padding: 1rem;
     display: flex;
     flex-grow: 1;
     align-items: center;
-    text-align: center;
+    justify-items: center;
+}
+
+.waiting .nextGroup {
+    font-size: 3rem;
 }
 
 .video {
@@ -391,14 +401,13 @@ table.results tr td.club div.clubName div.ellipsis {
     font-weight: bold;
 }
 
-/* blinking text is done with a div animation */
+/* DVF: no blinking */
 :host .dark table.results div.blink {
-    animation: blink 1.5s step-start 0s infinite;
+    animation: none;
 }
 
-/* blinking a background is done with the changeColor animation defined below */
 :host .light table.results td.blink {
-    animation: changeColor 1.5s step-start 0s infinite;
+    animation: none;
 }
 
 /* next athlete colors */
@@ -423,7 +432,7 @@ table.results tr td.club div.clubName div.ellipsis {
 }
 
 /* grid layout */
-table {
+table.results {
     /* use all available vertical space */
     flex: 1;
     display: grid;
@@ -471,24 +480,23 @@ table {
     --totalWidth: 8ch;
 }
 
-thead,
-tbody,
-tr {
+table.results thead,
+table.results tbody,
+table.results tr {
     display: contents;
 }
 
-th,
-td {
+table.results th,
+table.results td {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     display: flex;
     align-content: stretch;
-    padding-inline-start: calc(var(--tableFontSize)*0.15);
-    padding-inline-end: calc(var(--tableFontSize)*0.15);
-    padding-block-start: calc(var(--tableFontSize)*0.1);
-    padding-block-end: calc(var(--tableFontSize)*0.1);
+    padding: 3px 6px;
     margin: 0;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
 :host .dark table.results tr.head th.vspacer,
@@ -783,6 +791,206 @@ td {
 
 .record-badge.none {
     display: none;
+}
+
+/* Results table */
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.results-table th {
+  background: #000038;
+  color: rgba(255,255,255,0.6);
+  font-weight: 400;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 8px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.results-table th.name-col {
+  text-align: left;
+}
+
+.results-table td {
+  padding: 5px 8px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 13px;
+  color: white;
+}
+
+.results-table tr {
+  background: #00004B;
+}
+
+.results-table tr.current-athlete {
+  background: rgba(255,210,0,0.12);
+}
+
+.results-table tr.current-athlete td {
+  color: #FFD200;
+  font-weight: 600;
+}
+
+.results-table tr.current-athlete td.good {
+  color: #00004B;
+}
+
+.results-table tr.current-athlete td.fail {
+  color: white;
+}
+
+.results-table tr.current-athlete td.total {
+  color: #00004B;
+}
+
+.results-table tr.next-athlete td.name-cell {
+  color: #FFA500;
+}
+
+.results-table td.name-cell {
+  text-align: left;
+  font-weight: 600;
+}
+
+.results-table td.good {
+  background: white;
+  color: #00004B;
+  font-weight: 700;
+}
+
+.results-table td.fail {
+  background: #8B0000;
+  color: white;
+  font-weight: 700;
+}
+
+.results-table td.empty {
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.2);
+}
+
+.results-table td.total {
+  background: #FFD200;
+  color: #00004B;
+  font-weight: 700;
+}
+
+.results-table td.rank {
+  color: #FFD200;
+  font-weight: 600;
+}
+
+.results-table td.best {
+  background: rgba(255,255,255,0.08);
+  color: white;
+  font-weight: 700;
+}
+
+.results-table .spacer-col {
+  width: 4px;
+  background: rgba(255,255,255,0.08);
+  padding: 0;
+}
+
+.results-table th.spacer-col {
+  background: rgba(255,255,255,0.08);
+}
+
+.results-table tr.spacer-row td {
+  padding: 2px;
+  background: transparent;
+  border: none;
+}
+
+/* Leaders section */
+.leaders .leader-title {
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: rgba(255,255,255,0.6);
+  background: #000038;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Records bar at bottom of scoreboard */
+.record-bar {
+  background: linear-gradient(135deg, #00003a, #000038);
+  border-top: 2px solid #FFD200;
+  padding: 8px 16px;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+
+.record-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.record-cat {
+  font-weight: 600;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 10px;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.record-pill {
+  background: rgba(255,255,255,0.08);
+  padding: 3px 8px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.record-label {
+  opacity: 0.5;
+  margin-right: 4px;
+}
+
+.record-val {
+  color: white;
+}
+
+.record-val.highlight {
+  color: #FFD200;
+  font-weight: 600;
+}
+
+.record-notification {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 3px;
+}
+
+.record-notification.attempt {
+  background: #b0353d;
+  color: white;
+}
+
+.record-notification.new {
+  background: #557945;
+  color: white;
+}
+
+.record-notification.none {
+  display: none;
 }
 
 .group {
@@ -1082,4 +1290,32 @@ div.ellipsis {
 
 .recordNotification.none {
     z-index: -10;
+}
+
+/* Category grouping header for Rankings/Medals displays */
+.results-table .cat-header {
+    color: #FFD200;
+    font-weight: bold;
+    font-size: 1.1em;
+    padding: 10px 6px 4px 6px;
+    background: rgba(255, 210, 0, 0.08);
+    border-bottom: 1px solid rgba(255, 210, 0, 0.3);
+    text-align: left;
+}
+
+/* Medal highlight classes for rank cells (backend sends medal1/medal2/medal3) */
+.results-table .medal1 {
+    background: rgba(255, 210, 0, 0.25);
+    color: #FFD200;
+    font-weight: bold;
+}
+.results-table .medal2 {
+    background: rgba(192, 192, 192, 0.2);
+    color: #c0c0c0;
+    font-weight: bold;
+}
+.results-table .medal3 {
+    background: rgba(205, 127, 50, 0.2);
+    color: #cd7f32;
+    font-weight: bold;
 }

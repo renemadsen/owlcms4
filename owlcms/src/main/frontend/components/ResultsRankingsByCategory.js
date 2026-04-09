@@ -8,15 +8,14 @@ import { html, LitElement, css } from "lit";
 
 /**
  * Rankings by Category display.
- * 
- * Uses the narrow Results.js grid styling (resultsCustomization.css)
- * with the medalCategories data structure from ResultsMedals.js
- * (categories shown as grouping headers).
- * 
+ *
+ * Uses the HTML table layout from Results.js styled by nogrid/results.css.
  * Medal decorations are controlled by showMedals parameter:
  *  - showMedals="auto" (default): Automatically show medals when category is done (categoryDone flag)
  *  - showMedals="true": Force show medals for all categories
  *  - showMedals="false": Hide medals even when category is done
+ *
+ * Note: .innerHTML bindings are intentional — data comes from Java backend, not user input.
  */
 class ResultsRankingsByCategory extends LitElement {
   static get is() {
@@ -30,145 +29,97 @@ class ResultsRankingsByCategory extends LitElement {
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/resultsCustomization" + (this.autoversion ?? "") + ".css"}" />
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
-          <div class="waiting" style="${this.waitingStyles()}">
+          <div class="waiting" style="display:none">
             <div>
               <div class="competitionName">${this.competitionName}</div>
               <br />
               <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
             </div>
           </div>
-          <div class="attemptBar" style="${this.attemptBarStyles()}">
-            <div class="athleteInfo" style="${this.athleteInfoStyles()}">
-              <div class="fullName ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.headerTitle()}"></div>
+          <div class="header-bar" style="${this.videoHeaderStyles()}">
+            <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
+            <div class="event-title">${this.competitionName}</div>
+            <div class="group-info">${this.headerTitle()}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
             </div>
-          </div>
-          <div class="video" style="${this.videoHeaderStyles()}">
-            <div class="eventlogo"></div>
-            <div class="videoheader">
-              <div class="groupInfo">${this.competitionName}</div>
-              <div>${this.headerTitle()}</div>
-            </div>
-            <div class="federationlogo"></div>
           </div>
           <!-- hidden elements required because we subclass the results page -->
-          <div class="timer athleteTimer" style="display:none">
+          <div style="display:none">
             <timer-element id="timer"></timer-element>
-          </div>
-          <div class="timer breakTime" style="display:none">
             <timer-element id="breakTimer"></timer-element>
-          </div>
-          <div class="decisionBox" style="display:none">
-            <decision-element style="width: 100%" id="decisions"></decision-element>
+            <decision-element id="decisions"></decision-element>
           </div>
 
-          ${this.medalCategories
-            ? html`
-                <table class="${this.athleteClasses()}" style="${this.athleteStyles()}">
-                  ${(this.medalCategories ?? []).map(
-                    (mc, index, array) => html`
-                      ${this.isSingleCategory() ? html`` : html`
+          <table class="results-table">
+            ${(this.medalCategories ?? []).map(
+              (mc) => html`
+                <tbody>
+                  ${this.isSingleCategory() ? html`` : html`
+                    <tr><td colspan="99" class="cat-header" .innerHTML="${mc.categoryName}"></td></tr>
+                  `}
+                  <tr class="head">
+                    <th style="width:3ch">${this.t?.Start}</th>
+                    <th class="name-col">${this.t?.Name}</th>
+                    <th>${this.t?.Category}</th>
+                    <th>${this.t?.Birth}</th>
+                    <th>${this.t?.Custom1}</th>
+                    <th>${this.t?.Custom2}</th>
+                    <th>${this.t?.Team}</th>
+                    <th class="spacer-col"></th>
+                    <th>1</th><th>2</th><th>3</th>
+                    <th>${this.t?.Best}</th>
+                    <th class="rank">${mc.rankingTitle}</th>
+                    <th class="spacer-col"></th>
+                    <th>1</th><th>2</th><th>3</th>
+                    <th>${this.t?.Best}</th>
+                    <th class="rank">${mc.rankingTitle}</th>
+                    <th class="spacer-col"></th>
+                    <th>${this.t?.Total}</th>
+                    <th class="rank">${mc.rankingTitle}</th>
+                    ${this.showSinclair ? html`
+                      <th>${mc.scoreScoringTitle}</th>
+                      <th class="rank">${mc.scoreRankingTitle}</th>
+                    ` : html``}
+                  </tr>
+                  ${(mc.leaders ?? []).map(
+                    (item) => html`
                       <tr>
-                        <td class="categoryGroupHeader" style="margin-top: ${index > 0 ? '0.4em' : '0'};" .innerHTML="${mc.categoryName}"></td>
-                      </tr>`}
-                      <tr class="head">
-                        <th class="groupCol" .innerHTML="${this.t?.Start}"></th>
-                        <th class="name" .innerHTML="${this.t?.Name}"></th>
-                        <th class="category" .innerHTML="${this.t?.Category}"></th>
-                        <th class="yob" .innerHTML="${this.t?.Birth}"></th>
-                        <th class="custom1" .innerHTML="${this.t?.Custom1}"></th>
-                        <th class="custom2" .innerHTML="${this.t?.Custom2}"></th>
-                        <th class="club" .innerHTML="${this.t?.Team}"></th>
-                        <th class="vspacer"></th>
-                        <th style="grid-column: span 3;" .innerHTML="${this.t?.Snatch}"></th>
-                        <th class="best" .innerHTML="${this.t?.Best}"></th>
-                        <th class="rank" .innerHTML="${mc.rankingTitle}"></th>
-                        <th class="vspacer"></th>
-                        <th style="grid-column: span 3;" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
-                        <th class="best" .innerHTML="${this.t?.Best}"></th>
-                        <th class="rank" .innerHTML="${mc.rankingTitle}"></th>
-                        <th class="vspacer"></th>
-                        <th class="total" .innerHTML="${this.t?.Total}"></th>
-                        <th class="totalRank" .innerHTML="${mc.rankingTitle}"></th>
-                        <th class="sinclair" .innerHTML="${mc.scoreScoringTitle}"></th>
-                        <th class="sinclairRank" .innerHTML="${mc.scoreRankingTitle}"></th>
+                        <td>${item?.startNumber}</td>
+                        <td class="name-cell">${item?.fullName}</td>
+                        <td>${item?.category}</td>
+                        <td>${item?.yearOfBirth}</td>
+                        <td>${item?.custom1}</td>
+                        <td>${item?.custom2}</td>
+                        <td>${item?.teamName}</td>
+                        <td class="spacer-col"></td>
+                        ${(item?.sattempts ?? []).map(
+                          (attempt) => html`
+                            <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>
+                          `)}
+                        <td class="best" .innerHTML="${item?.bestSnatch}"></td>
+                        <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.snatchMedal ?? "") : "")}" .innerHTML="${item?.snatchRank}"></td>
+                        <td class="spacer-col"></td>
+                        ${(item?.cattempts ?? []).map(
+                          (attempt) => html`
+                            <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</td>
+                          `)}
+                        <td class="best" .innerHTML="${item?.bestCleanJerk}"></td>
+                        <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.cleanJerkMedal ?? "") : "")}" .innerHTML="${item?.cleanJerkRank}"></td>
+                        <td class="spacer-col"></td>
+                        <td class="total">${item?.total}</td>
+                        <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.totalMedal ?? "") : "")}" .innerHTML="${item?.totalRank}"></td>
+                        ${this.showSinclair ? html`
+                          <td>${item?.sinclair}</td>
+                          <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.sinclairMedal ?? "") : "")}">${item?.sinclairRank}</td>
+                        ` : html``}
                       </tr>
-
-                      ${(mc.leaders ?? []).map(
-                        (item) => html`
-                          <tr class="${"athlete" + (item?.classname ?? "")}">
-                            <td class="${"start " + (item?.classname ?? "")}">
-                              <div class="${item?.classname}">${item?.startNumber}</div>
-                            </td>
-                            <td class="${"name " + (item?.classname ?? "")}">
-                              <div class="${"name ellipsis " + (item?.classname ?? "")}">${item?.fullName}</div>
-                            </td>
-                            <td class="category">
-                              <div>${item?.category}</div>
-                            </td>
-                            <td class="yob">
-                              <div>${item?.yearOfBirth}</div>
-                            </td>
-                            <td class="custom1">
-                              <div>${item?.custom1}</div>
-                            </td>
-                            <td class="custom2">
-                              <div>${item?.custom2}</div>
-                            </td>
-                            <td class="${"club " + (item?.flagClass ?? "")}">
-                              <div class="${item?.flagClass}" .innerHTML="${item?.flagURL} "></div>
-                              <div class="clubName">
-                                <div class="ellipsis" style="${item?.teamLength !== undefined ? "width: "+item?.teamLength : ""}">${item?.teamName}</div>
-                              </div>
-                            </td>
-                            <td class="vspacer"></td>
-                            ${(item?.sattempts ?? []).map(
-                              (attempt) => html`
-                                <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">
-                                  <div class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</div>
-                                </td>
-                              `)}
-                            <td class="best">
-                              <div .innerHTML="${item?.bestSnatch}"></div>
-                            </td>
-                            <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.snatchMedal ?? "") : "")}">
-                              <div .innerHTML="${item?.snatchRank}"></div>
-                            </td>
-                            <td class="vspacer"></td>
-                            ${(item?.cattempts ?? []).map(
-                              (attempt) => html`
-                                <td class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">
-                                  <div class="${(attempt?.liftStatus ?? "") + " " + (attempt?.className ?? "")}">${attempt?.stringValue}</div>
-                                </td>
-                              `)}
-                            <td class="best">
-                              <div .innerHTML="${item?.bestCleanJerk}"></div>
-                            </td>
-                            <td class="${"rank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.cleanJerkMedal ?? "") : "")}">
-                              <div .innerHTML="${item?.cleanJerkRank}"></div>
-                            </td>
-                            <td class="vspacer"></td>
-                            <td class="total">
-                              <div>${item?.total}</div>
-                            </td>
-                            <td class="${"totalRank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.totalMedal ?? "") : "")}">
-                              <div .innerHTML="${item?.totalRank}"></div>
-                            </td>
-                            <td class="sinclair">
-                              <div>${item?.sinclair}</div>
-                            </td>
-                            <td class="${"sinclairRank " + ((this.showMedals === "true" || (this.showMedals === "auto" && mc.categoryDone)) ? (item?.sinclairMedal ?? "") : "")}">
-                              <div>${item?.sinclairRank}</div>
-                            </td>
-                          </tr>
-                        `
-                      )}
-                    `)}
-                </table>
-              `
-            : html``}
-            <div style="${this.bottomSpacerStyles()}">&nbsp;
-              <!-- DVF: owlcms branding removed -->
-            </div>
+                    `
+                  )}
+                </tbody>
+              `)}
+          </table>
         </div>
       </div>`;
   }
@@ -228,50 +179,27 @@ class ResultsRankingsByCategory extends LitElement {
     this.renderRoot.querySelector("#timer").start();
   }
 
+  constructor() {
+    super();
+    this.mode = "WAIT";
+    // showMedals: "auto" (default, use categoryDone), "true" (force show), "false" (force hide)
+    this.showMedals = "auto";
+  }
+
   wrapperClasses() {
     var classes = "wrapper";
     classes = classes + (this.platformName ? " " + this.platformName : "");
     classes = classes + (this.darkMode ? " " + this.darkMode : "");
     classes = classes + (this.teamWidthClass ? " " + this.teamWidthClass : "");
-    classes = classes + (this.mode === "WAIT" ? " bigTitle" : "");
     return classes;
   }
 
   waitingStyles() {
-    return "display: " + "none";
-  }
-
-  attemptBarStyles() {
     return "display: none";
-  }
-
-  athleteInfoStyles() {
-    return "display: flex";
-  }
-
-  fullNameStyles() {
-    return "display: flex";
   }
 
   videoHeaderStyles() {
     return "display: flex";
-  }
-
-  athleteClasses() {
-    return "results "
-      + (this.showLiftRanks ? " ranks" : " noranks")
-      + (this.showSinclair ? " sinclair" : " nosinclair")
-      + (this.showSinclairRank ? " sinclairRank" : " nosinclairRank")
-      ;
-  }
-
-  athleteStyles() {
-    return "display:grid"
-      + (this.twOverride ? "; " + this.twOverride : "");
-  }
-
-  bottomSpacerStyles() {
-    return "line-height: var(--bottomSpacerHeight)";
   }
 
   isSingleCategory() {
@@ -288,20 +216,13 @@ class ResultsRankingsByCategory extends LitElement {
     const title = (this.displayTitle ?? "").toString().trim();
     const description = (this.groupDescription ?? "").toString().trim();
     if (title.length > 0 && description.length > 0) {
-      return `${title} – ${description}`;
+      return `${title} \u2013 ${description}`;
     }
     return description.length > 0 ? description : title;
   }
 
   isBreak() {
     return this.mode === "INTERRUPTION" || this.mode === "INTRO_COUNTDOWN" || this.mode === "LIFT_COUNTDOWN" || this.mode === "SESSION_DONE" || this.mode === "CEREMONY"
-  }
-
-  constructor() {
-    super();
-    this.mode = "WAIT";
-    // showMedals: "auto" (default, use categoryDone), "true" (force show), "false" (force hide)
-    this.showMedals = "auto";
   }
 }
 

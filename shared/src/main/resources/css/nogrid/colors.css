@@ -1,6 +1,6 @@
-/* DVF palette — green screen page background */
+/* DVF palette — dark blue page background */
 :host {
-    --pageBackgroundColor: #00ff00;
+    --pageBackgroundColor: #00004B;
     --pageTextColor: white;
     --drFontFamily: Arial, Helvetica, sans-serif;
 }
