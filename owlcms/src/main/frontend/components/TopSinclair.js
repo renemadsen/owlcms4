@@ -1,4 +1,4 @@
-import { html, LitElement, css } from "lit";
+import { html, LitElement } from "lit";
 /*******************************************************************************
  * Copyright (c) 2009-2023 Jean-François Lamy
  *
@@ -12,113 +12,112 @@ class TopSinclair extends LitElement {
   }
 
   render() {
-    return html` 
+    return html`
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/colors" + (this.autoversion ?? "")}.css" />
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/topSinclair" + (this.autoversion ?? "")}.css" />
       <div class="notused" style="display:none">
         <timer-element id="timer"></timer-element>
         <timer-element id="breakTimer"></timer-element>
         <decision-element id="decisions"></decision-element>
-      </div> 
-      <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode??"dark"}">
+      </div>
+      <div id="resultBoardDiv" class="${this.activeClasses()} ${this.darkMode ?? 'dark'}" style="${this.colorOverride ?? ''}">
         ${this.topSinclairWomen
           ? html`
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topSinclairWomen}"></h2>
-              <table class="results" id="orderDiv">
+            <div class="team-board">
+              <div class="tb-header">
+                <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
+                <div class="tb-title" .innerHTML="${this.topSinclairWomen}"></div>
+                <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
+              </div>
+              <table class="team-table">
                 <thead>
                   <tr>
-                    <th class="name veryWide" .innerHTML="${this.t?.Name}"></th>
-                    <th class="club wide" .innerHTML="${this.t?.Team}"></th>
-                    <th class="veryNarrow age narrow" .innerHTML="${this.t?.Age}"></th>
-                    <th class="category narrow" .innerHTML="${this.t?.Category}"></th>
-                    <th class="narrow" .innerHTML="${this.t?.BodyWeight}"></th>
-                      <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Snatch}"></th>
-                      <th class="best" .innerHTML="${this.t?.Snatch}"></th>
-                      <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
-                      <th class="best" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
-                    <th class="narrow" .innerHTML="${this.t?.Total}"></th>
-                    <th class="sinclair" .innerHTML="${this.t?.ScoringTitle}"></th>
-                    <th class="needed" .innerHTML="${this.t?.Needed}"></th>
+                    <th style="text-align:left" .innerHTML="${this.t?.Name || 'Navn'}"></th>
+                    <th .innerHTML="${this.t?.Team || 'Klub'}"></th>
+                    <th .innerHTML="${this.t?.Category || 'Kat.'}"></th>
+                    <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Snatch || 'Træk'}"></th>
+                    <th class="best" .innerHTML="${this.t?.Snatch || 'Best Træk'}"></th>
+                    <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Clean_and_Jerk || 'Stød'}"></th>
+                    <th class="best" .innerHTML="${this.t?.Clean_and_Jerk || 'Best Stød'}"></th>
+                    <th .innerHTML="${this.t?.Total || 'Total'}"></th>
+                    <th class="sinclair" .innerHTML="${this.t?.ScoringTitle || 'Sinclair'}"></th>
                   </tr>
                 </thead>
+                <tbody>
                   ${(this.sortedWomen ?? []).map(
                     (item) => html`
                       <tr>
-                            <td class="name veryWide"> <div>${item.fullName}</div></td>
-                            <td class="club wide"><div>${item.teamName}</div></td>
-                            <td class="veryNarrow age narrow"><div>${item.age}</div></td>
-                            <td class="category narrow">${item.category}</td>
-                            <td class="narrow"><div>${item.bw}</div></td>
-                        <!-- Always render 3 snatch attempts -->
+                        <td>${item.fullName}</td>
+                        <td>${item.teamName}</td>
+                        <td>${item.category}</td>
                         ${[0,1,2].map(i => {
                           const attempt = (item.sattempts && item.sattempts[i]) || {};
-                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${(attempt.liftStatus ?? '') + ' ' + (attempt.className ?? '')}"><div>${attempt.stringValue ?? ''}</div></td>`;
+                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${attempt.liftStatus ?? ''} ${attempt.className ?? ''}">${attempt.stringValue ?? ''}</td>`;
                         })}
-                        <td class="best"><div>${item.bestSnatch ?? ''}</div></td>
-                        <!-- Always render 3 clean & jerk attempts -->
+                        <td class="best">${item.bestSnatch ?? ''}</td>
                         ${[0,1,2].map(i => {
                           const attempt = (item.cattempts && item.cattempts[i]) || {};
-                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${(attempt.liftStatus ?? '') + ' ' + (attempt.className ?? '')}"><div>${attempt.stringValue ?? ''}</div></td>`;
+                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${attempt.liftStatus ?? ''} ${attempt.className ?? ''}">${attempt.stringValue ?? ''}</td>`;
                         })}
-                        <td class="best"><div>${item.bestCleanJerk ?? ''}</div></td>
-                        <td class="narrow"><div>${item.total}</div></td>
-                        <td class="sinclair"><div>${item.sinclair}</div></td>
-                        <td class="needed"><div>${item.needed}</div></td>
+                        <td class="best">${item.bestCleanJerk ?? ''}</td>
+                        <td>${item.total}</td>
+                        <td class="sinclair">${item.sinclair}</td>
                       </tr>
                     `
                   )}
+                </tbody>
               </table>
-              <h2>&nbsp;</h2>
-            `
+            </div>
+          `
           : html``}
         ${this.topSinclairMen
           ? html`
-              <h2 class="fullName" id="fullNameDiv" .innerHTML="${this.topSinclairMen}"></h2>
-              <table class="results" id="orderDiv">
+            <div class="team-board">
+              <div class="tb-header">
+                <img src="local/logos/dvf-logo-white.png" style="height:24px;opacity:0.9;">
+                <div class="tb-title" .innerHTML="${this.topSinclairMen}"></div>
+                <div class="tb-cat">Top ${this.t?.ScoringTitle || 'Sinclair'}</div>
+              </div>
+              <table class="team-table">
                 <thead>
                   <tr>
-                    <th class="name veryWide" .innerHTML="${this.t?.Name}"></th>
-                    <th class="club wide" .innerHTML="${this.t?.Team}"></th>
-                    <th class="veryNarrow age narrow" .innerHTML="${this.t?.Age}"></th>
-                    <th class="category narrow" .innerHTML="${this.t?.Category}"></th>
-                    <th class="narrow" .innerHTML="${this.t?.BodyWeight}"></th>
-                      <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Snatch}"></th>
-                      <th class="best" .innerHTML="${this.t?.Snatch}"></th>
-                      <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
-                      <th class="best" .innerHTML="${this.t?.Clean_and_Jerk}"></th>
-                    <th class="narrow" .innerHTML="${this.t?.Total}"></th>
-                    <th class="sinclair" .innerHTML="${this.t?.ScoringTitle}"></th>
-                    <th class="needed" .innerHTML="${this.t?.Needed}"></th>
+                    <th style="text-align:left" .innerHTML="${this.t?.Name || 'Navn'}"></th>
+                    <th .innerHTML="${this.t?.Team || 'Klub'}"></th>
+                    <th .innerHTML="${this.t?.Category || 'Kat.'}"></th>
+                    <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Snatch || 'Træk'}"></th>
+                    <th class="best" .innerHTML="${this.t?.Snatch || 'Best Træk'}"></th>
+                    <th colspan="3" class="${this.displayLifts ? 'showLifts' : 'hideLifts'}" .innerHTML="${this.t?.Clean_and_Jerk || 'Stød'}"></th>
+                    <th class="best" .innerHTML="${this.t?.Clean_and_Jerk || 'Best Stød'}"></th>
+                    <th .innerHTML="${this.t?.Total || 'Total'}"></th>
+                    <th class="sinclair" .innerHTML="${this.t?.ScoringTitle || 'Sinclair'}"></th>
                   </tr>
                 </thead>
+                <tbody>
                   ${(this.sortedMen ?? []).map(
                     (item) => html`
                       <tr>
-                        <td class="name veryWide"><div class="name">${item.fullName}</div></td>
-                        <td class="club wide"><div>${item.teamName}</div></td>
-                        <td class="veryNarrow age narrow"><div>${item.age}</div></td>
-                        <td class="category narrow">${item.category}</td>
-                        <td class="narrow"><div>${item.bw}</div></td>
-                        <!-- Always render 3 snatch attempts -->
+                        <td>${item.fullName}</td>
+                        <td>${item.teamName}</td>
+                        <td>${item.category}</td>
                         ${[0,1,2].map(i => {
                           const attempt = (item.sattempts && item.sattempts[i]) || {};
-                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${(attempt.liftStatus ?? '') + ' ' + (attempt.className ?? '')}"><div>${attempt.stringValue ?? ''}</div></td>`;
+                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${attempt.liftStatus ?? ''} ${attempt.className ?? ''}">${attempt.stringValue ?? ''}</td>`;
                         })}
-                        <td class="best"><div>${item.bestSnatch ?? ''}</div></td>
-                        <!-- Always render 3 clean & jerk attempts -->
+                        <td class="best">${item.bestSnatch ?? ''}</td>
                         ${[0,1,2].map(i => {
                           const attempt = (item.cattempts && item.cattempts[i]) || {};
-                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${(attempt.liftStatus ?? '') + ' ' + (attempt.className ?? '')}"><div>${attempt.stringValue ?? ''}</div></td>`;
+                          return html`<td class="${this.displayLifts ? 'showLifts' : 'hideLifts'} ${attempt.liftStatus ?? ''} ${attempt.className ?? ''}">${attempt.stringValue ?? ''}</td>`;
                         })}
-                        <td class="best"><div>${item.bestCleanJerk ?? ''}</div></td>
-                        <td class="narrow"><div>${item.total}</div></td>
-                        <td class="sinclair"><div>${item.sinclair}</div></td>
-                        <td class="needed"><div>${item.needed}</div></td>
+                        <td class="best">${item.bestCleanJerk ?? ''}</td>
+                        <td>${item.total}</td>
+                        <td class="sinclair">${item.sinclair}</td>
                       </tr>
                     `
                   )}
+                </tbody>
               </table>
-            `
+            </div>
+          `
           : html``}
       </div>`;
   }
@@ -145,17 +144,14 @@ class TopSinclair extends LitElement {
       // dynamic styling
       darkMode: {},
       displayLifts: {type: Boolean},
+      colorOverride: {},
     };
   }
 
-  firstUpdated(_changedProperties) {
-    super.firstUpdated(_changedProperties);
-    document.body.setAttribute("theme", "dark");
+  activeClasses() {
+    return "wrapper " + (this.wideTeamNames ? "wideTeams" : "narrowTeams");
   }
 
-  activeClasses() {
-    return  "wrapper "+ (this.wideTeamNames ? "wideTeams" : "narrowTeams" );
-  }
   showLiftsClass() {
     return this.displayLifts ? "showLifts" : "hideLifts";
   }
