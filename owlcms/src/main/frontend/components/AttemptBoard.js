@@ -37,10 +37,10 @@ class CurrentAttempt extends LitElement {
       </div>
       <div class="attemptBoard" style="${this.activeStyles()}">
         <div id="lastNameDiv" class="${this.lastNameClasses()}" style="${this.lastNameStyles()}">
-          <div style="${this.nameSizeOverride}">${this.lastName}</div>
+          <div style="${this.nameSizeOverride}">${this.firstName}</div>
         </div>
         <div class="${this.firstNameClasses()}" style="${this.firstNameStyles()}">
-          <div style="${this.firstNameSizeOverride}">${this.firstName}</div>
+          <div style="${this.firstNameSizeOverride}">${this.lastName}</div>
         </div>
         <div class="teamName" style="${this.teamNameStyles()}">
           ${this.teamName}

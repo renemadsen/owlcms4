@@ -620,7 +620,7 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		}
 
 		String lastName = a.getLastName();
-		this.getElement().setProperty("lastName", lastName.toUpperCase());
+		this.getElement().setProperty("lastName", lastName);
 		if (lastName.length() > 18) {
 			this.getElement().setProperty("nameSizeOverride",
 			        "font-size: 8vh; line-height: 8vh; text-wrap: balance; text-overflow: hidden");
@@ -629,7 +629,6 @@ public abstract class AbstractAttemptBoard extends LitTemplate implements
 		}
 
 		String lFirst = a.getFirstName();
-		// add the out-of-competition marker if defined in the translation file.
 		if (!a.isEligibleForIndividualRanking() && lFirst != null && !lFirst.isBlank()) {
 			lFirst = Translator.translate("Attempt.Extra/Invited", lFirst);
 		}

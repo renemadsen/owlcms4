@@ -43,6 +43,7 @@
 	justify-self: start;
 	font-size: 12vh;
 	line-height: 12vh;
+	font-weight: 700;
 	grid-area: lastName-start/lastName-start/lastName-end/lastName-end;
 }
 
@@ -139,8 +140,9 @@
 .attemptBoard .teamName {
 	justify-self: start;
 	align-self: center;
-	font-size: 8vh;
-	line-height: 8vh;
+	font-size: 4vh;
+	line-height: 4vh;
+	opacity: 0.7;
 	grid-area: teamName-start/teamName-start/teamName-end/teamName-end;
 }
 
