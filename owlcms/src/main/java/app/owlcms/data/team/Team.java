@@ -54,6 +54,7 @@ public class Team {
 	private String name;
 	private int points = 0;
 	private double sinclairScore = 0.0D;
+	private double bestSinclairScore = 0.0D;
 	private double catSinclairScore = 0.0D;
 	private double catQPointsScore = 0.0D;
 	private double catGamxScore = 0.0D;
@@ -105,6 +106,14 @@ public class Team {
 
 	public int getPoints() {
 		return this.points;
+	}
+
+	public double getBestSinclairScore() {
+		return this.bestSinclairScore;
+	}
+
+	public void setBestSinclairScore(double bestSinclairScore) {
+		this.bestSinclairScore = bestSinclairScore;
 	}
 
 	public double getQPoints() {

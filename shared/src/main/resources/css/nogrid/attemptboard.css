@@ -203,52 +203,37 @@
 }
 
 .attemptBoard .recordNotification {
-	justify-self: center;
-	font-size: 8vh;
-	height: 100%;
-	grid-area: teamName-start/teamName-start/teamName-end/teamName-end;
+	grid-row: teamName-end / startNumber-start;
+	grid-column: 1 / -1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1;
 }
 
-.attemptBoard .recordNotification.new {
-	display: grid;
-	grid-area: teamName-start/teamName-start/teamName-end/teamName-end;
-    background-color: var(--RecordHighlightBackground);
-    color: var(--RecordHighlightText);
-    visibility: var(--showRecordNotifications);
-    width: 100%;
-    align-self: center;
-    justify-content: center;
-    align-content: center;
-    padding: 0.4em;
-	z-index: var(--zIndexRecordNotifications);
+.attemptBoard .recordNotification .record-badge-text {
+	display: inline-block;
+	font-weight: 700;
+	font-size: 4vh;
+	padding: 0.2em 1.2em;
+	border-radius: 4px;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	white-space: nowrap;
 }
 
-.attemptBoard .recordNotification.attempt {
-	display: grid;
-	grid-area: teamName-start/teamName-start/teamName-end/teamName-end;
-    background-color: var(--AttemptHighlightBackground);
-    color: var(--AttemptHighlightText);
-    visibility: var(--showRecordNotifications);
-    width: 100%;
-    align-self: center;
-    justify-content: center;
-    align-content: center;
-    padding: 0.4em;
-	z-index: var(--zIndexRecordNotifications);
+.attemptBoard .recordNotification.attempt .record-badge-text {
+	background: #b0353d;
+	color: white;
+}
+
+.attemptBoard .recordNotification.new .record-badge-text {
+	background: #557945;
+	color: white;
 }
 
 .attemptBoard .recordNotification.none {
-	display: grid;
-	grid-area: teamName-start/teamName-start/teamName-end/teamName-end;
-    background-color: var(--AttemptHighlightBackground);
-    color: var(--AttemptHighlightText);
-    visibility: var(--showRecordNotifications);
-    width: 100%;
-    align-self: center;
-    justify-content: center;
-    align-content: center;
-    padding: 0.4em;
-	z-index: -10;
+	display: none;
 }
 
 .hideBecauseRecord {

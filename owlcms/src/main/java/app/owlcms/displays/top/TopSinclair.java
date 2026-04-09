@@ -598,6 +598,13 @@ public class TopSinclair extends AbstractTop {
 	       String ssTitle = Ranking.getScoringTitle(scoringSystem);
 	       getElement().setProperty("fullName", Translator.translate("Scoreboard.TopScore"));
 	       Gender gender = this.getGender();
+	       if (gender == null) {
+		       // Auto-detect gender from current active group
+		       FieldOfPlay fop = getFop();
+		       if (fop != null && fop.getCurAthlete() != null) {
+			       gender = fop.getCurAthlete().getGender();
+		       }
+	       }
 
 			   if (gender == null || gender == Gender.M) {
 		       List<Athlete> sortedMen2 = getSortedMen();

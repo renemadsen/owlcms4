@@ -37,13 +37,17 @@ class Results extends LitElement {
           </div>
           <div class="attempt-bar" style="${this.attemptBarStyles()}">
             <div class="start-num" style="${this.startNumberStyles()}">${this.startNumber}</div>
-            <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
-            <div class="club" style="${this.teamNameStyles()}">${this.teamName}</div>
-            ${this.recordKind && this.recordKind !== "none"
-              ? html`<div class="record-badge ${this.recordKind}">${this.recordMessage}</div>`
-              : html``}
-            <div class="attempt-info" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
-            <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span></div>
+            <div class="athlete-left">
+              <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
+              <div class="club" style="${this.teamNameStyles()}">${this.teamName}</div>
+            </div>
+            <div class="attempt-right" style="${this.attemptStyles()}">
+              ${this.recordKind && this.recordKind !== "none"
+                ? html`<div class="record-badge ${this.recordKind}">${this.recordKind === "attempt" ? "Rekordforsøg" : "Ny Rekord"}</div>`
+                : html``}
+              <div class="attempt-info"><span .innerHTML="${this.attempt}"></span></div>
+              <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span></div>
+            </div>
             <div class="timer athleteTimer" style="${this.athleteTimerStyles()}"><timer-element id="timer"></timer-element></div>
             <div class="timer breakTime" style="${this.breakTimerStyles()}"><timer-element id="breakTimer"></timer-element></div>
             <div class="decisionBox" style="${this.decisionStyles()}"><decision-element style="width:100%" id="decisions"></decision-element></div>

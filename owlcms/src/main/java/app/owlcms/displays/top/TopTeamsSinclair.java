@@ -250,7 +250,7 @@ public class TopTeamsSinclair extends AbstractTop {
 		if (getChampionship() != null && getChampionship().getTeamScoringSystem() != null) {
 			return getChampionship().getTeamScoringSystem();
 		}
-		return Ranking.TOTAL;
+		return Ranking.BW_SINCLAIR;
 	}
 
 	private void getTeamJson(Team t, JsonObject ja) {
@@ -258,6 +258,7 @@ public class TopTeamsSinclair extends AbstractTop {
 		ja.put("counted", formatInt(t.getCounted()));
 		ja.put("size", formatInt((int) t.getSize()));
 		ja.put("score", formatDouble(t.getScore()));
+		ja.put("bestScore", formatDouble(t.getBestSinclairScore()));
 		ja.put("points", formatInt(t.getPoints()));
 	}
 

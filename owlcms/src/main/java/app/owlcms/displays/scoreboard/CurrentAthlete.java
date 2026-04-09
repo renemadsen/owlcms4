@@ -577,6 +577,16 @@ public class CurrentAthlete extends Results {
 			getElement().setProperty("groupInfo", "X");
 			getElement().setProperty("liftsDone", "Y");
 		}
+		// Set record badge (recordKind/recordMessage)
+		if (fop.getNewRecords() != null && !fop.getNewRecords().isEmpty()) {
+			this.getElement().setProperty("recordKind", "new");
+			this.getElement().setProperty("recordMessage", "Ny Rekord");
+		} else if (fop.getChallengedRecords() != null && !fop.getChallengedRecords().isEmpty()) {
+			this.getElement().setProperty("recordKind", "attempt");
+			this.getElement().setProperty("recordMessage", "Rekordforsøg");
+		} else {
+			this.getElement().setProperty("recordKind", "none");
+		}
 		this.getElement().setPropertyJson("athletes",
 		        getAthletesJson(this.order, fop.getLiftingOrder(), fop));
 	}

@@ -36,7 +36,6 @@ class TopTeamsSinclair extends LitElement {
             <thead><tr>
               <th style="text-align:left">Hold</th>
               <th>Deltagere</th>
-              <th>Bedste ${this.t?.ScoringTitle || 'Sinclair'}</th>
               <th>Total ${this.t?.ScoringTitle || 'Sinclair'}</th>
             </tr></thead>
             <tbody>
@@ -45,7 +44,6 @@ class TopTeamsSinclair extends LitElement {
                   <td>${item.team}</td>
                   <td>${item.counted}</td>
                   <td>${item.score}</td>
-                  <td>${item.points || item.score}</td>
                 </tr>
               `)}
             </tbody>
@@ -67,7 +65,6 @@ class TopTeamsSinclair extends LitElement {
             <thead><tr>
               <th style="text-align:left">Hold</th>
               <th>Deltagere</th>
-              <th>Bedste ${this.t?.ScoringTitle || 'Sinclair'}</th>
               <th>Total ${this.t?.ScoringTitle || 'Sinclair'}</th>
             </tr></thead>
             <tbody>
@@ -76,7 +73,6 @@ class TopTeamsSinclair extends LitElement {
                   <td>${item.team}</td>
                   <td>${item.counted}</td>
                   <td>${item.score}</td>
-                  <td>${item.points || item.score}</td>
                 </tr>
               `)}
             </tbody>

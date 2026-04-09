@@ -168,7 +168,11 @@ public class TeamResultsTreeData extends TreeData<TeamTreeItem> {
 					}
 					member.setCountedForTeam(b);
 					if (b) {
-						curTeam.setSinclairScore(curTeam.getSinclairScore() + member.getSinclairScore());
+						double memberSinclair = member.getSinclairScore();
+						curTeam.setSinclairScore(curTeam.getSinclairScore() + memberSinclair);
+						if (memberSinclair > curTeam.getBestSinclairScore()) {
+							curTeam.setBestSinclairScore(memberSinclair);
+						}
 						curTeam.setCatSinclairScore(curTeam.getCatSinclairScore() + member.getCatSinclairMetric());
 						curTeam.setSmfScore(curTeam.getSmfScore() + member.getSmfScore());
 						curTeam.setCounted(curTeam.getCounted() + 1);

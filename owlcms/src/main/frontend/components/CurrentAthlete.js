@@ -28,10 +28,10 @@ class CurrentAthlete extends LitElement {
             <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="startNumber" style="${this.startNumberStyles()}"><span>${this.startNumber}</span> </div>
             <div class="fullName lt-name ellipsis" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
-            ${this.recordKind && this.recordKind !== "none"
-              ? html`<div class="record-badge ${this.recordKind}">${this.recordMessage}</div>`
-              : html``}
             <div class="clubName lt-details ellipsis" style="${this.teamNameStyles()}"><div class="clubNameEllipsis">${this.teamName}</div></div>
+            ${this.recordKind && this.recordKind !== "none"
+              ? html`<div class="record-badge ${this.recordKind}">${this.recordKind === "attempt" ? "Rekordforsøg" : "Ny Rekord"}</div>`
+              : html``}
             <div class="lt-weight" style="${this.weightStyles()}">
               <div class="attempt lt-attempt" style="${this.attemptStyles()}"><span .innerHTML="${this.attempt}"></span></div>
               <div class="weight lt-kg">

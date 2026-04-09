@@ -48,10 +48,7 @@ class CurrentAttempt extends LitElement {
         <div class="${this.teamFlagImgClasses()}" style="${this.teamFlagImgStyles()}" .innerHTML="${this.teamFlagImg}"></div>
         <div class="${this.athleteImgClasses()}" style="${this.athleteImgStyles()}" .innerHTML="${this.athleteImg}"></div>
         <div class="${this.recordMessageClasses()}" style="${this.recordMessageStyles()}">
-          <css-ticker
-            text="${this.recordMessage ? this.recordMessage + '     ' : ''}"
-            speed="${this.recordMessageSpeed}"
-          ></css-ticker>
+          <span class="record-badge-text">${this.recordAttempt ? 'Rekordforsøg' : (this.recordBroken ? 'Ny Rekord' : '')}</span>
         </div>
         <div class="startNumber" style="${this.startNumberStyles()}">
           <span>${this.startNumber}</span>
@@ -78,7 +75,7 @@ class CurrentAttempt extends LitElement {
           <decision-element id="decisions"></decision-element>
         </div>
       </div>
-      <div class="branding" style="${this.brandingStyles()}"><img src="local/logos/owlcms-logo.svg" style="height:1.25em; margin-bottom:-0.2em">&nbsp;owlcms</div>
+      <!-- DVF: owlcms branding removed -->
     </div>`;
   }
 
@@ -147,14 +144,12 @@ class CurrentAttempt extends LitElement {
   athleteImgClasses() {
     var mainClass = "picture";
     return mainClass +
-      (this.decisionVisible ? " hideBecauseDecision" : "") +
-      ((this.recordAttempt || this.recordBroken) ? " hideBecauseRecord" : "");
+      (this.decisionVisible ? " hideBecauseDecision" : "");
   }
   teamFlagImgClasses() {
     var mainClass = (this.athleteImg || this.athletePictures) ? "flagWithPicture" : "flag";
     return mainClass +
-      (this.decisionVisible ? " hideBecauseDecision" : "") +
-      ((this.recordAttempt || this.recordBroken) ? " hideBecauseRecord" : "");
+      (this.decisionVisible ? " hideBecauseDecision" : "");
   }
 
   waitingStyles() {
@@ -193,7 +188,7 @@ class CurrentAttempt extends LitElement {
   }
 
   teamNameStyles() {
-    return "display: " + ((this.recordAttempt || this.recordBroken || this.isBreak()) ? "none" : "grid");
+    return "display: " + (this.isBreak() ? "none" : "grid");
   }
 
   teamFlagImgStyles() {
@@ -202,7 +197,7 @@ class CurrentAttempt extends LitElement {
 
 
   athleteImgStyles() {
-    return "display: " + ((this.mode === "CURRENT_ATHLETE" && !(this.recordAttempt || this.recordBroken)) ? "grid" : "none");
+    return "display: " + (this.mode === "CURRENT_ATHLETE" ? "grid" : "none");
   }
 
   recordMessageClasses() {
@@ -214,8 +209,7 @@ class CurrentAttempt extends LitElement {
   }
 
   recordMessageStyles() {
-    return "display: " + ((this.mode === "CURRENT_ATHLETE" && (this.recordAttempt || this.recordBroken)) ? "grid" : "none") +
-           "; height: auto; overflow: hidden; align-items: stretch; padding: 0; margin: 0;";
+    return "display: " + ((this.mode === "CURRENT_ATHLETE" && (this.recordAttempt || this.recordBroken)) ? "grid" : "none");
   }
 
   attemptStyles() {
