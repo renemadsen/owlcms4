@@ -19,20 +19,20 @@ class Results extends LitElement {
 
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
-          <div class="waiting" style="${this.waitingStyles()}">
-            <div>
-              <div class="competitionName">${this.competitionName}</div>
-              <br />
-              <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
-            </div>
-          </div>
-          <div class="header-bar" style="${this.videoHeaderStyles()}">
+          <div class="header-bar" style="display: flex">
             <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="event-title">${this.competitionName}</div>
             <div class="group-info">${this.groupDescription}</div>
             <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
               <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
               <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
+            </div>
+          </div>
+          <div class="waiting" style="${this.waitingStyles()}">
+            <div>
+              <div class="competitionName">${this.competitionName}</div>
+              <br />
+              <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
             </div>
           </div>
           <div class="attempt-bar" style="${this.attemptBarStyles()}">
@@ -46,7 +46,7 @@ class Results extends LitElement {
                 ? html`<div class="record-badge ${this.recordKind}">${this.recordKind === "attempt" ? "Rekordforsøg" : "Ny Rekord"}</div>`
                 : html``}
               <div class="attempt-info"><span .innerHTML="${this.attempt}"></span></div>
-              <div class="weight-val" style="${this.weightStyles()}">${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span></div>
+              <div class="weight-val" style="${this.weightStyles()}">${this.weight ? html`${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span>` : html``}</div>
             </div>
             <div class="timer athleteTimer" style="${this.athleteTimerStyles()}"><timer-element id="timer"></timer-element></div>
             <div class="timer breakTime" style="${this.breakTimerStyles()}"><timer-element id="breakTimer"></timer-element></div>
@@ -253,7 +253,7 @@ class Results extends LitElement {
     classes = classes + (this.platformName ? " " + this.platformName : "");
     classes = classes + (this.darkMode ? " " + this.darkMode : "");
     classes = classes + (this.teamWidthClass ? " " + this.teamWidthClass : "");
-    classes = classes + (this.mode === "WAIT" ? " bigTitle" : "");
+
     classes = classes + (this.scoreboardType ? " " + this.scoreboardType : "");
     return classes;
   }

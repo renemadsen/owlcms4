@@ -29,20 +29,20 @@ class ResultsMedals extends LitElement {
       <link rel="stylesheet" type="text/css" .href="${"local/" + (this.stylesDir ?? "") + "/resultsMedalsCustomization" + (this.autoversion ?? "") + ".css"}" />
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
-          <div class="waiting" style="display:none">
-            <div>
-              <div class="competitionName">${this.competitionName}</div>
-              <br />
-              <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
-            </div>
-          </div>
-          <div class="header-bar" style="${this.videoHeaderStyles()}">
+          <div class="header-bar" style="display: flex">
             <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
             <div class="event-title">${this.competitionName}</div>
             <div class="group-info">${this.displayTitle} ${this.groupDescription}</div>
             <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
               <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
               <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
+            </div>
+          </div>
+          <div class="waiting" style="${this.waitingStyles()}">
+            <div>
+              <div class="competitionName">${this.competitionName}</div>
+              <br />
+              <div class="nextGroup">${this.t?.WaitingNextGroup}</div>
             </div>
           </div>
           <!-- hidden elements required because we subclass the results page -->
@@ -52,7 +52,7 @@ class ResultsMedals extends LitElement {
             <decision-element id="decisions"></decision-element>
           </div>
 
-          <table class="results-table">
+          <table class="results-table" style="${this.tableStyles()}">
             ${(this.medalCategories ?? []).map(
               (mc) => html`
                 <tbody>
@@ -197,11 +197,11 @@ class ResultsMedals extends LitElement {
   }
 
   waitingStyles() {
-    return "display: none";
+    return this.mode === "WAIT" ? "display: grid" : "display: none";
   }
 
-  videoHeaderStyles() {
-    return "display: flex";
+  tableStyles() {
+    return this.mode === "WAIT" ? "display: none" : "";
   }
 
   isBreak() {
