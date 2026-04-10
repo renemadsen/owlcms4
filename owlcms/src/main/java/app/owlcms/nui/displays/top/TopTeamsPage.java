@@ -147,6 +147,10 @@ public class TopTeamsPage extends AbstractResultsDisplayPage implements TopParam
 	 */
 	@Override
 	public HashMap<String, List<String>> readParams(Location location, Map<String, List<String>> parametersMap) {
+		// Ensure FOP is set (default) before anything else — otherwise onAttach aborts registration.
+		if (getFop() == null) {
+			setFop(app.owlcms.init.OwlcmsFactory.getDefaultFOP());
+		}
 		HashMap<String, List<String>> params1 = new HashMap<>(parametersMap);
 		// logger.debug("TopTeamsPage readParams");
 

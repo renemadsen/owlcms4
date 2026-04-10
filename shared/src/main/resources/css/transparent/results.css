@@ -35,12 +35,12 @@
 
 .waiting .competitionName {
   color: #FFD200;
-  font-size: 36px;
+  font-size: 54px;
 }
 
 .waiting .nextGroup {
   color: #FFD200;
-  font-size: 24px;
+  font-size: 36px;
 }
 
 .bigTitle {
@@ -61,12 +61,12 @@
 
 .header-bar .event-title {
   font-weight: 600;
-  font-size: 18px;
+  font-size: 27px;
   flex: 1;
 }
 
 .header-bar .group-info {
-  font-size: 13px;
+  font-size: 20px;
   opacity: 0.8;
 }
 
@@ -90,7 +90,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 24px;
 }
 
 .attempt-bar .athlete-left {
@@ -102,7 +102,7 @@
 
 .attempt-bar .athlete-name {
   font-weight: 600;
-  font-size: 20px;
+  font-size: 30px;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
@@ -112,7 +112,7 @@
 
 .attempt-bar .club {
   opacity: 0.7;
-  font-size: 14px;
+  font-size: 21px;
   white-space: nowrap;
 }
 
@@ -124,7 +124,7 @@
 }
 
 .attempt-bar .attempt-info {
-  font-size: 14px;
+  font-size: 21px;
   opacity: 0.8;
   white-space: nowrap;
 }
@@ -132,14 +132,14 @@
 .attempt-bar .weight-val {
   color: #FFD200;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 33px;
   white-space: nowrap;
 }
 
 .attempt-bar .timer {
   color: #FFD200;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 33px;
   text-align: right;
   grid-row: 1;
   grid-column: 4;
@@ -147,7 +147,7 @@
 
 .record-badge {
   font-weight: 700;
-  font-size: 11px;
+  font-size: 17px;
   padding: 3px 10px;
   border-radius: 3px;
   letter-spacing: 0.5px;
@@ -197,7 +197,7 @@
   background: #000038;
   color: rgba(255,255,255,0.6);
   font-weight: 400;
-  font-size: 11px;
+  font-size: 17px;
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: 6px 8px;
@@ -213,7 +213,7 @@
   padding: 5px 8px;
   text-align: center;
   border-bottom: 1px solid rgba(255,255,255,0.05);
-  font-size: 13px;
+  font-size: 20px;
   color: white;
 }
 
@@ -305,7 +305,7 @@
 .leaders .leader-title {
   text-align: left;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 18px;
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(255,255,255,0.6);
@@ -322,7 +322,7 @@
   display: flex;
   gap: 20px;
   align-items: center;
-  font-size: 11px;
+  font-size: 17px;
   flex-wrap: wrap;
 }
 
@@ -337,7 +337,7 @@
   opacity: 0.8;
   text-transform: uppercase;
   letter-spacing: 1px;
-  font-size: 10px;
+  font-size: 15px;
   white-space: nowrap;
   margin-right: 4px;
 }
@@ -366,7 +366,7 @@
 .record-notification {
   margin-left: auto;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 18px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   padding: 3px 10px;

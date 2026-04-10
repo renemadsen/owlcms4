@@ -20,12 +20,12 @@ class Results extends LitElement {
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
           <div class="header-bar" style="display: flex">
-            <img src="local/logos/dvf-logo-white.png" style="height:28px;opacity:0.9;">
+            <img src="local/logos/dvf-logo-white.png" style="height:42px;opacity:0.9;">
             <div class="event-title">${this.competitionName}</div>
             <div class="group-info">${this.groupDescription}</div>
             <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
-              <span style="color:rgba(255,255,255,0.4);font-size:0.5em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
-              <img src="local/logos/eleiko-logo-white.svg" style="height:20px;opacity:0.9;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.6em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:30px;opacity:0.9;">
             </div>
           </div>
           <div class="waiting" style="${this.waitingStyles()}">
@@ -38,14 +38,14 @@ class Results extends LitElement {
           <div class="attempt-bar" style="${this.attemptBarStyles()}">
             <div class="start-num" style="${this.startNumberStyles()}">${this.startNumber}</div>
             <div class="athlete-left">
-              <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName}"></div>
+              <div class="athlete-name" style="${this.fullNameStyles()}" .innerHTML="${this.fullName ?? ''}"></div>
               <div class="club" style="${this.teamNameStyles()}">${this.teamName}</div>
             </div>
             <div class="attempt-right" style="${this.attemptStyles()}">
               ${this.recordKind && this.recordKind !== "none"
                 ? html`<div class="record-badge ${this.recordKind}">${this.recordKind === "attempt" ? "Rekordforsøg" : "Ny Rekord"}</div>`
                 : html``}
-              <div class="attempt-info"><span .innerHTML="${this.attempt}"></span></div>
+              <div class="attempt-info"><span .innerHTML="${this.attempt ?? ''}"></span></div>
               <div class="weight-val" style="${this.weightStyles()}">${this.weight ? html`${this.weight}<span>&hairsp;${this.t?.KgSymbol}</span>` : html``}</div>
             </div>
             <div class="timer athleteTimer" style="${this.athleteTimerStyles()}"><timer-element id="timer"></timer-element></div>
@@ -259,11 +259,11 @@ class Results extends LitElement {
   }
 
   waitingStyles() { /* originally flex */
-    return "display: " + (this.mode === "WAIT" ? "grid" : "none");
+    return "display: " + ((this.mode === "WAIT" || !this.fullName) ? "grid" : "none");
   }
 
   attemptBarStyles() {
-    return "display: " + (this.mode === "WAIT" ? "none" : "grid");
+    return "display: " + ((this.mode === "WAIT" || !this.fullName) ? "none" : "grid");
   }
 
   athleteInfoStyles() {
@@ -320,7 +320,7 @@ class Results extends LitElement {
 }
 
   athleteTableStyles() {
-    return this.mode === "WAIT" ? "display:none" : "";
+    return (this.mode === "WAIT" || !this.fullName) ? "display:none" : "";
   }
 
   leadersStyles() {

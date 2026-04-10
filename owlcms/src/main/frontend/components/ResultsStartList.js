@@ -19,6 +19,15 @@ class ResultsStartList extends LitElement {
 
       <div class="${this.wrapperClasses()}" style="${this.sizeOverride} ${this.colorOverride}">
         <div class="blockPositioningWrapper">
+          <div class="header-bar" style="display: flex">
+            <img src="local/logos/dvf-logo-white.png" style="height:42px;opacity:0.9;">
+            <div class="event-title">${this.competitionName}</div>
+            <div class="group-info">${this.groupDescription}</div>
+            <div style="margin-left:auto;display:flex;align-items:center;gap:6px;">
+              <span style="color:rgba(255,255,255,0.4);font-size:0.6em;text-transform:uppercase;letter-spacing:1px;">Powered by</span>
+              <img src="local/logos/eleiko-logo-white.svg" style="height:30px;opacity:0.9;">
+            </div>
+          </div>
           <div class="waiting" style="${this.waitingStyles()}">
             <div>
               <div class="competitionName">${this.competitionName}</div>
@@ -115,7 +124,6 @@ class ResultsStartList extends LitElement {
               `
               : html``}
           </table>
-          <!-- DVF: owlcms branding removed -->
         </div>
       </div>
     `;
