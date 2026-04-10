@@ -171,11 +171,18 @@ public class TopTeamsPage extends AbstractResultsDisplayPage implements TopParam
 		// no age division
 		String ageDivisionName = (ageDivisionParams != null && !ageDivisionParams.isEmpty() ? ageDivisionParams.get(0)
 		        : null);
+		List<Championship> usedAgeDivisions = Championship.findAllUsed(true);
 		try {
-			setChampionship(Championship.of(ageDivisionName));
+			Championship requested = Championship.of(ageDivisionName);
+			// If requested championship doesn't match any used one, fall back to first used.
+			if (requested != null && usedAgeDivisions != null && !usedAgeDivisions.isEmpty()
+			        && usedAgeDivisions.stream().noneMatch(c -> c.getName().equals(requested.getName()))) {
+				setChampionship(usedAgeDivisions.get(0));
+			} else {
+				setChampionship(requested);
+			}
 		} catch (Exception e) {
-			List<Championship> ageDivisions = Championship.findAllUsed(true);
-			setChampionship((ageDivisions != null && !ageDivisions.isEmpty()) ? ageDivisions.get(0) : null);
+			setChampionship((usedAgeDivisions != null && !usedAgeDivisions.isEmpty()) ? usedAgeDivisions.get(0) : null);
 		}
 		// remove if now null
 		String value = getChampionship() != null ? getChampionship().getName() : null;

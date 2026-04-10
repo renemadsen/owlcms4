@@ -154,6 +154,15 @@ public class TopTeams extends AbstractTop {
 		});
 	}
 
+	@Subscribe
+	public void slaveSwitchGroup(UIEvent.SwitchGroup e) {
+		uiLog(e);
+		Competition competition = Competition.getCurrent();
+		UIEventProcessor.uiAccess(this, this.uiEventBus, e, () -> {
+			doUpdate(competition);
+		});
+	}
+
 	@Override
 	public void uiLog(UIEvent e) {
 		if (e == null) {
