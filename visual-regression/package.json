@@ -1,0 +1,16 @@
+{
+  "name": "owlcms-visual-regression",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Visual regression tests for DVF owlcms4 displays",
+  "scripts": {
+    "test": "playwright test",
+    "test:update": "playwright test --update-snapshots",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.50.0",
+    "@types/node": "20.11.0",
+    "typescript": "5.3.3"
+  }
+}
