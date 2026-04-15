@@ -76,9 +76,52 @@ export async function startCompetition(announcer: Page) {
   }
 }
 
+async function editAthleteRecordDeclared(announcer: Page, last: string): Promise<boolean> {
+  // Open the athlete card.
+  await announcer.locator('vaadin-grid-cell-content').filter({ hasText: new RegExp(`^${last}$`) }).first().click({ timeout: 5000 });
+
+  const fld = announcer.locator('vaadin-text-field#\\33_4').first();
+  try {
+    await fld.waitFor({ state: 'visible', timeout: 5000 });
+  } catch {
+    await announcer.getByRole('button', { name: /^Annuller$/ }).first().click({ timeout: 3000 }).catch(() => {});
+    return false;
+  }
+
+  // Wait for the form to finish populating (server-side updatingResults=true
+  // clobbers fields mid-init on slower runners). Detect stability: the field's
+  // input.value must remain unchanged for ~800ms.
+  const input = fld.locator('input').first();
+  let lastVal = '';
+  for (let i = 0; i < 8; i++) {
+    const v = await input.inputValue().catch(() => '');
+    if (i > 0 && v === lastVal) break;
+    lastVal = v;
+    await announcer.waitForTimeout(200);
+  }
+
+  // Fill with retry — if Vaadin re-renders post-fill, the value can revert.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await input.click();
+    await input.fill('');
+    await input.pressSequentially('150', { delay: 40 });
+    await input.press('Tab');
+    await announcer.waitForTimeout(600);
+    const v = await input.inputValue().catch(() => '');
+    if (v === '150') break;
+  }
+
+  await announcer.getByRole('button', { name: /^Opdatér$/ }).first().click({ timeout: 5000 }).catch(() => {});
+  await announcer.waitForTimeout(1500);
+  return true;
+}
+
 export async function triggerRecordAttempt(announcer: Page) {
   // Push all Gruppe 2 athletes' cj1 Change1 to 150 so the current athlete
-  // (Obel, K69) challenges the Danish Senior CJ record of 120 kg.
+  // (Obel, K69) challenges the Danish Senior CJ record of 120 kg. Athletes
+  // who already have recorded actuals that conflict will be rejected by
+  // server-side validation — that's expected; we only need the current
+  // athlete's declared to land for the record banner to appear.
   const lastNames = await announcer.evaluate(`(() => {
     const cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));
     const texts = cells.map(el => (el.textContent || '').trim());
@@ -92,26 +135,11 @@ export async function triggerRecordAttempt(announcer: Page) {
 
   for (const last of lastNames) {
     try {
-      await announcer.locator('vaadin-grid-cell-content').filter({ hasText: new RegExp(`^${last}$`) }).first().click({ timeout: 5000 });
-      await announcer.waitForTimeout(1000);
-      const fld = announcer.locator('vaadin-text-field#\\33_4').first();
-      if (await fld.count() === 0) {
-        await announcer.getByRole('button', { name: /^Annuller$/ }).first().click({ timeout: 3000 }).catch(() => {});
-        continue;
-      }
-      await fld.click();
-      const input = fld.locator('input').first();
-      await input.fill('150');
-      // Force Vaadin to flush the change to the server before submit. Without
-      // this, CI's slower runtime lets Opdatér fire before the model updates
-      // and the backend rejects the lift as mismatched (e.g. keeps old value).
-      await input.press('Tab');
-      await announcer.waitForTimeout(800);
-      await announcer.getByRole('button', { name: /^Opdatér$/ }).first().click({ timeout: 5000 });
-      await announcer.waitForTimeout(2000);
+      await editAthleteRecordDeclared(announcer, last);
     } catch {
       await announcer.keyboard.press('Escape').catch(() => {});
     }
+    await closeOverlays(announcer);
   }
   await announcer.waitForTimeout(3000);
   await closeOverlays(announcer);
