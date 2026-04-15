@@ -76,33 +76,21 @@ export async function startCompetition(announcer: Page) {
   }
 }
 
-export async function triggerRecordAttempt(announcer: Page) {
-  // Only the CURRENT athlete's declaration drives the record-attempt banner.
-  // Editing every athlete's change1 (old bulk approach) landed Obel's 150 on
-  // CI but didn't flip the record flag — likely because the churn reshuffled
-  // the lifting order and the server missed the state transition that fires
-  // the record event. Mirror probe-start-record.ts instead: open the first
-  // row (current athlete after Begynd = Obel, K69) and set field 2_4 (CJ1
-  // declaration) to 150, which challenges the Danish Senior CJ record (120).
-  const currentLast = await announcer.evaluate(`(() => {
-    const cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));
-    const texts = cells.map(el => (el.textContent || '').trim());
-    // First data row: header spans 8 cells, so row 0 name is at index 8+1=9.
-    return texts[9] || null;
-  })()`) as string | null;
-  if (!currentLast) return;
+async function editAthleteRecordDeclared(announcer: Page, last: string): Promise<boolean> {
+  // Open the athlete card.
+  await announcer.locator('vaadin-grid-cell-content').filter({ hasText: new RegExp(`^${last}$`) }).first().click({ timeout: 5000 });
 
-  await announcer.locator('vaadin-grid-cell-content').filter({ hasText: new RegExp(`^${currentLast}$`) }).first().click({ timeout: 5000 });
-
-  const fld = announcer.locator('vaadin-text-field#\\32_4').first();
+  const fld = announcer.locator('vaadin-text-field#\\33_4').first();
   try {
     await fld.waitFor({ state: 'visible', timeout: 5000 });
   } catch {
     await announcer.getByRole('button', { name: /^Annuller$/ }).first().click({ timeout: 3000 }).catch(() => {});
-    return;
+    return false;
   }
 
-  // Wait for form stability — server re-renders can clobber mid-init fills.
+  // Wait for the form to finish populating (server-side updatingResults=true
+  // clobbers fields mid-init on slower runners). Detect stability: the field's
+  // input.value must remain unchanged for ~800ms.
   const input = fld.locator('input').first();
   let lastVal = '';
   for (let i = 0; i < 8; i++) {
@@ -112,6 +100,7 @@ export async function triggerRecordAttempt(announcer: Page) {
     await announcer.waitForTimeout(200);
   }
 
+  // Fill with retry — if Vaadin re-renders post-fill, the value can revert.
   for (let attempt = 0; attempt < 3; attempt++) {
     await input.click();
     await input.fill('');
@@ -123,7 +112,38 @@ export async function triggerRecordAttempt(announcer: Page) {
   }
 
   await announcer.getByRole('button', { name: /^Opdatér$/ }).first().click({ timeout: 5000 }).catch(() => {});
-  await announcer.waitForTimeout(6000);
+  await announcer.waitForTimeout(1500);
+  return true;
+}
+
+export async function triggerRecordAttempt(announcer: Page) {
+  // Push all Gruppe 2 athletes' cj1 Change1 to 150 so the current athlete
+  // (Obel, K69) challenges the Danish Senior CJ record of 120 kg. Athletes
+  // who already have recorded actuals that conflict will be rejected by
+  // server-side validation — that's expected; we only need the current
+  // athlete's declared to land for the record banner to appear.
+  const lastNames = await announcer.evaluate(`(() => {
+    const cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));
+    const texts = cells.map(el => (el.textContent || '').trim());
+    const names = [];
+    for (let row = 0; row < (texts.length - 8) / 8; row++) {
+      const name = texts[8 + row * 8 + 1];
+      if (name) names.push(name);
+    }
+    return names;
+  })()`) as string[];
+
+  for (const last of lastNames) {
+    try {
+      await editAthleteRecordDeclared(announcer, last);
+    } catch {
+      await announcer.keyboard.press('Escape').catch(() => {});
+    }
+    await closeOverlays(announcer);
+  }
+  // CI is slower than local — give the server time to recompute the lifting
+  // order and fire the record-attempt event that drives the display banner.
+  await announcer.waitForTimeout(8000);
   await closeOverlays(announcer);
 }
 
