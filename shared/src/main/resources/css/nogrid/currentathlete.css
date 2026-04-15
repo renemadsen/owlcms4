@@ -491,8 +491,10 @@ thead {
 
 .competitionName {
     font-size: 4em;
+    color: #FFD200;
 }
 
 .nextGroup {
     font-size: 2em;
+    color: #FFD200;
 }

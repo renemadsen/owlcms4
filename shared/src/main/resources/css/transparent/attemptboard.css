@@ -393,10 +393,23 @@
     text-align: center;
 }
 
+.waiting {
+    background: transparent;
+    color: #FFD200;
+    display: flex;
+    flex-grow: 1;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-weight: 600;
+}
+
 .competitionName {
     font-size: 8vh;
+    color: #FFD200;
 }
 
 .nextGroup {
     font-size: 4vh;
+    color: #FFD200;
 }
