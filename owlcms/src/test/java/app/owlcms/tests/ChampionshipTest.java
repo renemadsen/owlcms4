@@ -115,6 +115,10 @@ public class ChampionshipTest {
         memoryJdbcUrl = createMemoryJdbcUrl();
         System.setProperty("JDBC_DATABASE_URL", memoryJdbcUrl);
         loadFixtureIntoMemoryDatabase();
+        // Force a fresh factory — when run inside AllTests, a prior test may have
+        // left JPAService initialized against the default in-memory URL, making
+        // init(..) a no-op and leaving JPA pointed at the stale (empty) DB.
+        JPAService.close();
         JPAService.init(true, false);
         Config.initConfig();
         Competition.setCurrent(null);
