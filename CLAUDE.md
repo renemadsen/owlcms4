@@ -112,3 +112,25 @@ git push origin dvf-stable
 - **Sponsor:** "Powered by ELEIKO" badge in header bars (right side, opposite DVF logo)
 - **Lower-third:** green screen `#00ff00` background, gradient bar `linear-gradient(to right, #00004B 70%, transparent)`
 - **Don't** use `margin-left: auto` on multiple flex children in the same row (causes gaps)
+
+## Visual regression
+
+Golden-image tests for the 11 DVF-customized displays across 5 states (wait / active / record / paused / resumed). Baselines live in `visual-regression/tests/__screenshots__/`. Everything runs inside the pinned image `ghcr.io/renemadsen/owlcms4-visual-regression:latest` so rendering is byte-identical to CI.
+
+### Run locally
+
+```bash
+./scripts/visual-test.sh          # fail on any diff
+./scripts/visual-test.sh update   # regenerate baselines (inspect diffs first!)
+./scripts/visual-test.sh report   # open HTML report from last run
+```
+
+The wrapper builds `owlcms.jar` if missing, then runs Playwright inside Docker.
+
+### Golden database
+
+The test suite launches owlcms against `visual-regression/fixtures/golden-state.mv.db` (H2 DB pre-seeded with Gruppe 2 athletes and records). `OwlcmsDriver` copies it to `owlcms/target/owlcms/database/owlcms-h2v2.mv.db` on startup. To refresh it: run owlcms manually, curate the state in the admin UI, then copy the resulting `owlcms-h2v2.mv.db` back into `visual-regression/fixtures/golden-state.mv.db` and commit.
+
+### CI
+
+`.github/workflows/visual-regression.yml` gates any PR that touches `owlcms/**`, `shared/src/main/resources/css/**`, or `visual-regression/**`. Failures upload the Playwright HTML report and traces as artifacts. When a merge from upstream legitimately changes renderings, regenerate baselines with `./scripts/visual-test.sh update` and visually inspect the PNG diffs in the PR before approving.

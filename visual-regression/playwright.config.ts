@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Keep baselines in tests/__screenshots__/<name>.png regardless of spec file.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
   fullyParallel: false, // tests share one owlcms instance
   workers: 1,
   retries: 0,

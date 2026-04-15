@@ -1,0 +1,55 @@
+name: Visual Regression
+
+on:
+  pull_request:
+    paths:
+      - 'owlcms/**'
+      - 'shared/src/main/resources/css/**'
+      - 'visual-regression/**'
+  push:
+    branches:
+      - dvf-stable
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/renemadsen/owlcms4-visual-regression:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build owlcms.jar
+        run: mvn -pl owlcms -am package -P production -Dmaven.test.skip=true -q
+
+      - name: Install Node deps
+        working-directory: visual-regression
+        run: npm ci
+
+      - name: Run visual regression
+        working-directory: visual-regression
+        run: npx playwright test
+
+      - name: Upload HTML report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-report
+          path: visual-regression/playwright-report/
+          retention-days: 14
+
+      - name: Upload test-results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-traces
+          path: visual-regression/test-results/
+          retention-days: 14

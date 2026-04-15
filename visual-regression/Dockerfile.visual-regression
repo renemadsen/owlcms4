@@ -1,8 +1,13 @@
 FROM mcr.microsoft.com/playwright:v1.50.0-noble
 
+# JRE 17 for running owlcms.jar, Maven for building it inside the image.
+# Installing at image-build time (not CI-run time) keeps the toolchain
+# deterministic per image tag.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
+ && apt-get install -y --no-install-recommends \
+      openjdk-17-jdk-headless \
+      maven \
  && rm -rf /var/lib/apt/lists/*
 
-# Sanity check: Java and Node versions baked in
-RUN java -version && node --version && npx --version
+# Sanity check: Java, Maven, Node versions baked in
+RUN java -version && mvn -v && node --version && npx --version

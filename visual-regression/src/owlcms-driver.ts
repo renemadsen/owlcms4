@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { rmSync, existsSync, mkdirSync } from 'fs';
+import { rmSync, existsSync, mkdirSync, copyFileSync } from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 
@@ -8,6 +8,13 @@ export interface OwlcmsDriverOptions {
   repoRoot: string;
   /** How long to wait for :8080 to respond, in ms. */
   startupTimeoutMs?: number;
+  /**
+   * Optional absolute path to a pre-seeded H2 database file. When provided,
+   * the driver wipes the existing database dir and copies this file in as
+   * `owlcms-h2v2.mv.db` before launch. Tests depend on the golden DB
+   * (records loaded, Gruppe 2 populated, etc.).
+   */
+  goldenFixturePath?: string;
 }
 
 export class OwlcmsDriver {
@@ -15,11 +22,13 @@ export class OwlcmsDriver {
   private readonly repoRoot: string;
   private readonly startupTimeoutMs: number;
   private readonly workDir: string;
+  private readonly goldenFixturePath?: string;
 
   constructor(opts: OwlcmsDriverOptions) {
     this.repoRoot = opts.repoRoot;
     this.startupTimeoutMs = opts.startupTimeoutMs ?? 60_000;
     this.workDir = path.join(this.repoRoot, 'owlcms', 'target', 'owlcms');
+    this.goldenFixturePath = opts.goldenFixturePath;
   }
 
   async start(): Promise<void> {
@@ -40,6 +49,15 @@ export class OwlcmsDriver {
       rmSync(dbDir, { recursive: true, force: true });
     }
     mkdirSync(dbDir, { recursive: true });
+
+    // Restore the golden fixture if one is configured.
+    if (this.goldenFixturePath) {
+      if (!existsSync(this.goldenFixturePath)) {
+        throw new Error(`goldenFixturePath does not exist: ${this.goldenFixturePath}`);
+      }
+      copyFileSync(this.goldenFixturePath, path.join(dbDir, 'owlcms-h2v2.mv.db'));
+      console.log(`[owlcms-driver] restored golden fixture from ${this.goldenFixturePath}`);
+    }
 
     this.proc = spawn('java', ['-jar', 'owlcms.jar'], {
       cwd: this.workDir,
