@@ -43,12 +43,7 @@ test('all displays match baselines across 5 states', async () => {
   // resumed, taking ~3 minutes. Allow 10 minutes with headroom.
   test.setTimeout(10 * 60_000);
 
-  // The "record" state's REKORDFORSØG banner renders reliably locally but
-  // not in the Docker/CI environment (see git log for b0f38e668, 862b38bd8).
-  // Skip assertions for that state in CI until the root cause is found;
-  // baselines are still captured locally via capture-baselines.ts.
   await runFullFlow(display, announcer, async (d, _a, state) => {
-    if (state === 'record') return;
     for (const disp of DISPLAYS) {
       await gotoDisplay(d, disp.url);
       await expect(d).toHaveScreenshot(`${disp.name}-${state}-1080.png`);
