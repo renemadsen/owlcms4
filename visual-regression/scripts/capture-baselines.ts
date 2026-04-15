@@ -69,6 +69,59 @@ async function deselectGroup(announcer: Page) {
   await announcer.waitForTimeout(5000);
 }
 
+async function startCompetition(announcer: Page) {
+  const begynd = announcer.getByRole('button', { name: /^Begynd konkurrencen$/ }).first();
+  if (await begynd.count() > 0) {
+    await begynd.click({ timeout: 10000 }).catch(() => {});
+    await announcer.waitForTimeout(5000);
+  }
+}
+
+async function triggerRecordAttempt(announcer: Page) {
+  // Push all Gruppe 2 athletes' cj1 Change1 to 150 so the current athlete
+  // (Obel, K69) challenges the Danish Senior CJ record of 120 kg.
+  // Bumping everyone keeps the lifting order stable (start-number tiebreaker).
+  const lastNames = await announcer.evaluate(`(() => {
+    const cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));
+    const texts = cells.map(el => (el.textContent || '').trim());
+    const names = [];
+    for (let row = 0; row < (texts.length - 8) / 8; row++) {
+      const name = texts[8 + row * 8 + 1];
+      if (name) names.push(name);
+    }
+    return names;
+  })()`) as string[];
+
+  for (const last of lastNames) {
+    try {
+      await announcer.locator('vaadin-grid-cell-content').filter({ hasText: new RegExp(`^${last}$`) }).first().click({ timeout: 5000 });
+      await announcer.waitForTimeout(1000);
+      // Field id {row}_{col}: row 3 = Change 1, col 4 = clean & jerk 1
+      const fld = announcer.locator('vaadin-text-field#\\33_4').first();
+      if (await fld.count() === 0) {
+        await announcer.getByRole('button', { name: /^Annuller$/ }).first().click({ timeout: 3000 }).catch(() => {});
+        continue;
+      }
+      await fld.click();
+      await fld.locator('input').first().fill('150');
+      await announcer.waitForTimeout(200);
+      await announcer.getByRole('button', { name: /^Opdatér$/ }).first().click({ timeout: 5000 });
+      await announcer.waitForTimeout(1500);
+    } catch {
+      await announcer.keyboard.press('Escape').catch(() => {});
+    }
+  }
+  await announcer.waitForTimeout(3000);
+  // Make sure no athlete-card dialog is left open; it would block the Pause button.
+  for (let i = 0; i < 5; i++) {
+    const overlays = await announcer.locator('vaadin-dialog-overlay').count();
+    if (overlays === 0) break;
+    await announcer.getByRole('button', { name: /^Annuller$/ }).first().click({ timeout: 2000 }).catch(() => {});
+    await announcer.keyboard.press('Escape').catch(() => {});
+    await announcer.waitForTimeout(500);
+  }
+}
+
 async function togglePause(announcer: Page) {
   await announcer.getByRole('button', { name: /^(Pause|Genoptag|Resume|Start|Præsentation)$/i }).first().click({ timeout: 10000 });
   await announcer.waitForTimeout(5000);
@@ -93,11 +146,23 @@ async function main() {
   console.log('== ACTIVE (group loaded, pre-lift) ==');
   await captureAll(display, 'active');
 
+  console.log('== RECORD attempt (Begynd, bump all cj1 to 150) ==');
+  await startCompetition(announcer);
+  await triggerRecordAttempt(announcer);
+  await captureAll(display, 'record');
+
   console.log('== PAUSE toggled ==');
   await togglePause(announcer);
   await captureAll(display, 'paused');
 
   console.log('== PAUSE released (reselect group) ==');
+  // Pause may have opened a break-type selection dialog; dismiss any overlays first.
+  for (let i = 0; i < 5; i++) {
+    const overlays = await announcer.locator('vaadin-dialog-overlay').count();
+    if (overlays === 0) break;
+    await announcer.keyboard.press('Escape').catch(() => {});
+    await announcer.waitForTimeout(500);
+  }
   await deselectGroup(announcer);
   await selectGruppe2(announcer);
   await captureAll(display, 'resumed');
