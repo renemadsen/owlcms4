@@ -141,7 +141,9 @@ export async function triggerRecordAttempt(announcer: Page) {
     }
     await closeOverlays(announcer);
   }
-  await announcer.waitForTimeout(3000);
+  // CI is slower than local — give the server time to recompute the lifting
+  // order and fire the record-attempt event that drives the display banner.
+  await announcer.waitForTimeout(8000);
   await closeOverlays(announcer);
 }
 
