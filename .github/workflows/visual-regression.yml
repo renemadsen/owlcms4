@@ -6,37 +6,72 @@ on:
       - 'owlcms/**'
       - 'shared/src/main/resources/css/**'
       - 'visual-regression/**'
+      - 'scripts/visual-test.sh'
+      - '.github/workflows/visual-regression.yml'
   push:
     branches:
       - dvf-stable
+    paths:
+      - 'owlcms/**'
+      - 'shared/src/main/resources/css/**'
+      - 'visual-regression/**'
+      - 'scripts/visual-test.sh'
+      - '.github/workflows/visual-regression.yml'
+
+env:
+  IMAGE: dvfdocker/owlcms4-visual-regression
+  IMAGE_TAG: latest
 
 jobs:
-  visual:
+  build-image:
+    name: Build runner image
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/renemadsen/owlcms4-visual-regression:latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Maven cache
-        uses: actions/cache@v4
+      - name: Build Docker image
+        run: docker build -f visual-regression/Dockerfile.visual-regression -t ${IMAGE}:${IMAGE_TAG} visual-regression
+
+      - name: Save image to tar
+        run: docker save ${IMAGE}:${IMAGE_TAG} -o visual-regression-runner.tar
+
+      - uses: actions/upload-artifact@v4
         with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
+          name: visual-regression-runner
+          path: visual-regression-runner.tar
+          retention-days: 1
+
+  test:
+    name: Run visual regression
+    runs-on: ubuntu-latest
+    needs: build-image
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-regression-runner
+
+      - name: Load image
+        run: docker load -i visual-regression-runner.tar
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
 
       - name: Build owlcms.jar
         run: mvn -pl owlcms -am package -P production -Dmaven.test.skip=true -q
 
-      - name: Install Node deps
-        working-directory: visual-regression
-        run: npm ci
-
-      - name: Run visual regression
-        working-directory: visual-regression
-        run: npx playwright test
+      - name: Run visual regression in container
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${PWD}:/work" \
+            -w /work/visual-regression \
+            ${IMAGE}:${IMAGE_TAG} \
+            bash -c "npm ci && npx playwright test"
 
       - name: Upload HTML report on failure
         if: failure()
@@ -46,10 +81,31 @@ jobs:
           path: visual-regression/playwright-report/
           retention-days: 14
 
-      - name: Upload test-results on failure
+      - name: Upload traces on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: visual-regression-traces
           path: visual-regression/test-results/
           retention-days: 14
+
+  deploy:
+    name: Push runner image to Docker Hub
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dvf-stable'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-regression-runner
+
+      - run: docker load -i visual-regression-runner.tar
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image
+        run: docker push ${IMAGE}:${IMAGE_TAG}

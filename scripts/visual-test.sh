@@ -7,7 +7,7 @@
 #   ./scripts/visual-test.sh report       # open HTML report from last run
 set -euo pipefail
 
-IMAGE="${VISUAL_REGRESSION_IMAGE:-ghcr.io/renemadsen/owlcms4-visual-regression:latest}"
+IMAGE="${VISUAL_REGRESSION_IMAGE:-dvfdocker/owlcms4-visual-regression:latest}"
 MODE="${1:-run}"
 
 cd "$(dirname "$0")/.."
