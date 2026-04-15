@@ -1359,6 +1359,12 @@ public class FieldOfPlay implements IUnregister {
 
 		List<RecordEvent> eligibleRecords = this.eligibleRecordsByAthlete.get(curAthlete);
 		List<RecordEvent> displayableRecords = this.displayableRecordsByAthlete.get(curAthlete);
+		if (eligibleRecords == null) {
+			eligibleRecords = List.of();
+		}
+		if (displayableRecords == null) {
+			displayableRecords = List.of();
+		}
 		boolean showAllFederationRecords = computeShowInformationalRecords(eligibleRecords, displayableRecords);
 		boolean showAllCategoryRecords = computeShowAllGroupRecords();
 		List<RecordEvent> challengedRecords = RecordFilter.computeChallengedRecords(
@@ -1389,6 +1395,7 @@ public class FieldOfPlay implements IUnregister {
 			        totalRequest, curAthlete);
 		} catch (Exception e) {
 			// defensive, an error in records processing must not stop competition flow.
+			this.logger.error("record computation failed for athlete {}: {}", curAthlete, e.toString(), e);
 			recordsJson = null;
 		}
 		if (recordsJson == null) {

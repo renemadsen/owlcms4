@@ -256,6 +256,16 @@ public class RecordDefinitionReader {
 			logger.error("cannot find records {}", LoggerUtils.stackTrace(e1));
 		}
 
+		// Ensure RecordConfig.recordOrder is populated after loading xlsx files.
+		// Without this, RecordFilter.buildRecordJson returns null at line 54
+		// and no record attempts are ever spotlit on displays.
+		try {
+			RecordConfig current = RecordConfig.getCurrent();
+			current.addMissing(RecordRepository.findAllRecordNames());
+			logger.info("RecordConfig.recordOrder populated: {}", current.getRecordOrder());
+		} catch (Exception e) {
+			logger.error("failed to populate RecordConfig.recordOrder: {}", e.toString(), e);
+		}
 	}
 
 	public void readFolder(Path recordsPath) throws IOException {
