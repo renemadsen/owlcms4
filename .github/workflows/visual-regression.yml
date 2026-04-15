@@ -17,6 +17,14 @@ on:
       - 'visual-regression/**'
       - 'scripts/visual-test.sh'
       - '.github/workflows/visual-regression.yml'
+  workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: 'Run in --update-snapshots mode and upload __screenshots__ as artifact'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 env:
   IMAGE: dvfdocker/owlcms4-visual-regression
@@ -45,6 +53,7 @@ jobs:
     name: Run visual regression
     runs-on: ubuntu-latest
     needs: build-image
+    if: github.event_name != 'workflow_dispatch' || inputs.update_baselines != 'true'
     steps:
       - uses: actions/checkout@v4
 
@@ -87,6 +96,46 @@ jobs:
         with:
           name: visual-regression-traces
           path: visual-regression/test-results/
+          retention-days: 14
+
+  update-baselines:
+    name: Regenerate baselines on CI runner
+    runs-on: ubuntu-latest
+    needs: build-image
+    if: github.event_name == 'workflow_dispatch' && inputs.update_baselines == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: visual-regression-runner
+
+      - name: Load image
+        run: docker load -i visual-regression-runner.tar
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build owlcms.jar
+        run: mvn -pl owlcms -am package -P production -Dmaven.test.skip=true -q
+
+      - name: Run visual regression with --update-snapshots
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${PWD}:/work" \
+            -w /work/visual-regression \
+            ${IMAGE}:${IMAGE_TAG} \
+            bash -c "npm ci && npx playwright test --update-snapshots"
+
+      - name: Upload regenerated baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-baselines
+          path: visual-regression/tests/__screenshots__/
           retention-days: 14
 
   deploy:
