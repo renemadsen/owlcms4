@@ -100,10 +100,15 @@ export async function triggerRecordAttempt(announcer: Page) {
         continue;
       }
       await fld.click();
-      await fld.locator('input').first().fill('150');
-      await announcer.waitForTimeout(200);
+      const input = fld.locator('input').first();
+      await input.fill('150');
+      // Force Vaadin to flush the change to the server before submit. Without
+      // this, CI's slower runtime lets Opdatér fire before the model updates
+      // and the backend rejects the lift as mismatched (e.g. keeps old value).
+      await input.press('Tab');
+      await announcer.waitForTimeout(800);
       await announcer.getByRole('button', { name: /^Opdatér$/ }).first().click({ timeout: 5000 });
-      await announcer.waitForTimeout(1500);
+      await announcer.waitForTimeout(2000);
     } catch {
       await announcer.keyboard.press('Escape').catch(() => {});
     }
