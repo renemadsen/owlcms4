@@ -514,7 +514,11 @@ public class Athlete {
 	}
 
 	protected boolean fixNamesP() {
-		return !Config.getCurrent().featureSwitch("dontFixNames");
+		try {
+			return !Config.getCurrent().featureSwitch("dontFixNames");
+		} catch (Exception e) {
+			return false;
+		}
 	}
 
 	public void addEligibleCategory(Category category) {
