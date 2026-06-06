@@ -62,7 +62,6 @@ import app.owlcms.data.competition.Competition;
 import app.owlcms.data.config.Config;
 import app.owlcms.data.group.DisplayGroup;
 import app.owlcms.data.group.Group;
-import app.owlcms.data.jpa.JPAService;
 import app.owlcms.data.jpa.LocalDateAttributeConverter;
 import app.owlcms.data.scoring.AgeFactors;
 import app.owlcms.data.scoring.GAMX2;
@@ -515,10 +514,11 @@ public class Athlete {
 	}
 
 	protected boolean fixNamesP() {
-		if (JPAService.getFactory() == null) {
+		try {
+			return !Config.getCurrent().featureSwitch("dontFixNames");
+		} catch (Exception e) {
 			return false;
 		}
-		return !Config.getCurrent().featureSwitch("dontFixNames");
 	}
 
 	public void addEligibleCategory(Category category) {
