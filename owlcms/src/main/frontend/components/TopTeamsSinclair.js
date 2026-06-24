@@ -107,7 +107,7 @@ class TopTeamsSinclair extends LitElement {
   }
 
   activeClasses() {
-    return "wrapper ";
+    return "wrapper " + (this.video ? "video" : "");
   }
 
 }

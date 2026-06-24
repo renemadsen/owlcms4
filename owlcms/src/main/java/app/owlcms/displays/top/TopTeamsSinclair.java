@@ -127,10 +127,6 @@ public class TopTeamsSinclair extends AbstractTop {
 	}
 
 	@Override
-	public void setVideo(boolean video) {
-	}
-
-	@Override
 	@Subscribe
 	public void slaveGroupDone(UIEvent.GroupDone e) {
 		uiLog(e);
