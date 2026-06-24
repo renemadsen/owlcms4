@@ -56,6 +56,7 @@ import app.owlcms.nui.displays.scoreboards.WarmupMultiRanksPage;
 import app.owlcms.nui.displays.scoreboards.WarmupNoLeadersPage;
 import app.owlcms.nui.displays.scoreboards.WarmupRankingOrderPage;
 import app.owlcms.nui.displays.scoreboards.WarmupScoreboardPage;
+import app.owlcms.nui.displays.top.TopTeamsSinclairPage;
 import app.owlcms.nui.home.HomeNavigationContent;
 import app.owlcms.nui.shared.BaseNavigationContent;
 import app.owlcms.nui.shared.NavigationPage;
@@ -185,12 +186,14 @@ public class VideoNavigationContent extends BaseNavigationContent
 		        Translator.translate("ScoreboardMultiRanksButton"), "video=true&currentAttempt=false");
 		Button scoreboardRankings = openInNewTabWithFopQueryParameters(WarmupRankingOrderPage.class,
 		        Translator.translate("Scoreboard.RankingOrderButton"), "video=true&currentAttempt=false");
+		Button topTeamsSinclair = openInNewTabWithFopQueryParameters(TopTeamsSinclairPage.class,
+		        Translator.translate("Scoreboard.TopTeamsScore", Translator.translate("Sinclair")), "video=true");
 
 		VerticalLayout intro1 = new VerticalLayout();
 		// addP(intro1, Translator.translate("darkModeSelect"));
 		FlexibleGridLayout grid1 = HomeNavigationContent.navigationGrid(scoreboard, scoreboardWLeaders,
 		        scoreboardRankings,
-		        scoreboardMultiRanks);
+		        scoreboardMultiRanks, topTeamsSinclair);
 		doGroup(Translator.translate("Scoreboards"), intro1, grid1, this);
 	}
 
