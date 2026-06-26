@@ -182,6 +182,11 @@ public class DecisionElement extends LitTemplate
 		UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this.getOrigin(), () -> {
 			getElement().setProperty("singleRef", this.isSingleRef());
 			getElement().callJsFunction("reset", false);
+			// re-enable keypad input: showing a decision disables the keystroke master
+			// (slaveShowDecision -> setEnabled(false)); clearing the display must make the
+			// board ready to accept the next decision again, otherwise keys 1-6 stay dead
+			// until the next StartTime/StopTime/BreakStarted.
+			this.getElement().callJsFunction("setEnabled", true);
 		});
 	}
 
@@ -211,6 +216,8 @@ public class DecisionElement extends LitTemplate
 		UIEventProcessor.uiAccessIgnoreIfSelfOrigin(this, this.uiEventBus, e, this.getOrigin(), () -> {
 			getElement().setProperty("singleRef", this.isSingleRef());
 			getElement().callJsFunction("reset", false);
+			// re-enable keypad input on a new clock reset (see slaveDecisionReset).
+			this.getElement().callJsFunction("setEnabled", true);
 		});
 	}
 
